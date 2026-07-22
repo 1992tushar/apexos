@@ -3,7 +3,44 @@
 > Working log so any session can pick up where the last one stopped.
 > This project is **not** under git (kept local for now), so this file is the source of truth for status.
 
-_Last updated: 2026-07-20_
+_Last updated: 2026-07-22_
+
+## Phase A (Buy side) — CODE REVIEWED, awaiting E2E verification (2026-07-22)
+
+Reviewed the pre-existing, never-run buy-side code against the Phase A spec
+(`docs/BUILD-PHASES.md`) and the architectural rules. **Verdict: complete and
+correct as written; no code changes were needed.** It faithfully mirrors the
+verified Sales spine. Detailed checks performed (all pass):
+
+- **Backend modules** `suppliers`, `procurement`, `pricing` (buy), `finance` (bills)
+  each have model/repository/service/router/schemas mirroring Sales. Buy loop:
+  `PurchaseOrderService.create/confirm/bill` + `GoodsReceiptService.receive`
+  (posts IN movement via the single `InventoryService.record_movement`; partial
+  receipts accrue `qty_received`). `BillService.add_payment` writes a
+  `direction="out"` payment allocated to the bill. One `activity_log` row per
+  state change, in-transaction.
+- **Migration** `0002_procurement_buy_side` chains `down_revision="0001_initial"`,
+  creates the 9 buy-side tables via `metadata.create_all(checkfirst=True)`, and
+  conditionally adds `payment.supplier_id` + `payment_allocation.bill_id`. Correct
+  for both a fresh DB (0001 already creates the full metadata) and the existing
+  33-table Phase-1 DB (0002 backfills). Idempotent.
+- **Router wiring** (`app/api.py`) and **metadata registration** (`db/metadata.py`)
+  include suppliers + procurement.
+- **Seed** (`app/seed.py`) adds 3 demo suppliers, supplier-specific purchase
+  prices for the paper SKUs, and a full completed buy loop (PO → confirm → receive
+  → bill) with a half-payment to the supplier.
+- **Web DTO contract** (`apps/web/src/lib/dto.ts`) matches the FastAPI
+  `response_model` shapes field-for-field — incl. the envelope split: `/suppliers`
+  and `/purchase-orders` return `{items,...}` (paginated) while `/bills`,
+  `/invoices`, `/goods-receipts` return plain arrays; the pages consume each
+  correctly. Feature dialogs/forms mirror verified spine components.
+- **Nav** flips Suppliers / Purchase Orders / Procurement to `active:true`.
+
+Still **UNVERIFIED** because this machine has no runtime — the test machine must
+run migrate + seed, curl the new endpoints (incl. PO confirm→receive→bill and a
+supplier payment), and confirm `npm run build` passes. See the test prompt handed
+off with this session.
+
 
 ## Where the build came from
 
