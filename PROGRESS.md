@@ -41,6 +41,49 @@ run migrate + seed, curl the new endpoints (incl. PO confirm→receive→bill an
 supplier payment), and confirm `npm run build` passes. See the test prompt handed
 off with this session.
 
+## Phase B (Operations & Config) — CODE WRITTEN, awaiting E2E (2026-07-22)
+
+Migration **0003_operations_and_config** (down_revision 0002) creates `task` +
+`document`; everything else reuses Phase-1 tables. Built:
+
+- **Warehouse/Inventory widen** — `StockTransferService.transfer` (two ledger
+  movements), `StockAdjustmentService.adjust` + `.count` (cycle count), all via
+  the single `InventoryService.record_movement`; `GET /inventory/warehouse-stock`,
+  `POST /inventory/transfers|adjustments|counts`.
+- **Full Settings CRUD** in config — create/update for the code/name masters,
+  warehouses, `CategoryService` (create/update/reparent, cycle-safe),
+  `UomConversionService.upsert`, `TaxRateService.set_slab` (versioned),
+  `SettingService.set`. All GET+POST/PATCH under the config router.
+- **Tasks** module (create/complete/update, polymorphic link) and **Documents**
+  module (`DocumentService.upload` → R2 when `R2_*` set, else local-disk fallback
+  under gitignored `var/`; multipart upload + list + download). Added
+  `python-multipart` dep.
+- Frontend: `/warehouse`, `/categories`, `/settings`, `/tasks`, `/documents` with
+  dialogs; DTOs added in parity; nav flipped for those five.
+
+## Phase C (Intelligence & Growth) — CODE WRITTEN, awaiting E2E (2026-07-22)
+
+Migration **0004_intelligence_and_growth** (down_revision 0003) creates
+`pipeline_stage`, `lead`, `opportunity`, `competitor`, `notification`. Built:
+
+- **CRM** module — leads (create/convert→customer), opportunities
+  (create/advance through data-driven stages), competitors; pipeline stages seeded.
+- **Notifications** module — push (emits `notification.sent`), list w/ unread
+  count, mark read / read-all; a bell + slide-over inbox in the app shell.
+- **Reports** (read-only, no entities) — `ReportService.run` with CSV/JSON over
+  sales register, purchase register, stock ledger, AR/AP aging, GST summary.
+- **Analytics** (read-only) — `AnalyticsService.board`: revenue/purchases, gross
+  profit + margin, receivables/payables, DSO, fill rate, 6-month trends, top
+  customers/suppliers/products; `/analytics` KPI board with a Recharts trend chart.
+- **QuickBooks bridge** — `QuickBooksSyncService` behind `FLAG_QUICKBOOKS`,
+  no-ops cleanly when off; manual sync endpoints. No core flow depends on it.
+- Frontend: `/reports`, `/analytics`, `/leads` (pipeline board), notification
+  inbox; DTOs in parity; nav flipped for Reports, Analytics, and a new Leads item.
+
+**All of B and C are UNVERIFIED (no runtime here).** The test machine must run
+`alembic upgrade head` (applies 0003 then 0004), `python -m app.seed`, curl the new
+endpoints, and confirm `npm run build` passes. See the handoff test prompt.
+
 
 ## Where the build came from
 

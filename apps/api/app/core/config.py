@@ -31,6 +31,10 @@ class Settings(BaseSettings):
     r2_secret_access_key: str = ""
     r2_bucket: str = ""
 
+    # QuickBooks Online bridge (Phase C). Off by default; the bridge no-ops cleanly
+    # when disabled and no core flow depends on it.
+    flag_quickbooks: bool = False
+
     @property
     def documents_backend(self) -> str:
         """'r2' when all Cloudflare R2 creds are configured, else 'local'."""

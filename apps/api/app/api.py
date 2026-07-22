@@ -31,6 +31,11 @@ MODULE_ROUTERS: list[str] = [
     "app.modules.activity.router",
     "app.modules.tasks.router",
     "app.modules.documents.router",
+    "app.modules.crm.router",
+    "app.modules.notifications.router",
+    "app.modules.reports.router",
+    "app.modules.analytics.router",
+    "app.modules.integrations.router",
 ]
 
 

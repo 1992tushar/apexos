@@ -24,6 +24,8 @@ MODEL_MODULES: list[str] = [
     "app.modules.activity.models",
     "app.modules.tasks.models",
     "app.modules.documents.models",
+    "app.modules.crm.models",
+    "app.modules.notifications.models",
 ]
 
 

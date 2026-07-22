@@ -1,6 +1,7 @@
-import { Bell, Plus, Search } from "lucide-react";
+import { Plus, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/app-shell/theme-toggle";
+import { NotificationBell } from "@/components/app-shell/notification-bell";
 
 export function Topbar() {
   return (
@@ -20,9 +21,7 @@ export function Topbar() {
         <Button variant="ghost" size="icon" aria-label="Quick create">
           <Plus className="size-4" />
         </Button>
-        <Button variant="ghost" size="icon" aria-label="Notifications">
-          <Bell className="size-4" />
-        </Button>
+        <NotificationBell />
         <ThemeToggle />
       </div>
     </header>

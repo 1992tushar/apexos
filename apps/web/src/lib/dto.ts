@@ -420,3 +420,111 @@ export type DocumentRow = {
   entity_id: string | null;
   created_at: string;
 };
+
+// --- Intelligence & growth (Phase C) ------------------------------------
+
+export type PipelineStage = {
+  id: string;
+  code: string;
+  name: string;
+  sort_order: number;
+  is_won: boolean;
+  is_lost: boolean;
+  is_active: boolean;
+};
+
+export type LeadStatus = "open" | "converted" | "lost";
+
+export type Lead = {
+  id: string;
+  company_name: string;
+  contact_name: string | null;
+  email: string | null;
+  phone: string | null;
+  city: string | null;
+  source: string | null;
+  customer_type_id: string | null;
+  status: LeadStatus;
+  converted_customer_id: string | null;
+  notes: string | null;
+  created_at: string;
+};
+
+export type OpportunityRow = {
+  id: string;
+  name: string;
+  pipeline_stage_id: string;
+  stage_name: string | null;
+  estimated_value_minor: number;
+  status: string;
+  expected_close_date: string | null;
+  customer_id: string | null;
+  lead_id: string | null;
+};
+
+export type Competitor = {
+  id: string;
+  name: string;
+  strength: string | null;
+  notes: string | null;
+  created_at: string;
+};
+
+export type Notification = {
+  id: string;
+  title: string;
+  body: string | null;
+  level: string;
+  is_read: boolean;
+  read_at: string | null;
+  entity_type: string | null;
+  entity_id: string | null;
+  created_at: string;
+};
+
+export type NotificationList = {
+  items: Notification[];
+  unread: number;
+};
+
+/** Report catalog entry (GET /reports). */
+export type ReportInfo = {
+  key: string;
+  title: string;
+};
+
+/** Report run result (GET /reports/{key}). */
+export type ReportResult = {
+  key: string;
+  title: string;
+  columns: string[];
+  rows: Record<string, string | number>[];
+  money_columns: string[];
+};
+
+export type TrendPoint = {
+  period: string;
+  amount_minor: number;
+};
+
+export type RankRow = {
+  id: string | null;
+  name: string;
+  value_minor: number;
+};
+
+export type KpiBoard = {
+  revenue_minor: number;
+  purchases_minor: number;
+  gross_profit_minor: number;
+  margin_bps: number;
+  receivables_minor: number;
+  payables_minor: number;
+  dso_days: number;
+  fill_rate_bps: number;
+  revenue_trend: TrendPoint[];
+  purchase_trend: TrendPoint[];
+  top_customers: RankRow[];
+  top_suppliers: RankRow[];
+  top_products: RankRow[];
+};

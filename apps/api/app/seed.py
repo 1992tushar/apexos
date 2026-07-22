@@ -62,6 +62,21 @@ from app.modules.tasks.schemas import TaskCreate  # noqa: E402
 from app.modules.tasks.service import TaskService  # noqa: E402
 from app.modules.documents.models import Document  # noqa: E402
 from app.modules.documents.service import DocumentService  # noqa: E402
+from app.modules.crm.models import (  # noqa: E402
+    Competitor,
+    Lead,
+    Opportunity,
+    PipelineStage,
+)
+from app.modules.crm.schemas import (  # noqa: E402
+    CompetitorCreate,
+    LeadCreate,
+    OpportunityCreate,
+)
+from app.modules.crm.service import CrmService  # noqa: E402
+from app.modules.notifications.models import Notification  # noqa: E402
+from app.modules.notifications.schemas import NotificationCreate  # noqa: E402
+from app.modules.notifications.service import NotificationService  # noqa: E402
 
 
 def get_or_create(db: Session, model, *, defaults: dict | None = None, **filters):
@@ -454,6 +469,81 @@ def run() -> dict:
                 actor_id=actor_id,
             )
 
+        # --- Phase C: pipeline stages, leads, opportunity, competitors, notes
+        stages = {}
+        for i, (code, name, is_won, is_lost) in enumerate(
+            [
+                ("NEW", "New", False, False),
+                ("QUALIFIED", "Qualified", False, False),
+                ("PROPOSAL", "Proposal", False, False),
+                ("WON", "Won", True, False),
+                ("LOST", "Lost", False, True),
+            ]
+        ):
+            st, _ = get_or_create(
+                db, PipelineStage, code=code,
+                defaults={"name": name, "sort_order": i, "is_won": is_won,
+                          "is_lost": is_lost, "created_by": actor_id},
+            )
+            stages[code] = st
+
+        existing_leads = db.scalar(select(func.count()).select_from(Lead)) or 0
+        if existing_leads == 0:
+            crm = CrmService(db)
+            lead1 = crm.create_lead(
+                LeadCreate(
+                    company_name="Sunrise Banquets",
+                    contact_name="Rohan Mehta",
+                    city="Pune",
+                    source="Referral",
+                    customer_type_id=ctypes["HOTEL"].id,
+                ),
+                actor_id=actor_id,
+            )
+            crm.create_lead(
+                LeadCreate(
+                    company_name="Green Leaf Cafe",
+                    contact_name="Anita Rao",
+                    city="Mumbai",
+                    source="Website",
+                    customer_type_id=ctypes["CAFE"].id,
+                ),
+                actor_id=actor_id,
+            )
+            crm.create_opportunity(
+                OpportunityCreate(
+                    name="Sunrise Banquets — monthly consumables",
+                    lead_id=lead1.id,
+                    pipeline_stage_id=stages["QUALIFIED"].id,
+                    estimated_value_minor=15000000,
+                ),
+                actor_id=actor_id,
+            )
+            crm.create_competitor(
+                CompetitorCreate(name="BulkMart Distributors", strength="medium"),
+                actor_id=actor_id,
+            )
+
+        existing_notes = db.scalar(select(func.count()).select_from(Notification)) or 0
+        if existing_notes == 0:
+            notes = NotificationService(db)
+            notes.push(
+                NotificationCreate(
+                    title="Welcome to ApexOS",
+                    body="Your command center is ready.",
+                    level="info",
+                ),
+                actor_id=actor_id,
+            )
+            notes.push(
+                NotificationCreate(
+                    title="Low stock on some SKUs",
+                    body="A few products are below reorder level.",
+                    level="warning",
+                ),
+                actor_id=actor_id,
+            )
+
         db.commit()
 
         # Reload the demo order for a clean data-shape return.
@@ -508,6 +598,9 @@ def run() -> dict:
             "warehouses": db.scalar(select(func.count()).select_from(Warehouse)) or 0,
             "tasks": db.scalar(select(func.count()).select_from(Task)) or 0,
             "documents": db.scalar(select(func.count()).select_from(Document)) or 0,
+            "leads": db.scalar(select(func.count()).select_from(Lead)) or 0,
+            "opportunities": db.scalar(select(func.count()).select_from(Opportunity)) or 0,
+            "notifications": db.scalar(select(func.count()).select_from(Notification)) or 0,
             "activities": db.scalar(select(func.count()).select_from(ActivityLog)) or 0,
         }
         return summary
