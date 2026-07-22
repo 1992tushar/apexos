@@ -55,6 +55,13 @@ from app.modules.procurement.service import (  # noqa: E402
     GoodsReceiptService,
     PurchaseOrderService,
 )
+from app.modules.inventory.schemas import StockTransferCreate  # noqa: E402
+from app.modules.inventory.service import StockTransferService  # noqa: E402
+from app.modules.tasks.models import Task  # noqa: E402
+from app.modules.tasks.schemas import TaskCreate  # noqa: E402
+from app.modules.tasks.service import TaskService  # noqa: E402
+from app.modules.documents.models import Document  # noqa: E402
+from app.modules.documents.service import DocumentService  # noqa: E402
 
 
 def get_or_create(db: Session, model, *, defaults: dict | None = None, **filters):
@@ -381,6 +388,72 @@ def run() -> dict:
                 actor_id=actor_id,
             )
 
+        # --- Phase B: second warehouse + a transfer, tasks, a document -----
+        mumbai, _ = get_or_create(
+            db, Warehouse, code="MUMBAI",
+            defaults={"name": "Mumbai Central", "city": "Mumbai", "state_code": "27",
+                      "created_by": actor_id},
+        )
+
+        # One inter-warehouse transfer (Pune -> Mumbai) if none exist yet.
+        from app.modules.inventory.models import StockMovement  # noqa: E402
+
+        existing_transfers = db.scalar(
+            select(func.count()).select_from(StockMovement).where(
+                StockMovement.reason == "TRANSFER"
+            )
+        ) or 0
+        if existing_transfers == 0:
+            transfer_sku = db.scalar(select(Product).where(Product.sku_code == "APX-GB-001"))
+            if transfer_sku is not None:
+                StockTransferService(db).transfer(
+                    StockTransferCreate(
+                        product_id=transfer_sku.id,
+                        from_warehouse_id=warehouse.id,
+                        to_warehouse_id=mumbai.id,
+                        qty=Decimal("15"),
+                        note="Opening allocation to Mumbai",
+                    ),
+                    actor_id=actor_id,
+                )
+
+        # A few demo tasks (one linked to the seeded purchase order).
+        existing_tasks = db.scalar(select(func.count()).select_from(Task)) or 0
+        if existing_tasks == 0:
+            task_service = TaskService(db)
+            po_row = db.scalar(select(PurchaseOrder).order_by(PurchaseOrder.created_at.asc()))
+            task_service.create(
+                TaskCreate(title="Call PaperWings about Q3 pricing", priority="high"),
+                actor_id=actor_id,
+            )
+            task_service.create(
+                TaskCreate(title="Reconcile Mumbai opening stock", priority="normal"),
+                actor_id=actor_id,
+            )
+            if po_row is not None:
+                task_service.create(
+                    TaskCreate(
+                        title=f"Verify goods received for {po_row.po_no}",
+                        priority="normal",
+                        entity_type="purchase_order",
+                        entity_id=po_row.id,
+                    ),
+                    actor_id=actor_id,
+                )
+
+        # A sample document (local-disk fallback so it works without R2 creds).
+        existing_docs = db.scalar(select(func.count()).select_from(Document)) or 0
+        if existing_docs == 0:
+            DocumentService(db).upload(
+                filename="welcome.txt",
+                content_type="text/plain",
+                data=b"ApexOS document storage is live. Replace with real files.\n",
+                entity_type=None,
+                entity_id=None,
+                business_unit_id=bu.id,
+                actor_id=actor_id,
+            )
+
         db.commit()
 
         # Reload the demo order for a clean data-shape return.
@@ -432,6 +505,9 @@ def run() -> dict:
             "suppliers": db.scalar(select(func.count()).select_from(Supplier)) or 0,
             "purchase_orders": db.scalar(select(func.count()).select_from(PurchaseOrder)) or 0,
             "bills": db.scalar(select(func.count()).select_from(Bill)) or 0,
+            "warehouses": db.scalar(select(func.count()).select_from(Warehouse)) or 0,
+            "tasks": db.scalar(select(func.count()).select_from(Task)) or 0,
+            "documents": db.scalar(select(func.count()).select_from(Document)) or 0,
             "activities": db.scalar(select(func.count()).select_from(ActivityLog)) or 0,
         }
         return summary

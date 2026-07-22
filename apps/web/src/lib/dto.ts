@@ -318,3 +318,105 @@ export type BillDetail = {
   balance_minor: number;
   lines: BillLine[];
 };
+
+// --- Operations & config (Phase B) --------------------------------------
+
+/** Config master rows (match the FastAPI *Read models exactly). */
+export type Warehouse = {
+  id: string;
+  code: string;
+  name: string;
+  city: string | null;
+  state_code: string | null;
+  is_active: boolean;
+};
+
+export type Uom = {
+  id: string;
+  code: string;
+  name: string;
+  is_active: boolean;
+};
+
+export type Category = {
+  id: string;
+  code: string;
+  name: string;
+  business_unit_id: string;
+  parent_category_id: string | null;
+  procurement_model_id: string | null;
+  sort_order: number;
+  is_active: boolean;
+};
+
+export type TaxRate = {
+  id: string;
+  code: string;
+  name: string;
+  rate_bps: number;
+  valid_from: string | null;
+  valid_to: string | null;
+  is_active: boolean;
+};
+
+export type UomConversion = {
+  id: string;
+  from_uom_id: string;
+  to_uom_id: string;
+  factor: number;
+};
+
+export type Setting = {
+  id: string;
+  key: string;
+  value: unknown;
+  value_type: string;
+  description: string | null;
+  business_unit_id: string | null;
+};
+
+export type MasterKind = {
+  id: string;
+  code: string;
+  name: string;
+  is_active: boolean;
+};
+
+/** A product's on-hand quantity within one warehouse (GET /inventory/warehouse-stock). */
+export type WarehouseStockRow = {
+  product_id: string;
+  sku_code: string;
+  product_name: string;
+  warehouse_id: string;
+  warehouse_name: string;
+  qty_on_hand: number;
+  reorder_level: number;
+  is_low: boolean;
+};
+
+export type TaskStatus = "open" | "completed";
+
+export type Task = {
+  id: string;
+  title: string;
+  description: string | null;
+  status: TaskStatus;
+  priority: string;
+  due_date: string | null;
+  assignee_id: string | null;
+  entity_type: string | null;
+  entity_id: string | null;
+  completed_at: string | null;
+  created_at: string;
+};
+
+export type DocumentRow = {
+  id: string;
+  filename: string;
+  content_type: string;
+  size_bytes: number;
+  storage_backend: string;
+  entity_type: string | null;
+  entity_id: string | null;
+  created_at: string;
+};

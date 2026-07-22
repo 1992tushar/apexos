@@ -35,18 +35,18 @@ export const NAV_ITEMS: NavItem[] = [
   { label: "Sales", href: "/sales", icon: ShoppingCart, active: true, section: "work" },
   { label: "Customers", href: "/customers", icon: Users, active: true, section: "work" },
   { label: "Products", href: "/products", icon: Package, active: true, section: "work" },
-  { label: "Categories", href: "/categories", icon: Tags, active: false, section: "work" },
+  { label: "Categories", href: "/categories", icon: Tags, active: true, section: "work" },
   { label: "Inventory", href: "/inventory", icon: Boxes, active: true, section: "work" },
-  { label: "Warehouse", href: "/warehouse", icon: Warehouse, active: false, section: "work" },
+  { label: "Warehouse", href: "/warehouse", icon: Warehouse, active: true, section: "work" },
   { label: "Procurement", href: "/procurement", icon: Truck, active: true, section: "work" },
   { label: "Purchase Orders", href: "/purchase-orders", icon: ClipboardList, active: true, section: "work" },
   { label: "Suppliers", href: "/suppliers", icon: Factory, active: true, section: "work" },
   { label: "Finance", href: "/finance", icon: IndianRupee, active: true, section: "work" },
   { label: "Reports", href: "/reports", icon: BarChart3, active: false, section: "work" },
   { label: "Analytics", href: "/analytics", icon: LineChart, active: false, section: "work" },
-  { label: "Tasks", href: "/tasks", icon: CheckSquare, active: false, section: "system" },
-  { label: "Documents", href: "/documents", icon: Folder, active: false, section: "system" },
-  { label: "Settings", href: "/settings", icon: Settings, active: false, section: "system" },
+  { label: "Tasks", href: "/tasks", icon: CheckSquare, active: true, section: "system" },
+  { label: "Documents", href: "/documents", icon: Folder, active: true, section: "system" },
+  { label: "Settings", href: "/settings", icon: Settings, active: true, section: "system" },
 ];
 
 export const SECTION_LABELS: Record<NavItem["section"], string | null> = {

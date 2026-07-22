@@ -10,9 +10,11 @@ from app.modules.config.models import (
     Category,
     CustomerType,
     ProcurementModel,
+    Setting,
     SupplierType,
     TaxRate,
     Uom,
+    UomConversion,
     Warehouse,
 )
 
@@ -51,3 +53,9 @@ class ConfigRepository:
 
     def tax_rates(self) -> list[TaxRate]:
         return list(self.db.scalars(_live(TaxRate).order_by(TaxRate.rate_bps)))
+
+    def uom_conversions(self) -> list[UomConversion]:
+        return list(self.db.scalars(_live(UomConversion).order_by(UomConversion.created_at)))
+
+    def settings(self) -> list[Setting]:
+        return list(self.db.scalars(_live(Setting).order_by(Setting.key)))
