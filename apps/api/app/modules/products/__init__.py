@@ -1,0 +1,1 @@
+"""Products (SKU master)."""
