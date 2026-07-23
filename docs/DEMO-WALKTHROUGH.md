@@ -69,6 +69,9 @@ Two principles make this trustworthy:
 The left sidebar is grouped into **Main**, **Work**, and **System**. Here's what each screen does.
 
 ### Dashboard (the command center)
+
+![ApexOS Dashboard](screenshots/dashboard.png)
+
 The landing page. At a glance it shows:
 - **Today's sales**, **outstanding receivables** (money owed to Apex), and total
   **inventory value** on hand.
@@ -78,6 +81,13 @@ The landing page. At a glance it shows:
   (the last 10 things that happened anywhere in the system).
 
 ### Sales
+
+![Sales orders list](screenshots/sales-list.png)
+
+![Create a new sales order](screenshots/sales-new.png)
+
+![Sales order detail](screenshots/sales-detail.png)
+
 The heart of the sell side. You can:
 - See all sales orders (with customer, status, total, line count).
 - **Create a new order** — pick a customer and add product lines; prices and GST are
@@ -90,35 +100,53 @@ The heart of the sell side. You can:
     customer's payment terms.
 
 ### Customers
+
+![Customers directory](screenshots/customers.png)
+
 The customer directory (name, type/segment, city, status) with a detail page per customer.
 Each customer has a **credit policy** — credit limit and payment terms in days — which is
 what drives invoice due dates. Customer *types* (Restaurant, Hotel, Café, Hospital,
 Corporate, School, Facility Management…) are configurable data, not hardcoded.
 
 ### Leads (CRM pipeline)
+
+![Leads and CRM pipeline](screenshots/leads.png)
+
 The pre-customer sales pipeline. Track **leads** (prospective customers) and
 **opportunities** as they move through stages — **New → Qualified → Proposal → Won / Lost** —
 on a pipeline board. A won lead can be **converted into a real customer** in one step.
 Also tracks **competitors** with a strength rating.
 
 ### Products
+
+![Products catalog](screenshots/products.png)
+
 The full catalog of sellable/purchasable items (SKUs). Each product carries an SKU code
 (`AUR-TIS-001`), name, specification (e.g. "2 Ply"), unit of measure, brand, category,
 default GST rate, and reorder level. The demo ships with 17 real Apex products across
 tissue/paper and garbage-bag lines.
 
 ### Categories
+
+![Categories tree](screenshots/categories.png)
+
 The category tree (9 real Apex categories such as *Tissue & Paper Consumables*,
 *Cleaning Chemicals*, *Guest Amenities*). Categories roll up to a Business Unit and carry
 a procurement model. You can create, rename, and **re-parent** categories (safely — it
 won't let you create loops).
 
 ### Inventory
+
+![Inventory](screenshots/inventory.png)
+
 The live stock picture — on-hand quantity per product, and which items are **below their
 reorder level** and need buying. Every number here is derived from the underlying stock
 movement ledger.
 
 ### Warehouse
+
+![Warehouse operations](screenshots/warehouse.png)
+
 Multi-location stock operations across warehouses (the demo has **Pune Main** and
 **Mumbai Central**):
 - **Transfer** stock between warehouses (records one stock-out and one stock-in).
@@ -126,10 +154,18 @@ Multi-location stock operations across warehouses (the demo has **Pune Main** an
 - **Cycle count** — reconcile counted quantity against system quantity.
 
 ### Procurement
+
+![Procurement](screenshots/procurement.png)
+
 The buy-side working view — what needs to be reordered and the sourcing picture, feeding
 into purchase orders.
 
 ### Purchase Orders
+
+![Purchase orders list](screenshots/purchase-orders.png)
+
+![Purchase order detail](screenshots/purchase-order-detail.png)
+
 The mirror of Sales, for buying:
 - Create a PO to a supplier with product lines.
 - Walk it through **Draft → Confirm → Receive → Bill.**
@@ -138,12 +174,20 @@ The mirror of Sales, for buying:
   - *Bill* creates the supplier bill (a payable).
 
 ### Suppliers
+
+![Suppliers directory](screenshots/suppliers.png)
+
 The supplier directory (two types: **Manufacturer** and **Distributor**), each with a
 detail page, GSTIN, and a **vendor evaluation** scorecard so you can rate suppliers on
 quality/price/reliability. Suppliers can have their own **negotiated purchase prices** per
 product (kept as versioned history).
 
 ### Finance
+
+![Finance hub](screenshots/finance.png)
+
+![Invoice detail](screenshots/finance-invoice.png)
+
 The money hub, both directions:
 - **Invoices** (money owed *to* Apex) and **Bills** (money Apex owes).
 - Record **payments** against either; supports **partial payments** — an invoice moves to
@@ -153,6 +197,9 @@ The money hub, both directions:
   directly.
 
 ### Reports
+
+![Reports](screenshots/reports.png)
+
 Read-only operational reports you can **run and export to CSV or JSON**:
 - **Sales register**, **Purchase register**
 - **Stock ledger** (every movement)
@@ -160,6 +207,9 @@ Read-only operational reports you can **run and export to CSV or JSON**:
 - **GST summary**
 
 ### Analytics
+
+![Analytics KPI board](screenshots/analytics.png)
+
 The KPI board — the "how is the business doing?" view:
 - **Revenue** and **purchases** totals, **gross profit** and **margin %**.
 - **Receivables** and **payables**, plus **DSO** (days sales outstanding — how long money
@@ -167,16 +217,25 @@ The KPI board — the "how is the business doing?" view:
 - **6-month revenue & purchase trends** and **top customers / suppliers / products**.
 
 ### Tasks
+
+![Tasks](screenshots/tasks.png)
+
 A lightweight to-do list. Tasks have a priority and can be **linked to any record** (e.g.
 "Verify goods received for PO-202607-00001" linked to that purchase order). Mark them done
 when finished.
 
 ### Documents
+
+![Documents](screenshots/documents.png)
+
 File storage. Upload and download documents, optionally attached to any record. Files go to
 Cloudflare R2 cloud storage when configured, otherwise to local disk — so it works out of
 the box.
 
 ### Settings
+
+![Settings](screenshots/settings.png)
+
 The control panel that makes the system *Apex's own* without touching code. Manage the
 master lists and configuration: business units, brands, categories, units of measure and
 their conversions, customer/supplier types, warehouses, **GST tax slabs** (versioned), and
