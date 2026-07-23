@@ -19,12 +19,19 @@ router = APIRouter(tags=["documents"])
 def list_documents(
     entity_type: str | None = Query(default=None),
     entity_id: uuid.UUID | None = Query(default=None),
+    category: str | None = Query(default=None),
+    q: str | None = Query(default=None),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=50, ge=1, le=200),
     db: Session = Depends(get_db),
 ):
     items, total = DocumentService(db).list(
-        entity_type=entity_type, entity_id=entity_id, page=page, page_size=page_size
+        entity_type=entity_type,
+        entity_id=entity_id,
+        category=category,
+        q=q,
+        page=page,
+        page_size=page_size,
     )
     return DocumentPage(items=items, total=total, page=page, page_size=page_size)
 
@@ -34,6 +41,7 @@ async def upload_document(
     file: UploadFile = File(...),
     entity_type: str | None = Form(default=None),
     entity_id: uuid.UUID | None = Form(default=None),
+    category: str | None = Form(default=None),
     db: Session = Depends(get_db),
     actor: Actor = Depends(require_permission("document.upload")),
 ):
@@ -47,7 +55,19 @@ async def upload_document(
         entity_id=entity_id,
         business_unit_id=None,
         actor_id=actor.id,
+        category=category,
     )
+
+
+@router.delete("/documents/{document_id}", status_code=204)
+def delete_document(
+    document_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    actor: Actor = Depends(require_permission("document.delete")),
+):
+    """Soft-delete a document (metadata row); storage bytes are left in place."""
+    DocumentService(db).delete(document_id, actor_id=actor.id)
+    return Response(status_code=204)
 
 
 @router.get("/documents/{document_id}/download")

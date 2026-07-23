@@ -43,7 +43,7 @@ NAV_ITEMS: list[dict[str, str]] = [
     {"label": "Reports", "href": "/reports", "section": "work"},
     {"label": "Analytics", "href": "/analytics", "section": "work"},
     {"label": "Tasks", "href": "/tasks", "section": "system"},
-    {"label": "Documents", "href": "/documents", "section": "system"},
+    {"label": "DocKeeper", "href": "/documents", "section": "system"},
     {"label": "Settings", "href": "/settings", "section": "system"},
 ]
 SECTION_LABELS = {"main": None, "work": "Work", "system": "System"}
@@ -162,6 +162,18 @@ def humanize(value: Any) -> str:
     return str(value or "").replace("_", " ").strip().title()
 
 
+def filesize(n: int | None) -> str:
+    """Human-readable byte size, e.g. 2048 -> '2.0 KB', 0 -> '0 B'."""
+    size = float(n or 0)
+    for unit in ("B", "KB", "MB", "GB", "TB"):
+        if size < 1024 or unit == "TB":
+            if unit == "B":
+                return f"{int(size)} {unit}"
+            return f"{size:.1f} {unit}"
+        size /= 1024
+    return f"{size:.1f} TB"
+
+
 templates.env.filters.update(
     money=money,
     number=number,
@@ -170,6 +182,7 @@ templates.env.filters.update(
     time_ago=time_ago,
     status_class=status_class,
     humanize=humanize,
+    filesize=filesize,
 )
 templates.env.globals.update(
     NAV_ITEMS=NAV_ITEMS,

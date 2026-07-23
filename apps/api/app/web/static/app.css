@@ -152,6 +152,8 @@ a.row-link { color: var(--accent); font-weight: 500; }
 .btn-primary:hover { filter: brightness(1.07); background: var(--accent); }
 .btn-sm { padding: 4px 10px; font-size: 12px; }
 .btn-ghost { border-color: transparent; background: transparent; color: var(--accent); }
+.btn-danger { color: var(--bad-fg); border-color: var(--bad-bg); background: var(--bad-bg); }
+.btn-danger:hover { filter: brightness(0.97); background: var(--bad-bg); }
 
 /* --- Forms --- */
 .form-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
@@ -189,8 +191,12 @@ input:focus, select:focus, textarea:focus {
 }
 
 /* --- Misc --- */
-.row-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.row-actions { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.row-actions form { display: inline; margin: 0; }
 .inline-form { display: inline; }
+.filter-bar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.filter-bar input { max-width: 280px; }
+.filter-bar select { max-width: 220px; width: auto; }
 .muted { color: var(--muted); }
 .right { text-align: right; }
 .mt { margin-top: 18px; }

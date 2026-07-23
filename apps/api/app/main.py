@@ -6,6 +6,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from sqlalchemy import inspect, text
 
 from app.api import api_router
 from app.core.config import settings
@@ -28,7 +29,30 @@ async def lifespan(app: FastAPI):
     """
     import_all_models()
     Base.metadata.create_all(bind=engine)
+    _ensure_new_columns()
     yield
+
+
+# Columns added to existing models after a DB file already exists. `create_all`
+# only creates whole missing tables — it never ALTERs an existing one — so with
+# no migration tool we patch in additive, nullable/defaulted columns here. Each
+# entry is idempotent (skipped when the column is already present).
+_ADDITIVE_COLUMNS: dict[str, dict[str, str]] = {
+    "document": {"category": "VARCHAR(32) NOT NULL DEFAULT 'other'"},
+}
+
+
+def _ensure_new_columns() -> None:
+    inspector = inspect(engine)
+    existing_tables = set(inspector.get_table_names())
+    with engine.begin() as conn:
+        for table, columns in _ADDITIVE_COLUMNS.items():
+            if table not in existing_tables:
+                continue  # create_all already built it with every column
+            present = {c["name"] for c in inspector.get_columns(table)}
+            for name, ddl in columns.items():
+                if name not in present:
+                    conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {name} {ddl}"))
 
 
 def create_app() -> FastAPI:

@@ -1,8 +1,9 @@
 {% extends "base.html" %}
 {% import "_macros.html" as ui %}
-{% block title %}Documents{% endblock %}
+{% block title %}DocKeeper{% endblock %}
 {% block content %}
-{% call ui.page_header("Documents", total ~ " total") %}
+{% call ui.page_header("DocKeeper", total ~ (" document" if total == 1 else " documents") ~ (" · filtered" if active_category or query else "")) %}
+  <a class="btn btn-primary" href="#new">+ Upload</a>
 {% endcall %}
 
 <div class="card" id="new">
@@ -10,35 +11,64 @@
   <form method="post" action="/documents" enctype="multipart/form-data">
     <div class="form-grid">
       <div class="field"><label>File</label><input type="file" name="file" required /></div>
-      <div class="field"><label>Entity type</label><input name="entity_type" /></div>
+      <div class="field">
+        <label>Category</label>
+        <select name="category">
+          {% for c in categories %}
+          <option value="{{ c }}" {% if c == "other" %}selected{% endif %}>{{ c | humanize }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="field full"><label>Linked entity type <span class="muted">(optional)</span></label><input name="entity_type" placeholder="e.g. supplier, invoice" /></div>
     </div>
     <div class="form-actions"><button class="btn btn-primary" type="submit">Upload</button></div>
   </form>
 </div>
 
+<form class="filter-bar mt" method="get" action="/documents">
+  <input name="q" value="{{ query }}" placeholder="Search by filename…" />
+  <select name="category" onchange="this.form.submit()">
+    <option value="">All categories</option>
+    {% for c in categories %}
+    <option value="{{ c }}" {% if c == active_category %}selected{% endif %}>{{ c | humanize }} ({{ counts.get(c, 0) }})</option>
+    {% endfor %}
+  </select>
+  <button class="btn btn-sm" type="submit">Search</button>
+  {% if active_category or query %}<a class="btn btn-sm btn-ghost" href="/documents">Clear</a>{% endif %}
+</form>
+
 {% if documents %}
-<div class="table-wrap">
+<div class="table-wrap mt">
   <table>
     <thead>
       <tr>
-        <th>Filename</th><th>Type</th><th class="num">Size</th>
-        <th>Backend</th><th>Entity</th><th>Uploaded</th>
+        <th>Filename</th><th>Category</th><th>Type</th><th class="num">Size</th>
+        <th>Storage</th><th>Uploaded</th><th>Actions</th>
       </tr>
     </thead>
     <tbody>
       {% for d in documents %}
       <tr>
         <td><a class="row-link" href="/documents/{{ d.id }}/download" target="_blank">{{ d.filename }}</a></td>
-        <td>{{ d.content_type }}</td>
-        <td class="num">{{ d.size_bytes | number }} B</td>
+        <td>{{ ui.badge(d.category) }}</td>
+        <td class="muted">{{ d.content_type }}</td>
+        <td class="num">{{ d.size_bytes | filesize }}</td>
         <td>{{ ui.badge(d.storage_backend | upper) }}</td>
-        <td>{{ d.entity_type or "—" }}</td>
         <td>{{ d.created_at | fmt_datetime }}</td>
+        <td class="row-actions">
+          <a class="btn btn-sm" href="/documents/{{ d.id }}/download" target="_blank">View</a>
+          <a class="btn btn-sm" href="/documents/{{ d.id }}/download?dl=1">Download</a>
+          <form method="post" action="/documents/{{ d.id }}/delete" onsubmit="return confirm('Delete {{ d.filename }}? This removes it from the list.');">
+            <button class="btn btn-sm btn-danger" type="submit">Delete</button>
+          </form>
+        </td>
       </tr>
       {% endfor %}
     </tbody>
   </table>
 </div>
+{% elif active_category or query %}
+  {{ ui.empty("No documents match this filter. " ) }}
 {% else %}
   {{ ui.empty("No documents yet. Upload your first one above.") }}
 {% endif %}

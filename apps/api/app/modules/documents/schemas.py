@@ -14,6 +14,7 @@ class DocumentRead(BaseModel):
     filename: str
     content_type: str
     size_bytes: int
+    category: str
     storage_backend: str
     entity_type: str | None = None
     entity_id: uuid.UUID | None = None

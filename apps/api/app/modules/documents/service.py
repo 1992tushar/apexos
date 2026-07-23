@@ -20,7 +20,7 @@ from app.core.errors import NotFoundError, ValidationError
 from app.db.uuid7 import uuid7
 from app.modules.activity.service import ActivityService
 from app.modules.config.models import BusinessUnit
-from app.modules.documents.models import Document
+from app.modules.documents.models import DEFAULT_CATEGORY, DOCUMENT_CATEGORIES, Document
 from app.modules.documents.repository import DocumentRepository
 from app.modules.documents.schemas import DocumentRead
 
@@ -30,6 +30,12 @@ _SAFE = re.compile(r"[^A-Za-z0-9._-]+")
 def _safe_name(filename: str) -> str:
     cleaned = _SAFE.sub("_", (filename or "file").strip()) or "file"
     return cleaned[:180]
+
+
+def _clean_category(category: str | None) -> str:
+    """Coerce an incoming category to one of the canonical values."""
+    value = (category or "").strip().lower()
+    return value if value in DOCUMENT_CATEGORIES else DEFAULT_CATEGORY
 
 
 class DocumentService:
@@ -95,17 +101,39 @@ class DocumentService:
         return obj["Body"].read()
 
     # --- public API ----------------------------------------------------
-    def list(self, *, entity_type, entity_id, page, page_size):
+    def list(
+        self, *, entity_type, entity_id, page, page_size, category=None, q=None
+    ):
         rows, total = self.repo.search(
-            entity_type=entity_type, entity_id=entity_id, page=page, page_size=page_size
+            entity_type=entity_type,
+            entity_id=entity_id,
+            category=category,
+            q=q,
+            page=page,
+            page_size=page_size,
         )
         return [DocumentRead.model_validate(d) for d in rows], total
+
+    def category_counts(self) -> dict[str, int]:
+        return self.repo.category_counts()
 
     def get(self, document_id: uuid.UUID) -> Document:
         doc = self.repo.get(document_id)
         if doc is None:
             raise NotFoundError(f"Document {document_id} not found")
         return doc
+
+    def delete(self, document_id: uuid.UUID, *, actor_id: uuid.UUID | None) -> None:
+        """Soft-delete a document and record the action on the activity ledger."""
+        doc = self.get(document_id)
+        self.repo.soft_delete(doc)
+        self.activity.log(
+            actor_id=actor_id,
+            verb="deleted",
+            entity_type="document",
+            entity_id=doc.id,
+            summary=f"Document {doc.filename} deleted",
+        )
 
     def upload(
         self,
@@ -117,6 +145,7 @@ class DocumentService:
         entity_id: uuid.UUID | None,
         business_unit_id: uuid.UUID | None,
         actor_id: uuid.UUID | None,
+        category: str | None = None,
     ) -> DocumentRead:
         """Store the bytes and record the document metadata."""
         if not data:
@@ -127,6 +156,7 @@ class DocumentService:
             filename=_safe_name(filename),
             content_type=content_type or "application/octet-stream",
             size_bytes=len(data),
+            category=_clean_category(category),
             storage_backend=backend,
             storage_key=key,
             entity_type=entity_type,
