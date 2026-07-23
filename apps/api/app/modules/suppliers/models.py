@@ -17,7 +17,7 @@ from sqlalchemy import (
     Text,
     func,
 )
-from sqlalchemy.dialects.postgresql import UUID as PGUUID
+from sqlalchemy import Uuid
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base, BusinessUnitMixin, EntityMixin
@@ -27,7 +27,7 @@ class Supplier(Base, EntityMixin, BusinessUnitMixin):
     __tablename__ = "supplier"
 
     supplier_type_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("supplier_type.id"), nullable=False
+        Uuid(), ForeignKey("supplier_type.id"), nullable=False
     )
     code: Mapped[str] = mapped_column(String(24), nullable=False, unique=True)
     name: Mapped[str] = mapped_column(String(200), nullable=False)
@@ -44,7 +44,7 @@ class SupplierContact(Base, EntityMixin):
     __tablename__ = "supplier_contact"
 
     supplier_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("supplier.id"), nullable=False
+        Uuid(), ForeignKey("supplier.id"), nullable=False
     )
     name: Mapped[str] = mapped_column(String(160), nullable=False)
     email: Mapped[str | None] = mapped_column(String(200), nullable=True)
@@ -59,7 +59,7 @@ class SupplierEvaluation(Base, EntityMixin):
     __tablename__ = "supplier_evaluation"
 
     supplier_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("supplier.id"), nullable=False
+        Uuid(), ForeignKey("supplier.id"), nullable=False
     )
     quality_score: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     price_score: Mapped[int] = mapped_column(Integer, nullable=False, default=0)

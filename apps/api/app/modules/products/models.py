@@ -5,7 +5,7 @@ import uuid
 from decimal import Decimal
 
 from sqlalchemy import Boolean, ForeignKey, Numeric, String, Text
-from sqlalchemy.dialects.postgresql import UUID as PGUUID
+from sqlalchemy import Uuid
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base, BusinessUnitMixin, EntityMixin
@@ -17,19 +17,19 @@ class Product(Base, EntityMixin, BusinessUnitMixin):
     sku_code: Mapped[str] = mapped_column(String(24), nullable=False, unique=True)
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     category_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("category.id"), nullable=False
+        Uuid(), ForeignKey("category.id"), nullable=False
     )
     brand_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("brand.id"), nullable=False
+        Uuid(), ForeignKey("brand.id"), nullable=False
     )
     uom_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("uom.id"), nullable=False
+        Uuid(), ForeignKey("uom.id"), nullable=False
     )
     procurement_model_id: Mapped[uuid.UUID | None] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("procurement_model.id"), nullable=True
+        Uuid(), ForeignKey("procurement_model.id"), nullable=True
     )
     default_tax_rate_id: Mapped[uuid.UUID | None] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("tax_rate.id"), nullable=True
+        Uuid(), ForeignKey("tax_rate.id"), nullable=True
     )
     specification: Mapped[str | None] = mapped_column(String(200), nullable=True)
     launch_phase: Mapped[str | None] = mapped_column(String(24), nullable=True)

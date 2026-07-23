@@ -8,8 +8,13 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from app.core.config import settings
 
+url = settings.database_url
+# SQLite needs check_same_thread=False so a session can be used across the
+# threadpool FastAPI runs sync endpoints on; other backends take no extra args.
+connect_args = {"check_same_thread": False} if url.startswith("sqlite") else {}
 engine = create_engine(
-    settings.database_url,
+    url,
+    connect_args=connect_args,
     pool_pre_ping=True,
     future=True,
 )

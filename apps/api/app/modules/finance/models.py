@@ -17,7 +17,7 @@ from sqlalchemy import (
     String,
     func,
 )
-from sqlalchemy.dialects.postgresql import UUID as PGUUID
+from sqlalchemy import Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, BusinessUnitMixin, EntityMixin
@@ -27,10 +27,10 @@ class Invoice(Base, EntityMixin, BusinessUnitMixin):
     __tablename__ = "invoice"
 
     customer_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("customer.id"), nullable=False
+        Uuid(), ForeignKey("customer.id"), nullable=False
     )
     sales_order_id: Mapped[uuid.UUID | None] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("sales_order.id"), nullable=True
+        Uuid(), ForeignKey("sales_order.id"), nullable=True
     )
     invoice_no: Mapped[str] = mapped_column(String(20), nullable=False, unique=True)
     invoice_date: Mapped[date] = mapped_column(
@@ -51,10 +51,10 @@ class InvoiceLine(Base, EntityMixin):
     __tablename__ = "invoice_line"
 
     invoice_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("invoice.id"), nullable=False
+        Uuid(), ForeignKey("invoice.id"), nullable=False
     )
     product_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("product.id"), nullable=False
+        Uuid(), ForeignKey("product.id"), nullable=False
     )
     qty: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
     unit_price_minor: Mapped[int] = mapped_column(BigInteger, nullable=False)
@@ -74,10 +74,10 @@ class Bill(Base, EntityMixin, BusinessUnitMixin):
     __tablename__ = "bill"
 
     supplier_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("supplier.id"), nullable=False
+        Uuid(), ForeignKey("supplier.id"), nullable=False
     )
     purchase_order_id: Mapped[uuid.UUID | None] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("purchase_order.id"), nullable=True
+        Uuid(), ForeignKey("purchase_order.id"), nullable=True
     )
     bill_no: Mapped[str] = mapped_column(String(20), nullable=False, unique=True)
     bill_date: Mapped[date] = mapped_column(
@@ -98,10 +98,10 @@ class BillLine(Base, EntityMixin):
     __tablename__ = "bill_line"
 
     bill_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("bill.id"), nullable=False
+        Uuid(), ForeignKey("bill.id"), nullable=False
     )
     product_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("product.id"), nullable=False
+        Uuid(), ForeignKey("product.id"), nullable=False
     )
     qty: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
     unit_price_minor: Mapped[int] = mapped_column(BigInteger, nullable=False)
@@ -119,10 +119,10 @@ class Payment(Base, EntityMixin):
 
     direction: Mapped[str] = mapped_column(String(3), nullable=False)  # in | out
     customer_id: Mapped[uuid.UUID | None] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("customer.id"), nullable=True
+        Uuid(), ForeignKey("customer.id"), nullable=True
     )
     supplier_id: Mapped[uuid.UUID | None] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("supplier.id"), nullable=True
+        Uuid(), ForeignKey("supplier.id"), nullable=True
     )
     payment_no: Mapped[str] = mapped_column(String(24), nullable=False, unique=True)
     amount_minor: Mapped[int] = mapped_column(BigInteger, nullable=False)
@@ -140,13 +140,13 @@ class PaymentAllocation(Base, EntityMixin):
     __tablename__ = "payment_allocation"
 
     payment_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("payment.id"), nullable=False
+        Uuid(), ForeignKey("payment.id"), nullable=False
     )
     invoice_id: Mapped[uuid.UUID | None] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("invoice.id"), nullable=True
+        Uuid(), ForeignKey("invoice.id"), nullable=True
     )
     bill_id: Mapped[uuid.UUID | None] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("bill.id"), nullable=True
+        Uuid(), ForeignKey("bill.id"), nullable=True
     )
     amount_minor: Mapped[int] = mapped_column(BigInteger, nullable=False)
 

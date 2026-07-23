@@ -21,7 +21,7 @@ from sqlalchemy import (
     String,
     func,
 )
-from sqlalchemy.dialects.postgresql import UUID as PGUUID
+from sqlalchemy import Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, BusinessUnitMixin, EntityMixin
@@ -31,7 +31,7 @@ class PurchaseOrder(Base, EntityMixin, BusinessUnitMixin):
     __tablename__ = "purchase_order"
 
     supplier_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("supplier.id"), nullable=False
+        Uuid(), ForeignKey("supplier.id"), nullable=False
     )
     po_no: Mapped[str] = mapped_column(String(20), nullable=False, unique=True)
     order_date: Mapped[date] = mapped_column(
@@ -53,12 +53,12 @@ class PurchaseOrderLine(Base, EntityMixin):
     __tablename__ = "purchase_order_line"
 
     purchase_order_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True),
+        Uuid(),
         ForeignKey("purchase_order.id", ondelete="CASCADE"),
         nullable=False,
     )
     product_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("product.id"), nullable=False
+        Uuid(), ForeignKey("product.id"), nullable=False
     )
     qty: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
     qty_received: Mapped[Decimal] = mapped_column(
@@ -78,10 +78,10 @@ class GoodsReceipt(Base, EntityMixin):
     __tablename__ = "goods_receipt"
 
     purchase_order_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("purchase_order.id"), nullable=False
+        Uuid(), ForeignKey("purchase_order.id"), nullable=False
     )
     warehouse_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("warehouse.id"), nullable=False
+        Uuid(), ForeignKey("warehouse.id"), nullable=False
     )
     receipt_no: Mapped[str] = mapped_column(String(24), nullable=False, unique=True)
     status: Mapped[str] = mapped_column(String(16), nullable=False, default="received")
@@ -96,10 +96,10 @@ class GoodsReceiptLine(Base, EntityMixin):
     __tablename__ = "goods_receipt_line"
 
     goods_receipt_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("goods_receipt.id", ondelete="CASCADE"), nullable=False
+        Uuid(), ForeignKey("goods_receipt.id", ondelete="CASCADE"), nullable=False
     )
     product_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("product.id"), nullable=False
+        Uuid(), ForeignKey("product.id"), nullable=False
     )
     qty: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
 

@@ -15,7 +15,7 @@ from sqlalchemy import (
     String,
     func,
 )
-from sqlalchemy.dialects.postgresql import UUID as PGUUID
+from sqlalchemy import Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, BusinessUnitMixin, EntityMixin
@@ -25,7 +25,7 @@ class SalesOrder(Base, EntityMixin, BusinessUnitMixin):
     __tablename__ = "sales_order"
 
     customer_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("customer.id"), nullable=False
+        Uuid(), ForeignKey("customer.id"), nullable=False
     )
     order_no: Mapped[str] = mapped_column(String(20), nullable=False, unique=True)
     order_date: Mapped[date] = mapped_column(
@@ -45,10 +45,10 @@ class SalesOrderLine(Base, EntityMixin):
     __tablename__ = "sales_order_line"
 
     sales_order_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("sales_order.id", ondelete="CASCADE"), nullable=False
+        Uuid(), ForeignKey("sales_order.id", ondelete="CASCADE"), nullable=False
     )
     product_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("product.id"), nullable=False
+        Uuid(), ForeignKey("product.id"), nullable=False
     )
     qty: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
     unit_price_minor: Mapped[int] = mapped_column(BigInteger, nullable=False)

@@ -157,9 +157,6 @@ apps/api/
 │   └── shared/                       # Reusable domain-adjacent code (earned)
 │       └── ledger.py                 # Append-only ledger helpers (D3): stock/finance
 │
-├── alembic/
-│   ├── env.py
-│   └── versions/                     # Migration scripts (timestamped)
 ├── tests/
 │   ├── conftest.py                   # Fixtures: db session, client, factories
 │   ├── factories/                    # factory_boy / polyfactory model factories
@@ -167,7 +164,6 @@ apps/api/
 │   ├── integration/                  # Router + real test DB
 │   └── e2e/                          # Full-stack contract tests (optional; usually web/e2e)
 ├── pyproject.toml                    # deps + ruff + black config
-├── alembic.ini
 ├── .env.example
 └── Dockerfile -> ../../docker/api.Dockerfile
 ```

@@ -9,8 +9,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, func
-from sqlalchemy.dialects.postgresql import UUID as PGUUID
+from sqlalchemy import DateTime, ForeignKey, Uuid, func
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 from app.db.uuid7 import uuid7
@@ -22,7 +21,7 @@ class Base(DeclarativeBase):
 
 class UUIDMixin:
     id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), primary_key=True, default=uuid7
+        Uuid(), primary_key=True, default=uuid7
     )
 
 
@@ -36,8 +35,8 @@ class TimestampMixin:
 
 
 class AuditMixin:
-    created_by: Mapped[uuid.UUID | None] = mapped_column(PGUUID(as_uuid=True), nullable=True)
-    updated_by: Mapped[uuid.UUID | None] = mapped_column(PGUUID(as_uuid=True), nullable=True)
+    created_by: Mapped[uuid.UUID | None] = mapped_column(Uuid(), nullable=True)
+    updated_by: Mapped[uuid.UUID | None] = mapped_column(Uuid(), nullable=True)
     deleted_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True, index=True
     )
@@ -51,5 +50,5 @@ class BusinessUnitMixin:
     """Adds the first-class `business_unit_id` dimension (decision D1)."""
 
     business_unit_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("business_unit.id"), nullable=False, index=True
+        Uuid(), ForeignKey("business_unit.id"), nullable=False, index=True
     )

@@ -19,7 +19,8 @@ from app.core.database import SessionLocal, engine
 from app.db.metadata import Base, import_all_models
 
 # Ensure every model is imported so Base.metadata is complete, then make sure the
-# tables physically exist (works even before Alembic migrations are applied).
+# tables physically exist (create_all runs below in run(); this just completes the
+# metadata for the model imports that follow).
 import_all_models()
 
 from app.modules.activity.models import ActivityLog  # noqa: E402

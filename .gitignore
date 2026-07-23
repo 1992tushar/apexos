@@ -31,4 +31,6 @@ yarn-error.log*
 var/
 apps/api/var/
 
-# Local dev database (durable Postgres cluster)
+# Local dev database (SQLite file, self-initialized on startup)
+*.db
+apps/api/*.db

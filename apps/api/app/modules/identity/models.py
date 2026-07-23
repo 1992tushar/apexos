@@ -1,15 +1,15 @@
 """Identity & access models (minimal spine).
 
-`user` denormalizes `role_name` + `permission_codes` (ARRAY) so the dev auth in
-`app.core.security` can resolve an Actor without joining the RBAC junctions.
+`user` denormalizes `role_name` + `permission_codes` (JSON list) so the dev auth
+in `app.core.security` can resolve an Actor without joining the RBAC junctions.
 """
 from __future__ import annotations
 
 import uuid
 
 from sqlalchemy import Boolean, ForeignKey, String
-from sqlalchemy.dialects.postgresql import ARRAY
-from sqlalchemy.dialects.postgresql import UUID as PGUUID
+from sqlalchemy import JSON
+from sqlalchemy import Uuid
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base, EntityMixin
@@ -21,11 +21,11 @@ class User(Base, EntityMixin):
     email: Mapped[str] = mapped_column(String(200), nullable=False, unique=True)
     full_name: Mapped[str] = mapped_column(String(160), nullable=False)
     business_unit_id: Mapped[uuid.UUID | None] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("business_unit.id"), nullable=True
+        Uuid(), ForeignKey("business_unit.id"), nullable=True
     )
     role_name: Mapped[str] = mapped_column(String(60), nullable=False, default="viewer")
     permission_codes: Mapped[list[str]] = mapped_column(
-        ARRAY(String), nullable=False, default=list
+        JSON, nullable=False, default=list
     )
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
 

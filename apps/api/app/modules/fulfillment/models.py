@@ -6,7 +6,7 @@ from datetime import datetime
 from decimal import Decimal
 
 from sqlalchemy import DateTime, ForeignKey, Numeric, String
-from sqlalchemy.dialects.postgresql import UUID as PGUUID
+from sqlalchemy import Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, EntityMixin
@@ -16,10 +16,10 @@ class Fulfillment(Base, EntityMixin):
     __tablename__ = "fulfillment"
 
     sales_order_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("sales_order.id"), nullable=False
+        Uuid(), ForeignKey("sales_order.id"), nullable=False
     )
     warehouse_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("warehouse.id"), nullable=False
+        Uuid(), ForeignKey("warehouse.id"), nullable=False
     )
     fulfillment_no: Mapped[str] = mapped_column(String(24), nullable=False, unique=True)
     status: Mapped[str] = mapped_column(String(16), nullable=False, default="draft")
@@ -34,10 +34,10 @@ class FulfillmentLine(Base, EntityMixin):
     __tablename__ = "fulfillment_line"
 
     fulfillment_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("fulfillment.id", ondelete="CASCADE"), nullable=False
+        Uuid(), ForeignKey("fulfillment.id", ondelete="CASCADE"), nullable=False
     )
     product_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("product.id"), nullable=False
+        Uuid(), ForeignKey("product.id"), nullable=False
     )
     qty: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
 

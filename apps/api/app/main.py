@@ -1,13 +1,31 @@
 """FastAPI application factory for ApexOS."""
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api import api_router
 from app.core.config import settings
+from app.core.database import engine
 from app.core.errors import register_error_handlers
 from app.core.logging import CorrelationIdMiddleware, configure_logging
+from app.db.metadata import Base, import_all_models
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Self-initialize the schema on startup.
+
+    With Alembic removed (SQLite: the DB is just a file), a fresh database file
+    bootstraps itself here — import every model so `Base.metadata` is complete,
+    then create any missing tables. `create_all` is a no-op for tables that
+    already exist, so this is safe on every boot.
+    """
+    import_all_models()
+    Base.metadata.create_all(bind=engine)
+    yield
 
 
 def create_app() -> FastAPI:
@@ -19,6 +37,7 @@ def create_app() -> FastAPI:
         description="The internal operating system of Apex Supply Solutions Pvt. Ltd.",
         openapi_url=f"{settings.api_v1_prefix}/openapi.json",
         docs_url="/docs",
+        lifespan=lifespan,
     )
 
     app.add_middleware(CorrelationIdMiddleware)

@@ -40,7 +40,7 @@ and **not** a SaaS product. It is bespoke software that models Apex's business e
 
 - **Frontend:** Next.js (App Router) · React · TypeScript · Tailwind · shadcn/ui · Lucide ·
   React Hook Form · Zod · TanStack Table · Recharts.
-- **Backend:** Python · FastAPI · SQLAlchemy 2.0 · Alembic · Pydantic v2 · PostgreSQL.
+- **Backend:** Python · FastAPI · SQLAlchemy 2.0 · Pydantic v2 · SQLite by default (schema self-initialized from the models on startup; `DATABASE_URL` can point at PostgreSQL in production).
   Redis later.
 - **Patterns:** Feature-based folders · Repository pattern · Service layer · DTO/schema
   separation · centralized error handling · structured logging.

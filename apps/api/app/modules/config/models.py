@@ -22,8 +22,8 @@ from sqlalchemy import (
     Text,
     func,
 )
-from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.dialects.postgresql import UUID as PGUUID
+from sqlalchemy import JSON
+from sqlalchemy import Uuid
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base, BusinessUnitMixin, EntityMixin
@@ -57,10 +57,10 @@ class Category(Base, EntityMixin, BusinessUnitMixin):
     __tablename__ = "category"
 
     procurement_model_id: Mapped[uuid.UUID | None] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("procurement_model.id"), nullable=True
+        Uuid(), ForeignKey("procurement_model.id"), nullable=True
     )
     parent_category_id: Mapped[uuid.UUID | None] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("category.id"), nullable=True
+        Uuid(), ForeignKey("category.id"), nullable=True
     )
     code: Mapped[str] = mapped_column(String(4), nullable=False, unique=True)
     name: Mapped[str] = mapped_column(String(120), nullable=False)
@@ -80,10 +80,10 @@ class UomConversion(Base, EntityMixin):
     __tablename__ = "uom_conversion"
 
     from_uom_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("uom.id"), nullable=False
+        Uuid(), ForeignKey("uom.id"), nullable=False
     )
     to_uom_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("uom.id"), nullable=False
+        Uuid(), ForeignKey("uom.id"), nullable=False
     )
     factor: Mapped[Decimal] = mapped_column(Numeric(18, 6), nullable=False)
 
@@ -131,7 +131,7 @@ class NumberSequence(Base, EntityMixin):
     __tablename__ = "number_sequence"
 
     business_unit_id: Mapped[uuid.UUID | None] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("business_unit.id"), nullable=True
+        Uuid(), ForeignKey("business_unit.id"), nullable=True
     )
     doc_type: Mapped[str] = mapped_column(String(16), nullable=False)
     period: Mapped[str] = mapped_column(String(6), nullable=False)  # YYYYMM
@@ -142,9 +142,9 @@ class Setting(Base, EntityMixin):
     __tablename__ = "setting"
 
     business_unit_id: Mapped[uuid.UUID | None] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("business_unit.id"), nullable=True
+        Uuid(), ForeignKey("business_unit.id"), nullable=True
     )
     key: Mapped[str] = mapped_column(String(120), nullable=False)
-    value: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    value: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
     value_type: Mapped[str] = mapped_column(String(16), nullable=False, default="string")
     description: Mapped[str | None] = mapped_column(String(300), nullable=True)

@@ -14,7 +14,7 @@ from sqlalchemy import (
     Text,
     func,
 )
-from sqlalchemy.dialects.postgresql import UUID as PGUUID
+from sqlalchemy import Uuid
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base, BusinessUnitMixin, EntityMixin
@@ -24,7 +24,7 @@ class Customer(Base, EntityMixin, BusinessUnitMixin):
     __tablename__ = "customer"
 
     customer_type_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("customer_type.id"), nullable=False
+        Uuid(), ForeignKey("customer_type.id"), nullable=False
     )
     code: Mapped[str] = mapped_column(String(24), nullable=False, unique=True)
     name: Mapped[str] = mapped_column(String(200), nullable=False)
@@ -41,7 +41,7 @@ class CustomerContact(Base, EntityMixin):
     __tablename__ = "customer_contact"
 
     customer_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("customer.id"), nullable=False
+        Uuid(), ForeignKey("customer.id"), nullable=False
     )
     name: Mapped[str] = mapped_column(String(160), nullable=False)
     email: Mapped[str | None] = mapped_column(String(200), nullable=True)
@@ -54,7 +54,7 @@ class CustomerAddress(Base, EntityMixin):
     __tablename__ = "customer_address"
 
     customer_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("customer.id"), nullable=False
+        Uuid(), ForeignKey("customer.id"), nullable=False
     )
     address_type: Mapped[str] = mapped_column(String(12), nullable=False, default="billing")
     line1: Mapped[str] = mapped_column(String(200), nullable=False)
@@ -69,7 +69,7 @@ class CustomerCreditPolicy(Base, EntityMixin):
     __tablename__ = "customer_credit_policy"
 
     customer_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("customer.id"), nullable=False
+        Uuid(), ForeignKey("customer.id"), nullable=False
     )
     credit_limit_minor: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
     payment_terms_days: Mapped[int] = mapped_column(Integer, nullable=False, default=0)

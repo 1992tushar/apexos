@@ -1,38 +1,15 @@
 services:
-  db:
-    image: postgres:16-alpine
-    container_name: apexos-db
-    environment:
-      POSTGRES_USER: apex
-      POSTGRES_PASSWORD: apex
-      POSTGRES_DB: apexos
-    ports:
-      - "5432:5432"
-    volumes:
-      - apexos_db:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U apex -d apexos"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-
   api:
     build:
       context: ./apps/api
     container_name: apexos-api
-    depends_on:
-      db:
-        condition: service_healthy
     environment:
       APP_ENV: dev
-      DATABASE_URL: postgresql+psycopg://apex:apex@db:5432/apexos
+      # SQLite lives in a file inside the container's working dir — no DB server.
+      DATABASE_URL: sqlite:///./apexos.db
       CORS_ORIGINS: "http://localhost:3000"
     ports:
       - "8000:8000"
     command: >
-      sh -c "alembic upgrade head &&
-             python -m app.seed &&
+      sh -c "python -m app.seed &&
              uvicorn app.main:app --host 0.0.0.0 --port 8000"
-
-volumes:
-  apexos_db:

@@ -9,7 +9,7 @@ import uuid
 from datetime import date
 
 from sqlalchemy import BigInteger, Boolean, Date, ForeignKey, SmallInteger, String, Text
-from sqlalchemy.dialects.postgresql import UUID as PGUUID
+from sqlalchemy import Uuid
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base, BusinessUnitMixin, EntityMixin
@@ -38,11 +38,11 @@ class Lead(Base, EntityMixin, BusinessUnitMixin):
     city: Mapped[str | None] = mapped_column(String(80), nullable=True)
     source: Mapped[str | None] = mapped_column(String(60), nullable=True)
     customer_type_id: Mapped[uuid.UUID | None] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("customer_type.id"), nullable=True
+        Uuid(), ForeignKey("customer_type.id"), nullable=True
     )
     status: Mapped[str] = mapped_column(String(12), nullable=False, default="open")  # open|converted|lost
     converted_customer_id: Mapped[uuid.UUID | None] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("customer.id"), nullable=True
+        Uuid(), ForeignKey("customer.id"), nullable=True
     )
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
@@ -52,13 +52,13 @@ class Opportunity(Base, EntityMixin, BusinessUnitMixin):
 
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     lead_id: Mapped[uuid.UUID | None] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("lead.id"), nullable=True
+        Uuid(), ForeignKey("lead.id"), nullable=True
     )
     customer_id: Mapped[uuid.UUID | None] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("customer.id"), nullable=True
+        Uuid(), ForeignKey("customer.id"), nullable=True
     )
     pipeline_stage_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("pipeline_stage.id"), nullable=False
+        Uuid(), ForeignKey("pipeline_stage.id"), nullable=False
     )
     estimated_value_minor: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
     status: Mapped[str] = mapped_column(String(12), nullable=False, default="open")  # open|won|lost

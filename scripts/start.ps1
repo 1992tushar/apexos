@@ -1,12 +1,11 @@
-# ApexOS — start / restart the whole stack (Database + API + Web) in one go.
-# Run from a NORMAL (non-admin) PowerShell. Kills any running instances first, so it's also a restart.
+# ApexOS — start / restart the whole stack (API + Web) in one go.
+# Run from a NORMAL PowerShell. Kills any running instances first, so it's also a restart.
+# The API uses SQLite (a file, self-initialized on startup) — no database server to start.
 $ErrorActionPreference = 'SilentlyContinue'
 
-$root   = Split-Path $PSScriptRoot -Parent
-$pgbin  = 'C:\Program Files\PostgreSQL\18\bin'
-$pgdata = 'C:\ApexOS-localdb\pgdata'
-$api    = Join-Path $root 'apps\api'
-$web    = Join-Path $root 'apps\web'
+$root = Split-Path $PSScriptRoot -Parent
+$api  = Join-Path $root 'apps\api'
+$web  = Join-Path $root 'apps\web'
 
 Write-Host '== ApexOS: (re)starting ==' -ForegroundColor Cyan
 
@@ -17,20 +16,11 @@ foreach ($port in 8000, 3000) {
     ForEach-Object { Stop-Process -Id $_ -Force -EA SilentlyContinue }
 }
 
-# 2) Database (start only if not already up)
-& "$pgbin\pg_isready.exe" -h localhost -p 5433 *> $null
-if ($LASTEXITCODE -ne 0) {
-  Write-Host 'Starting database (port 5433)...'
-  & "$pgbin\pg_ctl.exe" -D $pgdata -l 'C:\ApexOS-localdb\server.log' -w start | Out-Null
-} else {
-  Write-Host 'Database already running (port 5433).'
-}
-
-# 3) API — own window, with hot reload
+# 2) API — own window, with hot reload (SQLite schema self-initializes on boot)
 Start-Process powershell -ArgumentList @('-NoExit','-Command',
   "cd `"$api`"; .\.venv\Scripts\python.exe -m uvicorn app.main:app --reload --port 8000")
 
-# 4) Web — own window, dev mode (hot reload)
+# 3) Web — own window, dev mode (hot reload)
 Start-Process powershell -ArgumentList @('-NoExit','-Command',
   "cd `"$web`"; npm run dev")
 

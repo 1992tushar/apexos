@@ -1,25 +1,18 @@
 # ApexOS — Quick Start
 
-How to start and open the app locally. Everything is already installed and the database already
-has demo data — you just need to start three things.
+How to start and open the app locally. Everything is already installed and the database file
+already has demo data — you just need to start two things. The API uses **SQLite** (a file), so
+there's no database server to start.
 
-> Use a **normal (non-admin) PowerShell**. (Postgres won't run under an elevated/admin shell.)
+## Start (two terminals)
 
-## Start (three terminals)
-
-**1 — Database** (port 5433):
-```powershell
-cd "C:\Imp Data\Personal\apexos"
-.\scripts\db.ps1 start
-```
-
-**2 — API** (http://localhost:8000):
+**1 — API** (http://localhost:8000):
 ```powershell
 cd "C:\Imp Data\Personal\apexos\apps\api"
 .\.venv\Scripts\python.exe -m uvicorn app.main:app --port 8000
 ```
 
-**3 — Web app** (http://localhost:3000):
+**2 — Web app** (http://localhost:3000):
 ```powershell
 cd "C:\Imp Data\Personal\apexos\apps\web"
 npm run dev
@@ -33,18 +26,16 @@ npm run dev
 ## Stop
 
 - Web / API: `Ctrl+C` in their terminals.
-- Database: `.\scripts\db.ps1 stop`  (or just leave it running.)
 
 ## If something's off
 
-- **DB won't start / "another server might be running":** check `.\scripts\db.ps1 status`.
-- **API errors about the database:** make sure step 1 ran and shows `accepting connections`.
+- **API errors about the database:** the SQLite file `apps/api/apexos.db` self-initializes on
+  startup; if it looks corrupt, delete it and re-seed.
 - **Reset demo data to a clean state** (from `apps/api`):
   ```powershell
-  .\.venv\Scripts\python.exe -m alembic upgrade head
+  Remove-Item apexos.db -ErrorAction SilentlyContinue
   .\.venv\Scripts\python.exe -m app.seed
   ```
-- The database lives at `C:\ApexOS-localdb\pgdata`. Connection string is in `apps/api\.env`
-  (`postgresql+psycopg://apex:apex@localhost:5433/apexos`).
+- The connection string lives in `apps/api\.env` (`sqlite:///./apexos.db`).
 
 See `PROGRESS.md` for full build status and history.

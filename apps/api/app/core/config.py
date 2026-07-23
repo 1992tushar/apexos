@@ -15,7 +15,7 @@ class Settings(BaseSettings):
     app_name: str = "ApexOS"
     api_v1_prefix: str = "/api/v1"
 
-    database_url: str = "postgresql+psycopg://apex:apex@localhost:5432/apexos"
+    database_url: str = "sqlite:///./apexos.db"
 
     cors_origins: str = "http://localhost:3000"
 
