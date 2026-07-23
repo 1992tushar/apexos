@@ -42,11 +42,11 @@ class AnalyticsService:
         keys = self._month_keys(months)
         rows = self.db.execute(
             select(
-                func.to_char(Invoice.invoice_date, "YYYY-MM"),
+                func.strftime("%Y-%m", Invoice.invoice_date),
                 func.coalesce(func.sum(Invoice.total_minor), 0),
             )
             .where(Invoice.status != "cancelled", Invoice.deleted_at.is_(None))
-            .group_by(func.to_char(Invoice.invoice_date, "YYYY-MM"))
+            .group_by(func.strftime("%Y-%m", Invoice.invoice_date))
         ).all()
         by_key = {r[0]: int(r[1]) for r in rows}
         return [TrendPoint(period=k, amount_minor=by_key.get(k, 0)) for k in keys]
@@ -55,11 +55,11 @@ class AnalyticsService:
         keys = self._month_keys(months)
         rows = self.db.execute(
             select(
-                func.to_char(Bill.bill_date, "YYYY-MM"),
+                func.strftime("%Y-%m", Bill.bill_date),
                 func.coalesce(func.sum(Bill.total_minor), 0),
             )
             .where(Bill.status != "cancelled", Bill.deleted_at.is_(None))
-            .group_by(func.to_char(Bill.bill_date, "YYYY-MM"))
+            .group_by(func.strftime("%Y-%m", Bill.bill_date))
         ).all()
         by_key = {r[0]: int(r[1]) for r in rows}
         return [TrendPoint(period=k, amount_minor=by_key.get(k, 0)) for k in keys]

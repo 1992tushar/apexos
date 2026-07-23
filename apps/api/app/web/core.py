@@ -120,7 +120,11 @@ def time_ago(value: Any) -> str:
     dt = _coerce_dt(value)
     if dt is None:
         return ""
-    now = datetime.now(dt.tzinfo or timezone.utc)
+    # SQLite hands back naive datetimes (func.now() -> CURRENT_TIMESTAMP is UTC);
+    # treat naive values as UTC so the subtraction never mixes naive/aware.
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    now = datetime.now(timezone.utc)
     diff = (now - dt).total_seconds()
     mins = round(diff / 60)
     if mins < 1:
