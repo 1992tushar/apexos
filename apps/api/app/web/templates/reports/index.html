@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+{% block title %}Reports{% endblock %}
+{% block content %}
+{% call ui.page_header("Reports", "Read-only ledgers") %}{% endcall %}
+
+<div class="card mt">
+  <form method="get" action="/reports">
+    <div class="form-grid">
+      <div class="field">
+        <label>Report</label>
+        <select name="report">
+          <option value="">Select a report…</option>
+          {% for c in catalog %}
+          <option value="{{ c.key }}" {% if c.key == report %}selected{% endif %}>{{ c.title }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="field"><label>From</label><input type="date" name="date_from" value="{{ date_from }}" /></div>
+      <div class="field"><label>To</label><input type="date" name="date_to" value="{{ date_to }}" /></div>
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-primary" type="submit">Run</button>
+      {% if result %}
+      <a class="btn" href="/reports/export?report={{ report }}&date_from={{ date_from }}&date_to={{ date_to }}">Download CSV</a>
+      {% endif %}
+    </div>
+  </form>
+</div>
+
+{% if error %}
+  <div class="card mt">{{ ui.empty(error) }}</div>
+{% elif result %}
+<div class="card mt">
+  <div class="card-title">{{ result.title }}</div>
+  {% if result.rows %}
+  <div class="table-wrap mt">
+    <table>
+      <thead>
+        <tr>
+          {% for m in columns_meta %}
+          <th {% if m.is_money %}class="num"{% endif %}>{{ m.label }}</th>
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in result.rows %}
+        <tr>
+          {% for m in columns_meta %}
+          {% if m.is_money %}
+          <td class="num">{{ row[m.col] | money }}</td>
+          {% else %}
+          <td>{{ row[m.col] }}</td>
+          {% endif %}
+          {% endfor %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+    {{ ui.empty("No rows for this report and date range.") }}
+  {% endif %}
+</div>
+{% endif %}
+{% endblock %}

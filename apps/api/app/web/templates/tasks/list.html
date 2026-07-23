@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+{% block title %}Tasks{% endblock %}
+{% block content %}
+{% call ui.page_header("Tasks", total ~ " total") %}
+  <a class="btn" href="#new">+ New task</a>
+{% endcall %}
+
+<div class="mt">
+  <a class="btn btn-sm {{ 'btn-primary' if not status else 'btn-ghost' }}" href="/tasks">All</a>
+  <a class="btn btn-sm {{ 'btn-primary' if status == 'open' else 'btn-ghost' }}" href="/tasks?status=open">Open</a>
+  <a class="btn btn-sm {{ 'btn-primary' if status == 'completed' else 'btn-ghost' }}" href="/tasks?status=completed">Completed</a>
+</div>
+
+<div class="card mt" id="new">
+  <div class="card-title">New task</div>
+  <form method="post" action="/tasks">
+    <div class="form-grid">
+      <div class="field"><label>Title</label><input name="title" required /></div>
+      <div class="field">
+        <label>Priority</label>
+        <select name="priority">
+          <option value="low">Low</option>
+          <option value="normal" selected>Normal</option>
+          <option value="high">High</option>
+          <option value="urgent">Urgent</option>
+        </select>
+      </div>
+      <div class="field"><label>Due date</label><input name="due_date" type="date" /></div>
+      <div class="field full"><label>Description</label><textarea name="description" rows="2"></textarea></div>
+    </div>
+    <div class="form-actions"><button class="btn btn-primary" type="submit">Create task</button></div>
+  </form>
+</div>
+
+{% if tasks %}
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>Title</th><th>Priority</th><th>Due</th><th>Status</th><th>Action</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for t in tasks %}
+      <tr>
+        <td>
+          <span {% if t.status == 'completed' %}style="text-decoration: line-through;"{% endif %}>{{ t.title }}</span>
+          {% if t.entity_type %}<div class="muted">Linked to {{ t.entity_type }}</div>{% endif %}
+        </td>
+        <td>{{ ui.badge(t.priority) }}</td>
+        <td>{{ t.due_date | fmt_date }}</td>
+        <td>{{ ui.badge(t.status) }}</td>
+        <td>
+          {% if t.status != 'completed' %}
+          <form method="post" action="/tasks/{{ t.id }}/complete">
+            <button class="btn btn-sm" type="submit">Complete</button>
+          </form>
+          {% else %}
+          <span class="muted">Done</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+  {{ ui.empty("No tasks yet. Add your first one above.") }}
+{% endif %}
+{% endblock %}

@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+{% block title %}Analytics{% endblock %}
+{% block content %}
+{% call ui.page_header("Analytics", "KPI board") %}{% endcall %}
+
+<div class="grid grid-4 mt">
+  {{ ui.stat("Revenue", board.revenue_minor | money) }}
+  {{ ui.stat("Gross profit", board.gross_profit_minor | money, "%.1f"|format(board.margin_bps / 100) ~ "% margin") }}
+  {{ ui.stat("Purchases", board.purchases_minor | money) }}
+  {{ ui.stat("Receivables", board.receivables_minor | money) }}
+  {{ ui.stat("Payables", board.payables_minor | money) }}
+  {{ ui.stat("DSO", board.dso_days ~ " days") }}
+  {{ ui.stat("Fill rate", "%.1f"|format(board.fill_rate_bps / 100) ~ "%") }}
+  {{ ui.stat("Margin", "%.1f"|format(board.margin_bps / 100) ~ "%") }}
+</div>
+
+<div class="detail-grid mt">
+  <div class="card">
+    <div class="card-title">Revenue (6 mo)</div>
+    {% if max_rev %}
+    <div class="chart-bars">
+      {% for pt in board.revenue_trend %}
+      <div class="chart-bar" style="height:{{ (pt.amount_minor / max_rev * 100) if max_rev else 0 }}%">
+        <span>{{ pt.amount_minor | money }}</span>
+      </div>
+      {% endfor %}
+    </div>
+    <div class="chart-bars" style="height:auto; align-items:flex-start;">
+      {% for pt in board.revenue_trend %}
+      <div class="chart-label" style="flex:1;">{{ pt.period }}</div>
+      {% endfor %}
+    </div>
+    {% else %}
+      {{ ui.empty("No revenue in the last 6 months.") }}
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <div class="card-title">Purchases (6 mo)</div>
+    {% if max_pur %}
+    <div class="chart-bars">
+      {% for pt in board.purchase_trend %}
+      <div class="chart-bar" style="height:{{ (pt.amount_minor / max_pur * 100) if max_pur else 0 }}%">
+        <span>{{ pt.amount_minor | money }}</span>
+      </div>
+      {% endfor %}
+    </div>
+    <div class="chart-bars" style="height:auto; align-items:flex-start;">
+      {% for pt in board.purchase_trend %}
+      <div class="chart-label" style="flex:1;">{{ pt.period }}</div>
+      {% endfor %}
+    </div>
+    {% else %}
+      {{ ui.empty("No purchases in the last 6 months.") }}
+    {% endif %}
+  </div>
+</div>
+
+<div class="grid grid-3 mt">
+  <div class="card">
+    <div class="section-title">Top customers</div>
+    {% if board.top_customers %}
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Customer</th><th class="num">Revenue</th></tr></thead>
+        <tbody>
+          {% for r in board.top_customers %}
+          <tr><td>{{ r.name }}</td><td class="num">{{ r.value_minor | money }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+      {{ ui.empty("No data yet.") }}
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <div class="section-title">Top suppliers</div>
+    {% if board.top_suppliers %}
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Supplier</th><th class="num">Purchases</th></tr></thead>
+        <tbody>
+          {% for r in board.top_suppliers %}
+          <tr><td>{{ r.name }}</td><td class="num">{{ r.value_minor | money }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+      {{ ui.empty("No data yet.") }}
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <div class="section-title">Top products</div>
+    {% if board.top_products %}
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Product</th><th class="num">Revenue</th></tr></thead>
+        <tbody>
+          {% for r in board.top_products %}
+          <tr><td>{{ r.name }}</td><td class="num">{{ r.value_minor | money }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+      {{ ui.empty("No data yet.") }}
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

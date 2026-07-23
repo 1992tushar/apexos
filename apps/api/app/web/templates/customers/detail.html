@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+{% block title %}{{ c.name }}{% endblock %}
+{% block content %}
+{% call ui.page_header(c.name, c.code) %}
+  <a class="btn" href="/customers">← All customers</a>
+{% endcall %}
+
+<div class="grid grid-3 mt">
+  {{ ui.stat("Outstanding", c.outstanding_minor | money) }}
+  {{ ui.stat("Credit limit", c.credit_limit_minor | money,
+     ((c.outstanding_minor / c.credit_limit_minor * 100) | round(1) ~ "% used") if c.credit_limit_minor else None) }}
+  {{ ui.stat("Payment terms", c.payment_terms_days ~ " days") }}
+</div>
+
+<div class="detail-grid mt">
+  <div class="card">
+    <div class="section-title">Contact</div>
+    <dl class="kv">
+      <dt>Type</dt><dd>{{ c.customer_type_name or "—" }}</dd>
+      <dt>Phone</dt><dd>{{ c.phone or "—" }}</dd>
+      <dt>Email</dt><dd>{{ c.email or "—" }}</dd>
+      <dt>City</dt><dd>{{ c.city or "—" }}</dd>
+      <dt>State</dt><dd>{{ c.state or "—" }}</dd>
+      <dt>Billing address</dt><dd>{{ c.billing_address or "—" }}</dd>
+    </dl>
+  </div>
+  <div class="card">
+    <div class="section-title">Account</div>
+    <dl class="kv">
+      <dt>Status</dt><dd>{{ ui.badge(c.status) }}</dd>
+      <dt>GSTIN</dt><dd>{{ c.gstin or "—" }}</dd>
+      <dt>Created</dt><dd>{{ c.created_at | fmt_date }}</dd>
+    </dl>
+  </div>
+</div>
+{% endblock %}

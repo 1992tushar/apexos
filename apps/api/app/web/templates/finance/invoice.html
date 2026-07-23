@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+{% block title %}{{ inv.invoice_no }}{% endblock %}
+{% block content %}
+{% call ui.page_header(inv.invoice_no) %}
+  <a class="btn" href="/finance">← Finance</a>
+{% endcall %}
+
+<div class="mt">
+  {% if inv.customer_name %}<a class="row-link" href="/customers/{{ inv.customer_id }}">{{ inv.customer_name }}</a>{% endif %}
+  {{ ui.badge(inv.status) }}
+</div>
+
+<div class="grid grid-3 mt">
+  {{ ui.stat("Total", inv.total_minor | money) }}
+  {{ ui.stat("Paid", inv.paid_minor | money) }}
+  {{ ui.stat("Balance", inv.balance_minor | money) }}
+</div>
+
+<div class="detail-grid mt">
+  <div class="card">
+    <div class="section-title">Lines</div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Product</th><th class="num">Qty</th><th class="num">Unit price</th>
+            <th class="num">Tax</th><th class="num">Line total</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for line in inv.lines %}
+          <tr>
+            <td>{{ line.product_name or "—" }}</td>
+            <td class="num">{{ line.qty | number }}</td>
+            <td class="num">{{ line.unit_price_minor | money }}</td>
+            <td class="num">{{ (line.tax_rate_bps / 100) ~ "%" }}</td>
+            <td class="num">{{ line.line_total_minor | money }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+        <tfoot>
+          <tr><td colspan="4" class="num muted">Subtotal</td><td class="num">{{ inv.subtotal_minor | money }}</td></tr>
+          <tr><td colspan="4" class="num muted">Tax</td><td class="num">{{ inv.tax_minor | money }}</td></tr>
+          <tr><td colspan="4" class="num"><strong>Total</strong></td><td class="num"><strong>{{ inv.total_minor | money }}</strong></td></tr>
+        </tfoot>
+      </table>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="section-title">Details</div>
+    <dl class="kv">
+      <dt>Status</dt><dd>{{ ui.badge(inv.status) }}</dd>
+      <dt>Invoice date</dt><dd>{{ inv.invoice_date | fmt_date }}</dd>
+      <dt>Due date</dt><dd>{{ inv.due_date | fmt_date if inv.due_date else "—" }}</dd>
+      <dt>Customer</dt><dd>{{ inv.customer_name or "—" }}</dd>
+    </dl>
+  </div>
+</div>
+{% endblock %}

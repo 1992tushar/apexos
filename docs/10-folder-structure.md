@@ -28,8 +28,7 @@
 ```
 apexos/
 ├── apps/
-│   ├── web/                    # Next.js App Router frontend
-│   └── api/                    # FastAPI backend
+│   └── api/                    # FastAPI backend + server-rendered web UI (app/web/, Jinja2)
 ├── packages/                   # Shared, versioned workspace packages (earned, not default)
 │   ├── types/                  # Generated TS types from OpenAPI (single source of truth)
 │   ├── config-eslint/          # Shared ESLint config
@@ -58,7 +57,13 @@ apexos/
 
 ---
 
-## 3. Frontend — `apps/web`
+## 3. Frontend — `apps/web` (superseded)
+
+> **Historical.** The standalone Next.js SPA below was replaced by a server-rendered
+> **Jinja2** UI that lives inside the API at `apps/api/app/web/` (`pages/*.py` route
+> handlers calling the domain services directly + `templates/` + `static/`), mounted by
+> `app.main`. There is no longer a separate `apps/web`, npm build, or generated TS DTO
+> layer. The structure below is retained only as a record of the original design.
 
 ```
 apps/web/

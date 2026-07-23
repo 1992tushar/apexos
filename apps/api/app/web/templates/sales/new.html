@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+{% block title %}New sales order{% endblock %}
+{% block content %}
+{% call ui.page_header("New sales order", "Create a draft order") %}
+  <a class="btn" href="/sales">← All orders</a>
+{% endcall %}
+
+<div class="card">
+  <form method="post" action="/sales">
+    <div class="form-grid">
+      <div class="field">
+        <label>Customer</label>
+        <select name="customer_id" required>
+          <option value="">Select customer…</option>
+          {% for c in customers %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="field">
+        <label>Order date</label>
+        <input name="order_date" type="date" />
+      </div>
+    </div>
+
+    <div class="section-title mt">Lines</div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Product</th><th>Qty</th><th>Unit price (₹)</th></tr>
+        </thead>
+        <tbody>
+          {% for i in line_rows %}
+          <tr>
+            <td>
+              <select name="product_id">
+                <option value="">—</option>
+                {% for p in products %}<option value="{{ p.id }}">{{ p.sku_code }} — {{ p.name }}</option>{% endfor %}
+              </select>
+            </td>
+            <td><input name="qty" type="number" step="0.001" min="0" /></td>
+            <td><input name="unit_price_rupees" type="number" step="0.01" min="0" placeholder="auto" /></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="form-actions"><button class="btn btn-primary" type="submit">Create order</button></div>
+  </form>
+</div>
+{% endblock %}

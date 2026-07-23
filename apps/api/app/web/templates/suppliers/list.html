@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+{% block title %}Suppliers{% endblock %}
+{% block content %}
+{% call ui.page_header("Suppliers", total ~ " total") %}
+  <a class="btn" href="#new">+ New supplier</a>
+{% endcall %}
+
+<div class="card" id="new">
+  <div class="card-title">New supplier</div>
+  <form method="post" action="/suppliers">
+    <div class="form-grid">
+      <div class="field"><label>Name</label><input name="name" required /></div>
+      <div class="field">
+        <label>Supplier type</label>
+        <select name="supplier_type_id" required>
+          {% for t in types %}<option value="{{ t.id }}">{{ t.name }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="field"><label>Phone</label><input name="phone" /></div>
+      <div class="field"><label>Email</label><input name="email" type="email" /></div>
+      <div class="field"><label>GSTIN</label><input name="gstin" /></div>
+      <div class="field"><label>City</label><input name="city" /></div>
+      <div class="field"><label>State</label><input name="state" /></div>
+      <div class="field full"><label>Address</label><textarea name="address" rows="2"></textarea></div>
+    </div>
+    <div class="form-actions"><button class="btn btn-primary" type="submit">Create supplier</button></div>
+  </form>
+</div>
+
+{% if suppliers %}
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>Code</th><th>Name</th><th>Type</th><th>City</th>
+        <th class="num">Score</th><th class="num">Payable</th><th>Status</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for s in suppliers %}
+      <tr>
+        <td class="mono">{{ s.code }}</td>
+        <td><a class="row-link" href="/suppliers/{{ s.id }}">{{ s.name }}</a></td>
+        <td>{{ s.supplier_type_name or "—" }}</td>
+        <td>{{ s.city or "—" }}</td>
+        <td class="num">{{ s.latest_score or "—" }}/5</td>
+        <td class="num">{{ s.outstanding_minor | money }}</td>
+        <td>{{ ui.badge(s.status) }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+  {{ ui.empty("No suppliers yet. Add your first one above.") }}
+{% endif %}
+{% endblock %}

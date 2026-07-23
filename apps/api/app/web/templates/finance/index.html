@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+{% block title %}Finance{% endblock %}
+{% block content %}
+{% call ui.page_header("Finance", "Receivables & payables") %}{% endcall %}
+
+<div class="grid grid-2 mt">
+  {{ ui.stat("Receivable", receivable | money) }}
+  {{ ui.stat("Payable", payable | money) }}
+</div>
+
+<div class="card mt">
+  <div class="card-title">Receivables (Invoices)</div>
+  <form class="inline-form mt" method="get" action="/finance">
+    <input type="hidden" name="bill_status" value="{{ bill_status }}" />
+    <label>Status</label>
+    <select name="inv_status" onchange="this.form.submit()">
+      <option value="">All</option>
+      {% for st in invoice_statuses %}
+      <option value="{{ st }}" {% if st == inv_status %}selected{% endif %}>{{ st | humanize }}</option>
+      {% endfor %}
+    </select>
+    <button class="btn btn-sm" type="submit">Filter</button>
+  </form>
+  {% if invoices %}
+  <div class="table-wrap mt">
+    <table>
+      <thead>
+        <tr>
+          <th>Invoice</th><th>Customer</th>
+          <th class="num">Total</th><th class="num">Paid</th><th class="num">Balance</th>
+          <th>Status</th><th>Due</th><th>Record payment</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for i in invoices %}
+        <tr>
+          <td class="mono"><a class="row-link" href="/invoices/{{ i.id }}">{{ i.invoice_no }}</a></td>
+          <td>{{ i.customer_name or "—" }}</td>
+          <td class="num">{{ i.total_minor | money }}</td>
+          <td class="num">{{ i.paid_minor | money }}</td>
+          <td class="num">{{ i.balance_minor | money }}</td>
+          <td>{{ ui.badge(i.status) }}</td>
+          <td>{{ i.due_date | fmt_date if i.due_date else "—" }}</td>
+          <td>
+            {% if i.balance_minor > 0 %}
+            <form class="inline-form" method="post" action="/invoices/{{ i.id }}/payments">
+              <input class="input" type="number" name="amount_rupees" step="0.01" min="0.01"
+                     value="{{ '%.2f'|format(i.balance_minor / 100) }}" style="width:100px" required />
+              <select name="method">
+                {% for m in methods %}<option value="{{ m }}" {% if m == 'bank' %}selected{% endif %}>{{ m }}</option>{% endfor %}
+              </select>
+              <button class="btn btn-sm btn-primary" type="submit">Pay</button>
+            </form>
+            {% else %}
+            <span class="muted">—</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+    {{ ui.empty("No invoices.") }}
+  {% endif %}
+</div>
+
+<div class="card mt">
+  <div class="card-title">Payables (Bills)</div>
+  <form class="inline-form mt" method="get" action="/finance">
+    <input type="hidden" name="inv_status" value="{{ inv_status }}" />
+    <label>Status</label>
+    <select name="bill_status" onchange="this.form.submit()">
+      <option value="">All</option>
+      {% for st in bill_statuses %}
+      <option value="{{ st }}" {% if st == bill_status %}selected{% endif %}>{{ st | humanize }}</option>
+      {% endfor %}
+    </select>
+    <button class="btn btn-sm" type="submit">Filter</button>
+  </form>
+  {% if bills %}
+  <div class="table-wrap mt">
+    <table>
+      <thead>
+        <tr>
+          <th>Bill</th><th>Supplier</th>
+          <th class="num">Total</th><th class="num">Paid</th><th class="num">Balance</th>
+          <th>Status</th><th>Due</th><th>Record payment</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for b in bills %}
+        <tr>
+          <td class="mono"><a class="row-link" href="/bills/{{ b.id }}">{{ b.bill_no }}</a></td>
+          <td>{{ b.supplier_name or "—" }}</td>
+          <td class="num">{{ b.total_minor | money }}</td>
+          <td class="num">{{ b.paid_minor | money }}</td>
+          <td class="num">{{ b.balance_minor | money }}</td>
+          <td>{{ ui.badge(b.status) }}</td>
+          <td>{{ b.due_date | fmt_date if b.due_date else "—" }}</td>
+          <td>
+            {% if b.balance_minor > 0 %}
+            <form class="inline-form" method="post" action="/bills/{{ b.id }}/payments">
+              <input class="input" type="number" name="amount_rupees" step="0.01" min="0.01"
+                     value="{{ '%.2f'|format(b.balance_minor / 100) }}" style="width:100px" required />
+              <select name="method">
+                {% for m in methods %}<option value="{{ m }}" {% if m == 'bank' %}selected{% endif %}>{{ m }}</option>{% endfor %}
+              </select>
+              <button class="btn btn-sm btn-primary" type="submit">Pay</button>
+            </form>
+            {% else %}
+            <span class="muted">—</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+    {{ ui.empty("No bills.") }}
+  {% endif %}
+</div>
+{% endblock %}

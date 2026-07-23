@@ -17,7 +17,8 @@ class Settings(BaseSettings):
 
     database_url: str = "sqlite:///./apexos.db"
 
-    cors_origins: str = "http://localhost:3000"
+    # The web UI is served same-origin by this app; CORS only matters for external API clients.
+    cors_origins: str = "http://localhost:8000"
 
     # Dev auth: which seeded user the API acts as when no Clerk session is present.
     dev_actor_email: str = "founder@apexsupply.example"

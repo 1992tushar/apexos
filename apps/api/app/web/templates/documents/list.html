@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+{% block title %}Documents{% endblock %}
+{% block content %}
+{% call ui.page_header("Documents", total ~ " total") %}
+{% endcall %}
+
+<div class="card" id="new">
+  <div class="card-title">Upload document</div>
+  <form method="post" action="/documents" enctype="multipart/form-data">
+    <div class="form-grid">
+      <div class="field"><label>File</label><input type="file" name="file" required /></div>
+      <div class="field"><label>Entity type</label><input name="entity_type" /></div>
+    </div>
+    <div class="form-actions"><button class="btn btn-primary" type="submit">Upload</button></div>
+  </form>
+</div>
+
+{% if documents %}
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>Filename</th><th>Type</th><th class="num">Size</th>
+        <th>Backend</th><th>Entity</th><th>Uploaded</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for d in documents %}
+      <tr>
+        <td><a class="row-link" href="/documents/{{ d.id }}/download" target="_blank">{{ d.filename }}</a></td>
+        <td>{{ d.content_type }}</td>
+        <td class="num">{{ d.size_bytes | number }} B</td>
+        <td>{{ ui.badge(d.storage_backend | upper) }}</td>
+        <td>{{ d.entity_type or "—" }}</td>
+        <td>{{ d.created_at | fmt_datetime }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+  {{ ui.empty("No documents yet. Upload your first one above.") }}
+{% endif %}
+{% endblock %}

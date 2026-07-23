@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+{% block title %}{{ so.order_no }}{% endblock %}
+{% block content %}
+{% call ui.page_header(so.order_no) %}
+  <a class="btn" href="/sales">← All orders</a>
+{% endcall %}
+
+<div class="mt">
+  {% if so.customer_name %}<a class="row-link" href="/customers/{{ so.customer_id }}">{{ so.customer_name }}</a>{% endif %}
+  {{ ui.badge(so.status) }}
+</div>
+
+<div class="detail-grid mt">
+  <div class="card">
+    <div class="section-title">Lines</div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>SKU</th><th>Product</th><th class="num">Qty</th>
+            <th class="num">Unit price</th><th class="num">Tax</th><th class="num">Line total</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for line in so.lines %}
+          <tr>
+            <td class="mono">{{ line.sku_code or "—" }}</td>
+            <td>{{ line.product_name or "—" }}</td>
+            <td class="num">{{ line.qty | number }}</td>
+            <td class="num">{{ line.unit_price_minor | money }}</td>
+            <td class="num">{{ (line.tax_rate_bps / 100) ~ "%" }}</td>
+            <td class="num">{{ line.line_total_minor | money }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+        <tfoot>
+          <tr><td colspan="5" class="num muted">Subtotal</td><td class="num">{{ so.subtotal_minor | money }}</td></tr>
+          <tr><td colspan="5" class="num muted">Tax</td><td class="num">{{ so.tax_minor | money }}</td></tr>
+          <tr><td colspan="5" class="num"><strong>Total</strong></td><td class="num"><strong>{{ so.total_minor | money }}</strong></td></tr>
+        </tfoot>
+      </table>
+    </div>
+  </div>
+
+  <div>
+    <div class="card">
+      <div class="section-title">Details</div>
+      <dl class="kv">
+        <dt>Status</dt><dd>{{ ui.badge(so.status) }}</dd>
+        <dt>Order date</dt><dd>{{ so.order_date | fmt_date }}</dd>
+      </dl>
+    </div>
+
+    <div class="card">
+      <div class="section-title">Fulfillment</div>
+      {% if so.fulfillments %}
+      <dl class="kv">
+        <dt>Reference</dt><dd class="mono">{{ so.fulfillments[0].fulfillment_no }}</dd>
+        <dt>Status</dt><dd>{{ ui.badge(so.fulfillments[0].status) }}</dd>
+        <dt>Shipped</dt><dd>{{ so.fulfillments[0].shipped_at | fmt_datetime if so.fulfillments[0].shipped_at else "—" }}</dd>
+      </dl>
+      {% else %}
+      <p class="muted">Not yet fulfilled.</p>
+      {% endif %}
+    </div>
+
+    <div class="card">
+      <div class="section-title">Invoice</div>
+      {% if so.invoices %}
+      <dl class="kv">
+        <dt>Reference</dt><dd><a class="row-link" href="/finance">{{ so.invoices[0].invoice_no }}</a></dd>
+        <dt>Status</dt><dd>{{ ui.badge(so.invoices[0].status) }}</dd>
+        <dt>Total</dt><dd>{{ so.invoices[0].total_minor | money }}</dd>
+      </dl>
+      {% else %}
+      <p class="muted">Not yet invoiced.</p>
+      {% endif %}
+    </div>
+
+    {% if so.status in ["draft", "confirmed", "fulfilled"] %}
+    <div class="card">
+      <div class="section-title">Next step</div>
+      {% if so.status == "draft" %}
+      <form class="inline-form" method="post" action="/sales/{{ so.id }}/confirm">
+        <button class="btn btn-primary" type="submit">Confirm order</button>
+      </form>
+      {% elif so.status == "confirmed" %}
+      <form class="inline-form" method="post" action="/sales/{{ so.id }}/fulfill">
+        <button class="btn btn-primary" type="submit">Fulfill</button>
+      </form>
+      {% elif so.status == "fulfilled" %}
+      <form class="inline-form" method="post" action="/sales/{{ so.id }}/invoice">
+        <button class="btn btn-primary" type="submit">Create invoice</button>
+      </form>
+      {% endif %}
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

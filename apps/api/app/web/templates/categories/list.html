@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+{% block title %}Categories{% endblock %}
+{% block content %}
+{% call ui.page_header("Categories", cats | length ~ " total") %}
+  <a class="btn" href="#new">+ New category</a>
+{% endcall %}
+
+<div class="card" id="new">
+  <div class="card-title">New category</div>
+  <form method="post" action="/categories">
+    <div class="form-grid">
+      <div class="field"><label>Code</label><input name="code" maxlength="4" required /></div>
+      <div class="field"><label>Name</label><input name="name" required /></div>
+      <div class="field">
+        <label>Procurement model</label>
+        <select name="procurement_model_id">
+          <option value="">—</option>
+          {% for p in pmodels %}<option value="{{ p.id }}">{{ p.name }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="field">
+        <label>Parent category</label>
+        <select name="parent_category_id">
+          <option value="">Top level</option>
+          {% for c in cats %}<option value="{{ c.id }}">{{ c.code }} — {{ c.name }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="field"><label>Sort order</label><input name="sort_order" type="number" value="0" /></div>
+    </div>
+    <div class="form-actions"><button class="btn btn-primary" type="submit">Create category</button></div>
+  </form>
+</div>
+
+{% if cats %}
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>Code</th><th>Name</th><th>Parent</th><th class="num">Sort</th><th>Status</th><th>Move</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for cat in cats %}
+      <tr>
+        <td class="mono">{{ cat.code }}</td>
+        <td>{{ cat.name }}</td>
+        <td>{{ parent_names[cat.parent_category_id | string] if cat.parent_category_id else "Top level" }}</td>
+        <td class="num">{{ cat.sort_order }}</td>
+        <td>{{ ui.badge("active" if cat.is_active else "inactive") }}</td>
+        <td>
+          <form method="post" action="/categories/{{ cat.id }}/reparent" class="inline-form">
+            <select name="parent_category_id">
+              <option value="">Top level</option>
+              {% for c in cats %}{% if c.id != cat.id %}<option value="{{ c.id }}">{{ c.code }} — {{ c.name }}</option>{% endif %}{% endfor %}
+            </select>
+            <button class="btn btn-sm" type="submit">Move</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+  {{ ui.empty("No categories yet. Add your first one above.") }}
+{% endif %}
+{% endblock %}

@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+{% block title %}Sales orders{% endblock %}
+{% block content %}
+{% call ui.page_header("Sales orders", total ~ " total") %}
+  <a class="btn btn-primary" href="/sales/new">+ New order</a>
+{% endcall %}
+
+<div class="row-actions mt">
+  <a class="btn btn-sm{% if not current_status %} btn-primary{% endif %}" href="/sales">All</a>
+  {% for st in statuses %}
+  <a class="btn btn-sm{% if current_status == st %} btn-primary{% endif %}" href="/sales?status={{ st }}">{{ st | humanize }}</a>
+  {% endfor %}
+</div>
+
+{% if rows %}
+<div class="table-wrap mt">
+  <table>
+    <thead>
+      <tr>
+        <th>Order</th><th>Customer</th><th>Status</th>
+        <th class="num">Lines</th><th class="num">Total</th><th>Date</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in rows %}
+      <tr>
+        <td class="mono"><a class="row-link" href="/sales/{{ r.id }}">{{ r.order_no }}</a></td>
+        <td>{{ r.customer_name or "—" }}</td>
+        <td>{{ ui.badge(r.status) }}</td>
+        <td class="num">{{ r.line_count | number }}</td>
+        <td class="num">{{ r.total_minor | money }}</td>
+        <td>{{ r.order_date | fmt_date }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+  {{ ui.empty("No sales orders yet.") }}
+{% endif %}
+{% endblock %}

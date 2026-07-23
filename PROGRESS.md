@@ -1,9 +1,65 @@
 # ApexOS — Build Progress
 
 > Working log so any session can pick up where the last one stopped.
-> This project is **not** under git (kept local for now), so this file is the source of truth for status.
+> This file is the source of truth for status.
 
-_Last updated: 2026-07-22_
+_Last updated: 2026-07-23_
+
+## Stack Lightening — Postgres→SQLite + Next.js→Jinja (2026-07-23)
+
+Goal: make ApexOS as light to run as the sister project **OrdeRR** — one command,
+no database server, no frontend build. Delivery-layer only; **no business logic or
+service behavior changed.** Done in two commits.
+
+### Phase 1 — Postgres + Alembic → SQLite
+- `database_url` default is now `sqlite:///./apexos.db` (still `DATABASE_URL`-overridable,
+  so PostgreSQL remains a drop-in for production).
+- Engine adds `connect_args={"check_same_thread": False}` conditionally for SQLite.
+- All Postgres-only column types made dialect-agnostic: `PGUUID(as_uuid=True)` → `Uuid()`
+  (17 model files), `JSONB` → `JSON` (activity, config), `ARRAY(String)` → `JSON` (identity
+  `permission_codes`).
+- **Alembic removed entirely** (`alembic/`, `alembic.ini`, the `alembic` dep, `db.ps1`).
+  The schema now self-initializes: `app.main`'s lifespan imports every model and calls
+  `Base.metadata.create_all(engine)` on startup (also still run by `app.seed`). A fresh
+  `apexos.db` bootstraps itself.
+- De-Postgres'd infra: `docker-compose.yml` (dropped the Postgres service), `Dockerfile`
+  (dropped `libpq`/`psycopg` build deps), `.env.example`, `start.ps1`, run docs; removed
+  `psycopg` from `pyproject.toml`.
+
+### Phase 2 — Next.js SPA → server-rendered Jinja2
+- New web layer at `apps/api/app/web/` (mirrors OrdeRR): `pages/*.py` route handlers call the
+  existing domain **services directly** (never over HTTP) and render `templates/*.html`;
+  shared plumbing in `core.py` (Jinja env + money/date/status filters + `render`/`redirect`
+  helpers), `templates/base.html` app shell + sidebar nav, `_macros.html`, and `static/app.css`.
+  Routers are auto-discovered by `app.web.build_web_router` and mounted at root by `app.main`;
+  `/static` serves assets. Added `jinja2` to `pyproject.toml`.
+- Recreated every former page for parity (17 page modules): dashboard, sales (list/new/detail
+  + confirm/fulfill/invoice), customers (+detail), leads (+convert + opportunity pipeline),
+  products, categories (+reparent), inventory, warehouse (transfer/adjust/count), procurement,
+  purchase-orders (list/new/detail + confirm/receive/bill), suppliers (+detail + evaluate),
+  finance (invoices/bills + payments + detail), reports (run + CSV export), analytics, tasks
+  (+complete), documents (upload/download), settings (masters/warehouses/tax-rates/config).
+  Forms POST to server routes → call service with the current actor → 303 redirect (PRG).
+- **Deleted `apps/web/` entirely** (Next.js SPA, npm/TS build, and the hand-maintained TS DTO
+  layer — the biggest source of drift bugs). No npm/node anywhere in the run path.
+
+### Run it now — one command
+```bash
+cd apps/api
+pip install -e ".[dev]"          # once
+python -m app.seed               # optional: demo data (also self-creates apexos.db)
+uvicorn app.main:app             # UI at http://localhost:8000/ , API docs at /docs
+```
+No Postgres, no `alembic upgrade`, no `npm`. See `RUNNING.md` / `QUICKSTART.md`.
+
+> Note: the deeper design docs under `docs/` (deployment/backup strategy, ER migration order,
+> build-phases) still describe the original Postgres+Alembic+Next.js design and are retained as
+> historical design record; production can still target PostgreSQL via `DATABASE_URL`.
+
+---
+
+_Historical log below (pre-lightening; references to Alembic migrations, `apps/web`, and
+`npm` predate the changes above)._
 
 ## Phase A (Buy side) — CODE REVIEWED, awaiting E2E verification (2026-07-22)
 

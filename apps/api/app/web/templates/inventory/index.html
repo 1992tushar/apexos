@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+{% block title %}Inventory{% endblock %}
+{% block content %}
+{% call ui.page_header("Inventory", low_count ~ " low") %}{% endcall %}
+
+{% if rows %}
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>SKU</th><th>Product</th><th>Warehouse</th>
+        <th class="num">On hand</th><th class="num">Reorder level</th><th>State</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in rows %}
+      <tr>
+        <td class="mono">{{ r.sku_code }}</td>
+        <td>{{ r.product_name }}</td>
+        <td>{{ r.warehouse_name }}</td>
+        <td class="num">{{ r.qty_on_hand | number }}</td>
+        <td class="num">{{ r.reorder_level | number }}</td>
+        <td>{% if r.is_low %}{{ ui.badge("low stock") }}{% else %}{{ ui.badge("in stock") }}{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+  {{ ui.empty("No stock recorded yet.") }}
+{% endif %}
+{% endblock %}

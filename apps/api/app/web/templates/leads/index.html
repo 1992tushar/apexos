@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+{% block title %}Leads & Pipeline{% endblock %}
+{% block content %}
+{% call ui.page_header("Leads & Pipeline", total ~ " leads") %}
+  <a class="btn" href="#new">+ New lead</a>
+{% endcall %}
+
+<div class="card" id="new">
+  <div class="card-title">New lead</div>
+  <form method="post" action="/leads">
+    <div class="form-grid">
+      <div class="field"><label>Company name</label><input name="company_name" required /></div>
+      <div class="field"><label>Contact name</label><input name="contact_name" /></div>
+      <div class="field"><label>City</label><input name="city" /></div>
+      <div class="field"><label>Source</label><input name="source" /></div>
+      <div class="field">
+        <label>Customer type</label>
+        <select name="customer_type_id">
+          <option value="">—</option>
+          {% for t in customer_types %}<option value="{{ t.id }}">{{ t.name }}</option>{% endfor %}
+        </select>
+      </div>
+    </div>
+    <div class="form-actions"><button class="btn btn-primary" type="submit">Create lead</button></div>
+  </form>
+</div>
+
+{% if leads %}
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>Company</th><th>Contact</th><th>City</th><th>Source</th><th>Action</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for lead in leads %}
+      <tr>
+        <td>{{ lead.company_name }}</td>
+        <td>{{ lead.contact_name or "—" }}</td>
+        <td>{{ lead.city or "—" }}</td>
+        <td>{{ lead.source or "—" }}</td>
+        <td>
+          {% if lead.status == 'open' %}
+          <form method="post" action="/leads/{{ lead.id }}/convert">
+            <button class="btn btn-sm" type="submit">Convert</button>
+          </form>
+          {% else %}
+          {{ ui.badge(lead.status) }}
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+  {{ ui.empty("No leads yet. Add your first one above.") }}
+{% endif %}
+
+<div class="section-title mt">Pipeline</div>
+<div class="grid grid-4">
+  {% for g in groups %}
+  <div class="card">
+    <div class="card-title">{{ g.stage.name }} ({{ g.count }}) · {{ g.total_value_minor | money }}</div>
+    {% if g.opps %}
+    {% for o in g.opps %}
+    <div class="mt">
+      <div>{{ o.name }}</div>
+      <div class="muted">{{ o.estimated_value_minor | money }}</div>
+      <form method="post" action="/opportunities/{{ o.id }}/advance">
+        <div class="form-grid one">
+          <div class="field">
+            <select name="pipeline_stage_id">
+              {% for s in stages %}
+              <option value="{{ s.id }}" {% if s.id == o.pipeline_stage_id %}selected{% endif %}>{{ s.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+        <div class="form-actions"><button class="btn btn-sm" type="submit">Move</button></div>
+      </form>
+    </div>
+    {% endfor %}
+    {% else %}
+      {{ ui.empty("Empty") }}
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

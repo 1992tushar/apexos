@@ -1,33 +1,30 @@
 # Running ApexOS locally
 
-## Prerequisites
-- Python 3.11+ and Node 18+
-- No database server needed — the API uses **SQLite** (a file, created automatically).
+One process. The FastAPI app serves both the JSON API **and** the server-rendered
+web UI (Jinja2), and it uses **SQLite** (a file, created automatically) — so there
+is no database server and no separate frontend build.
 
-## 1. Backend (apps/api)
+## Prerequisites
+- Python 3.11+
+
+## Run (apps/api)
 ```bash
 cd apps/api
 python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\Activate.ps1
 pip install -e ".[dev]"
-cp ../../.env.example .env          # then keep the backend section
-python -m app.seed                  # creates apexos.db + loads Apex master data + a demo order
-uvicorn app.main:app --reload       # http://localhost:8000  (docs at /docs)
+cp ../../.env.example .env          # optional; defaults work out of the box
+python -m app.seed                  # optional: creates apexos.db + Apex master data + a demo order
+uvicorn app.main:app --reload       # http://localhost:8000
 ```
+- **App (UI):** http://localhost:8000/
+- **API docs (Swagger):** http://localhost:8000/docs
+
 The schema self-initializes on startup (`Base.metadata.create_all`), so `uvicorn`
 works against a fresh `apexos.db` even without seeding — the seed just adds data.
 
-## 2. Frontend (apps/web)
+## One-shot (Docker)
 ```bash
-cd apps/web
-npm install
-cp .env.local.example .env.local
-npm run dev                         # http://localhost:3000
-```
-
-## One-shot (API in Docker)
-```bash
-docker compose up --build           # seeds SQLite + serves the API on :8000
-# then run the web app locally as in step 2
+docker compose up --build           # seeds SQLite + serves the app on :8000
 ```
 
 ## Smoke test
@@ -37,7 +34,6 @@ curl http://localhost:8000/api/v1/dashboard/summary
 ```
 
 ## Reset demo data
-Delete the SQLite file and re-seed (from `apps/api`):
 ```bash
 rm apexos.db && python -m app.seed
 ```

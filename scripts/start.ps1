@@ -1,31 +1,25 @@
-# ApexOS — start / restart the whole stack (API + Web) in one go.
-# Run from a NORMAL PowerShell. Kills any running instances first, so it's also a restart.
-# The API uses SQLite (a file, self-initialized on startup) — no database server to start.
+# ApexOS — start / restart the app in one go.
+# The single FastAPI process serves BOTH the web UI (Jinja) and the JSON API,
+# backed by a SQLite file (self-initialized on startup) — no DB server, no web build.
+# Run from a NORMAL PowerShell. Frees the port first, so this doubles as a restart.
 $ErrorActionPreference = 'SilentlyContinue'
 
 $root = Split-Path $PSScriptRoot -Parent
 $api  = Join-Path $root 'apps\api'
-$web  = Join-Path $root 'apps\web'
 
 Write-Host '== ApexOS: (re)starting ==' -ForegroundColor Cyan
 
-# 1) Free the ports (so this also works as a restart)
-foreach ($port in 8000, 3000) {
-  Get-NetTCPConnection -LocalPort $port -State Listen -EA SilentlyContinue |
-    Select-Object -ExpandProperty OwningProcess -Unique |
-    ForEach-Object { Stop-Process -Id $_ -Force -EA SilentlyContinue }
-}
+# Free port 8000 (so this also works as a restart)
+Get-NetTCPConnection -LocalPort 8000 -State Listen -EA SilentlyContinue |
+  Select-Object -ExpandProperty OwningProcess -Unique |
+  ForEach-Object { Stop-Process -Id $_ -Force -EA SilentlyContinue }
 
-# 2) API — own window, with hot reload (SQLite schema self-initializes on boot)
+# API + UI — own window, with hot reload (SQLite schema self-initializes on boot)
 Start-Process powershell -ArgumentList @('-NoExit','-Command',
   "cd `"$api`"; .\.venv\Scripts\python.exe -m uvicorn app.main:app --reload --port 8000")
 
-# 3) Web — own window, dev mode (hot reload)
-Start-Process powershell -ArgumentList @('-NoExit','-Command',
-  "cd `"$web`"; npm run dev")
-
 Write-Host ''
-Write-Host 'ApexOS is starting up (two windows opened for API + Web).' -ForegroundColor Green
-Write-Host '  App : http://localhost:3000'
+Write-Host 'ApexOS is starting up.' -ForegroundColor Green
+Write-Host '  App : http://localhost:8000/'
 Write-Host '  API : http://localhost:8000/docs'
-Write-Host 'Give it ~10s on first launch, then open the App URL.'
+Write-Host 'Give it ~5s on first launch, then open the App URL.'

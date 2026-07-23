@@ -1,0 +1,27 @@
+{# Reusable presentation macros shared across pages. #}
+
+{% macro page_header(title, subtitle=None) %}
+<div class="page-header">
+  <div>
+    <h1>{{ title }}</h1>
+    {% if subtitle %}<p class="subtitle">{{ subtitle }}</p>{% endif %}
+  </div>
+  <div class="page-header-actions">{{ caller() if caller else "" }}</div>
+</div>
+{% endmacro %}
+
+{% macro stat(label, value, hint=None) %}
+<div class="stat-tile">
+  <div class="stat-label">{{ label }}</div>
+  <div class="stat-value">{{ value }}</div>
+  {% if hint %}<div class="stat-hint">{{ hint }}</div>{% endif %}
+</div>
+{% endmacro %}
+
+{% macro badge(status) %}
+<span class="badge badge-{{ status | status_class }}">{{ status | humanize }}</span>
+{% endmacro %}
+
+{% macro empty(message="Nothing here yet.") %}
+<div class="empty-state">{{ message }}</div>
+{% endmacro %}

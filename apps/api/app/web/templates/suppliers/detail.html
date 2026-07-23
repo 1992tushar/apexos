@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+{% block title %}{{ sup.name }}{% endblock %}
+{% block content %}
+{% call ui.page_header(sup.name, sup.code) %}
+  <a class="btn" href="/suppliers">← All suppliers</a>
+{% endcall %}
+
+<div class="grid grid-3 mt">
+  {{ ui.stat("Payable", sup.outstanding_minor | money) }}
+  {{ ui.stat("Score", (sup.latest_score or "—") ~ "/5", sup.evaluation_count ~ " evals") }}
+  {{ ui.stat("GSTIN", sup.gstin or "—") }}
+</div>
+
+<div class="detail-grid mt">
+  <div class="card">
+    <div class="section-title">Contact</div>
+    <dl class="kv">
+      <dt>Type</dt><dd>{{ sup.supplier_type_name or "—" }}</dd>
+      <dt>Phone</dt><dd>{{ sup.phone or "—" }}</dd>
+      <dt>Email</dt><dd>{{ sup.email or "—" }}</dd>
+      <dt>City</dt><dd>{{ sup.city or "—" }}</dd>
+      <dt>State</dt><dd>{{ sup.state or "—" }}</dd>
+      <dt>Address</dt><dd>{{ sup.address or "—" }}</dd>
+    </dl>
+  </div>
+  <div class="card">
+    <div class="section-title">Evaluations</div>
+    {% if evals %}
+    {% for e in evals %}
+    <div class="mt">
+      <strong>{{ e.overall_score }}/5</strong>
+      <span class="muted">quality {{ e.quality_score }} · price {{ e.price_score }} · reliability {{ e.reliability_score }}</span>
+      <div class="muted">{{ e.evaluated_on | fmt_date }}</div>
+      {% if e.notes %}<div>{{ e.notes }}</div>{% endif %}
+    </div>
+    {% endfor %}
+    {% else %}
+      {{ ui.empty("No evaluations yet.") }}
+    {% endif %}
+    <div class="section-title mt">Evaluate</div>
+    <form method="post" action="/supplier-evaluations">
+      <input type="hidden" name="supplier_id" value="{{ sup.id }}" />
+      <div class="form-grid">
+        <div class="field"><label>Quality (0-5)</label><input name="quality_score" type="number" min="0" max="5" value="4" /></div>
+        <div class="field"><label>Price (0-5)</label><input name="price_score" type="number" min="0" max="5" value="4" /></div>
+        <div class="field"><label>Reliability (0-5)</label><input name="reliability_score" type="number" min="0" max="5" value="4" /></div>
+        <div class="field full"><label>Notes</label><textarea name="notes" rows="2"></textarea></div>
+      </div>
+      <div class="form-actions"><button class="btn btn-primary" type="submit">Add evaluation</button></div>
+    </form>
+  </div>
+</div>
+{% endblock %}

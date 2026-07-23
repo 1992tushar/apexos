@@ -5,6 +5,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from app.api import api_router
 from app.core.config import settings
@@ -12,6 +13,8 @@ from app.core.database import engine
 from app.core.errors import register_error_handlers
 from app.core.logging import CorrelationIdMiddleware, configure_logging
 from app.db.metadata import Base, import_all_models
+from app.web import build_web_router
+from app.web.core import STATIC_DIR
 
 
 @asynccontextmanager
@@ -57,6 +60,10 @@ def create_app() -> FastAPI:
         return {"status": "ok", "app": settings.app_name, "env": settings.app_env}
 
     app.include_router(api_router, prefix=settings.api_v1_prefix)
+
+    # Server-rendered web UI (Jinja2): static assets + auto-discovered page routers.
+    app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+    app.include_router(build_web_router())
     return app
 
 

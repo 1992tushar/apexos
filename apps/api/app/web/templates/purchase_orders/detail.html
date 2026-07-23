@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+{% block title %}{{ po.po_no }}{% endblock %}
+{% block content %}
+{% call ui.page_header(po.po_no, po.supplier_name) %}
+  <a class="btn" href="/purchase-orders">← All POs</a>
+{% endcall %}
+
+<div class="mt">{{ ui.badge(po.status) }}</div>
+
+<div class="card mt">
+  <div class="section-title">Lines</div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>SKU</th><th>Product</th>
+          <th class="num">Ordered</th><th class="num">Received</th>
+          <th class="num">Buy price</th><th class="num">Tax</th><th class="num">Line total</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for ln in po.lines %}
+        <tr>
+          <td class="mono">{{ ln.sku_code or "—" }}</td>
+          <td>{{ ln.product_name or "—" }}</td>
+          <td class="num">{{ ln.qty | number }}</td>
+          <td class="num">{{ ln.qty_received | number }}</td>
+          <td class="num">{{ ln.unit_price_minor | money }}</td>
+          <td class="num">{{ (ln.tax_rate_bps / 100) }}%</td>
+          <td class="num">{{ ln.line_total_minor | money }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+      <tfoot>
+        <tr><td colspan="6" class="num">Subtotal</td><td class="num">{{ po.subtotal_minor | money }}</td></tr>
+        <tr><td colspan="6" class="num">Tax</td><td class="num">{{ po.tax_minor | money }}</td></tr>
+        <tr><td colspan="6" class="num"><strong>Total</strong></td><td class="num"><strong>{{ po.total_minor | money }}</strong></td></tr>
+      </tfoot>
+    </table>
+  </div>
+</div>
+
+<div class="detail-grid mt">
+  <div class="card">
+    <div class="section-title">Goods receipts</div>
+    {% if po.goods_receipts %}
+    <dl class="kv">
+      {% for r in po.goods_receipts %}
+      <dt class="mono">{{ r.receipt_no }}</dt>
+      <dd>{{ ui.badge(r.status) }} <span class="muted">{{ r.received_at | fmt_datetime }}</span></dd>
+      {% endfor %}
+    </dl>
+    {% else %}
+      {{ ui.empty("No goods receipts yet.") }}
+    {% endif %}
+  </div>
+  <div class="card">
+    <div class="section-title">Bill</div>
+    {% if po.bills %}
+    <dl class="kv">
+      <dt>Bill</dt><dd><a class="row-link" href="/finance">{{ po.bills[0].bill_no }}</a></dd>
+      <dt>Status</dt><dd>{{ ui.badge(po.bills[0].status) }}</dd>
+      <dt>Total</dt><dd>{{ po.bills[0].total_minor | money }}</dd>
+    </dl>
+    {% else %}
+      {{ ui.empty("No bill yet.") }}
+    {% endif %}
+  </div>
+</div>
+
+<div class="card mt">
+  <div class="section-title">Actions</div>
+  <div class="form-actions">
+    {% if po.status == "draft" %}
+    <form method="post" action="/purchase-orders/{{ po.id }}/confirm"><button class="btn btn-primary" type="submit">Confirm PO</button></form>
+    {% endif %}
+    {% if po.status in ("confirmed", "partially_received") %}
+    <form method="post" action="/purchase-orders/{{ po.id }}/receive"><button class="btn" type="submit">Receive goods</button></form>
+    {% endif %}
+    {% if po.status in ("received", "partially_received") %}
+    <form method="post" action="/purchase-orders/{{ po.id }}/bill"><button class="btn" type="submit">Create bill</button></form>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

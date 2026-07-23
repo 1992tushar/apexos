@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+{% call ui.page_header("Dashboard", "Command center") %}{% endcall %}
+
+<div class="grid grid-3">
+  <a href="/sales">{{ ui.stat("Today's sales", s.today_sales_minor | money) }}</a>
+  <a href="/finance">{{ ui.stat("Outstanding receivables", s.outstanding_receivables_minor | money) }}</a>
+  <a href="/inventory">{{ ui.stat("Inventory value", s.inventory_value_minor | money) }}</a>
+  <a href="/inventory">{{ ui.stat("Low stock", s.low_stock_count | number) }}</a>
+  <a href="/sales">{{ ui.stat("Pending sales orders", s.pending_sales_orders | number) }}</a>
+  <a href="/purchase-orders">{{ ui.stat("Pending purchase orders", s.pending_purchase_orders | number) }}</a>
+</div>
+
+<div class="card mt">
+  <div class="card-title">Revenue (last 14 days)</div>
+  {% if max_rev %}
+  <div class="chart-bars">
+    {% for pt in s.revenue_trend %}
+    <div class="chart-bar" style="height:{{ (pt.amount_minor / max_rev * 100) if max_rev else 0 }}%">
+      <span>{{ pt.amount_minor | money }}</span>
+    </div>
+    {% endfor %}
+  </div>
+  <div class="chart-bars" style="height:auto; align-items:flex-start;">
+    {% for pt in s.revenue_trend %}
+    <div class="chart-label" style="flex:1;">{{ pt.date | fmt_date }}</div>
+    {% endfor %}
+  </div>
+  {% else %}
+    {{ ui.empty("No revenue in the last 14 days.") }}
+  {% endif %}
+</div>
+
+<div class="detail-grid mt">
+  <div class="card">
+    <div class="section-title">Top customers</div>
+    {% if s.top_customers %}
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Customer</th><th class="num">Revenue</th></tr>
+        </thead>
+        <tbody>
+          {% for tc in s.top_customers %}
+          <tr>
+            <td><a class="row-link" href="/customers/{{ tc.id }}">{{ tc.name }}</a></td>
+            <td class="num">{{ tc.revenue_minor | money }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+      {{ ui.empty("No customer revenue yet.") }}
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <div class="section-title">Recent activity</div>
+    {% if s.recent_activities %}
+    <div class="table-wrap">
+      <table>
+        <tbody>
+          {% for a in s.recent_activities %}
+          <tr>
+            <td>{{ a.summary or (a.verb | humanize) }}</td>
+            <td class="num muted">{{ a.occurred_at | time_ago }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+      {{ ui.empty("No recent activity.") }}
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

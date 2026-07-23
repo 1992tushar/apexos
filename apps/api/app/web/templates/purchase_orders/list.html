@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+{% block title %}Purchase orders{% endblock %}
+{% block content %}
+{% call ui.page_header("Purchase orders", total ~ " total") %}
+  <a class="btn btn-primary" href="/purchase-orders/new">+ New PO</a>
+{% endcall %}
+
+<div class="mt">
+  {% set pills = [("", "All"), ("draft", "Draft"), ("confirmed", "Confirmed"), ("partially_received", "Partially received"), ("received", "Received"), ("billed", "Billed")] %}
+  {% for value, label in pills %}
+  <a class="btn btn-sm {{ 'btn-primary' if status == value else 'btn-ghost' }}" href="/purchase-orders{{ ('?status=' ~ value) if value else '' }}">{{ label }}</a>
+  {% endfor %}
+</div>
+
+{% if orders %}
+<div class="table-wrap mt">
+  <table>
+    <thead>
+      <tr>
+        <th>PO No</th><th>Supplier</th><th>Status</th>
+        <th class="num">Lines</th><th class="num">Total</th><th>Order date</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for o in orders %}
+      <tr>
+        <td class="mono"><a class="row-link" href="/purchase-orders/{{ o.id }}">{{ o.po_no }}</a></td>
+        <td>{{ o.supplier_name or "—" }}</td>
+        <td>{{ ui.badge(o.status) }}</td>
+        <td class="num">{{ o.line_count | number }}</td>
+        <td class="num">{{ o.total_minor | money }}</td>
+        <td>{{ o.order_date | fmt_date }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+  {{ ui.empty("No purchase orders yet.") }}
+{% endif %}
+{% endblock %}

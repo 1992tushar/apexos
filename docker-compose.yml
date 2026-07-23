@@ -7,7 +7,8 @@ services:
       APP_ENV: dev
       # SQLite lives in a file inside the container's working dir — no DB server.
       DATABASE_URL: sqlite:///./apexos.db
-      CORS_ORIGINS: "http://localhost:3000"
+      # The web UI is served same-origin by this process; CORS is only for external API clients.
+      CORS_ORIGINS: "http://localhost:8000"
     ports:
       - "8000:8000"
     command: >

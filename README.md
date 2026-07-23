@@ -13,9 +13,9 @@ Start with [`docs/00-canonical-foundation.md`](./docs/00-canonical-foundation.md
 
 ## Stack
 
-- **Web:** Next.js (App Router) · React · TypeScript · Tailwind · shadcn/ui · TanStack Table · Recharts
+- **App:** one FastAPI process serving server-rendered **Jinja2** HTML (no build step) + the JSON API
 - **API:** Python · FastAPI · SQLAlchemy 2.0 · Pydantic v2 · SQLite (self-initializing, no migration tool)
-- **Auth:** Clerk · **Storage:** Cloudflare R2 · **Deploy:** Docker → Railway/Render → K8s
+- **Run:** `uvicorn app.main:app` — one command · **Storage:** local disk (Cloudflare R2 optional)
 
 ## Principles
 
