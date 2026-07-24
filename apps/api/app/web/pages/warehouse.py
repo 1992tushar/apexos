@@ -5,11 +5,9 @@ import uuid
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, Form, Request
-from pydantic import ValidationError as PydanticValidationError
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.errors import AppError
 from app.core.security import Actor, get_current_actor
 from app.modules.config.service import ConfigService
 from app.modules.inventory.schemas import (
@@ -23,7 +21,7 @@ from app.modules.inventory.service import (
     StockTransferService,
 )
 from app.modules.products.service import ProductService
-from app.web.core import redirect, render
+from app.web.core import form_action, render
 
 router = APIRouter()
 
@@ -68,7 +66,7 @@ def create_transfer(
     db: Session = Depends(get_db),
     actor: Actor = Depends(get_current_actor),
 ):
-    try:
+    def work():
         payload = StockTransferCreate(
             product_id=uuid.UUID(product_id),
             from_warehouse_id=uuid.UUID(from_warehouse_id),
@@ -76,11 +74,12 @@ def create_transfer(
             qty=Decimal(str(qty)),
             note=None,
         )
-        StockTransferService(db).transfer(payload, actor_id=actor.id)
-    except (AppError, PydanticValidationError, ValueError) as exc:
-        db.rollback()
-        return redirect("/warehouse", err=getattr(exc, "message", "Could not transfer stock"))
-    return redirect("/warehouse", ok="Stock transferred")
+        return StockTransferService(db).transfer(payload, actor_id=actor.id)
+
+    return form_action(
+        db, work, back="/warehouse", success=("/warehouse", "Stock transferred"),
+        err="Could not transfer stock",
+    )
 
 
 @router.post("/inventory/adjustments")
@@ -92,7 +91,7 @@ def create_adjustment(
     db: Session = Depends(get_db),
     actor: Actor = Depends(get_current_actor),
 ):
-    try:
+    def work():
         payload = StockAdjustmentCreate(
             product_id=uuid.UUID(product_id),
             warehouse_id=uuid.UUID(warehouse_id),
@@ -100,11 +99,12 @@ def create_adjustment(
             reason="ADJUSTMENT",
             note=None,
         )
-        StockAdjustmentService(db).adjust(payload, actor_id=actor.id)
-    except (AppError, PydanticValidationError, ValueError) as exc:
-        db.rollback()
-        return redirect("/warehouse", err=getattr(exc, "message", "Could not adjust stock"))
-    return redirect("/warehouse", ok="Stock adjusted")
+        return StockAdjustmentService(db).adjust(payload, actor_id=actor.id)
+
+    return form_action(
+        db, work, back="/warehouse", success=("/warehouse", "Stock adjusted"),
+        err="Could not adjust stock",
+    )
 
 
 @router.post("/inventory/counts")
@@ -116,15 +116,16 @@ def create_count(
     db: Session = Depends(get_db),
     actor: Actor = Depends(get_current_actor),
 ):
-    try:
+    def work():
         payload = StockCountCreate(
             product_id=uuid.UUID(product_id),
             warehouse_id=uuid.UUID(warehouse_id),
             counted_qty=Decimal(str(counted_qty)),
             note=None,
         )
-        StockAdjustmentService(db).count(payload, actor_id=actor.id)
-    except (AppError, PydanticValidationError, ValueError) as exc:
-        db.rollback()
-        return redirect("/warehouse", err=getattr(exc, "message", "Could not record count"))
-    return redirect("/warehouse", ok="Count recorded")
+        return StockAdjustmentService(db).count(payload, actor_id=actor.id)
+
+    return form_action(
+        db, work, back="/warehouse", success=("/warehouse", "Count recorded"),
+        err="Could not record count",
+    )

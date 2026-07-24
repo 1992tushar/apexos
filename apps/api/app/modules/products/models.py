@@ -4,8 +4,7 @@ from __future__ import annotations
 import uuid
 from decimal import Decimal
 
-from sqlalchemy import Boolean, ForeignKey, Numeric, String, Text
-from sqlalchemy import Uuid
+from sqlalchemy import ForeignKey, Numeric, String, Uuid
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base, BusinessUnitMixin, EntityMixin

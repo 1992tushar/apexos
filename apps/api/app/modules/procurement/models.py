@@ -19,9 +19,9 @@ from sqlalchemy import (
     Numeric,
     SmallInteger,
     String,
+    Uuid,
     func,
 )
-from sqlalchemy import Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, BusinessUnitMixin, EntityMixin
@@ -42,7 +42,7 @@ class PurchaseOrder(Base, EntityMixin, BusinessUnitMixin):
     tax_minor: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
     total_minor: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
 
-    lines: Mapped[list["PurchaseOrderLine"]] = relationship(
+    lines: Mapped[list[PurchaseOrderLine]] = relationship(
         back_populates="order",
         cascade="all, delete-orphan",
         order_by="PurchaseOrderLine.line_no",
@@ -71,7 +71,7 @@ class PurchaseOrderLine(Base, EntityMixin):
     line_total_minor: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
     line_no: Mapped[int] = mapped_column(SmallInteger, nullable=False, default=1)
 
-    order: Mapped["PurchaseOrder"] = relationship(back_populates="lines")
+    order: Mapped[PurchaseOrder] = relationship(back_populates="lines")
 
 
 class GoodsReceipt(Base, EntityMixin):
@@ -87,7 +87,7 @@ class GoodsReceipt(Base, EntityMixin):
     status: Mapped[str] = mapped_column(String(16), nullable=False, default="received")
     received_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
-    lines: Mapped[list["GoodsReceiptLine"]] = relationship(
+    lines: Mapped[list[GoodsReceiptLine]] = relationship(
         back_populates="receipt", cascade="all, delete-orphan"
     )
 
@@ -103,4 +103,4 @@ class GoodsReceiptLine(Base, EntityMixin):
     )
     qty: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
 
-    receipt: Mapped["GoodsReceipt"] = relationship(back_populates="lines")
+    receipt: Mapped[GoodsReceipt] = relationship(back_populates="lines")

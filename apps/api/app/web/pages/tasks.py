@@ -5,15 +5,13 @@ import uuid
 from datetime import date
 
 from fastapi import APIRouter, Depends, Form, Request
-from pydantic import ValidationError as PydanticValidationError
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.errors import AppError
 from app.core.security import Actor, get_current_actor
 from app.modules.tasks.schemas import TaskCreate
 from app.modules.tasks.service import TaskService
-from app.web.core import redirect, render
+from app.web.core import form_action, render
 
 router = APIRouter()
 
@@ -42,18 +40,20 @@ def create_task(
     db: Session = Depends(get_db),
     actor: Actor = Depends(get_current_actor),
 ):
-    try:
+    def work():
         payload = TaskCreate(
             title=title,
             priority=priority,
             due_date=date.fromisoformat(due_date) if due_date else None,
             description=description or None,
         )
-        TaskService(db).create(payload, actor_id=actor.id)
-    except (AppError, PydanticValidationError, ValueError) as exc:
-        db.rollback()
-        return redirect("/tasks", err=getattr(exc, "message", "Could not create task"))
-    return redirect("/tasks", ok="Task created")
+        return TaskService(db).create(payload, actor_id=actor.id)
+
+    return form_action(
+        db, work, back="/tasks",
+        success=("/tasks", "Task created"),
+        err="Could not create task",
+    )
 
 
 @router.post("/tasks/{task_id}/complete")
@@ -63,9 +63,9 @@ def complete_task(
     db: Session = Depends(get_db),
     actor: Actor = Depends(get_current_actor),
 ):
-    try:
-        TaskService(db).complete(task_id, actor_id=actor.id)
-    except (AppError, PydanticValidationError, ValueError) as exc:
-        db.rollback()
-        return redirect("/tasks", err=getattr(exc, "message", "Could not complete task"))
-    return redirect("/tasks", ok="Task completed")
+    return form_action(
+        db, lambda: TaskService(db).complete(task_id, actor_id=actor.id),
+        back="/tasks",
+        success=("/tasks", "Task completed"),
+        err="Could not complete task",
+    )

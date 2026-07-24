@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.security import Actor, get_current_actor, require_permission
+from app.core.security import Actor, require_permission
 from app.modules.customers.schemas import (
     CustomerCreate,
     CustomerPage,

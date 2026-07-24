@@ -5,16 +5,14 @@ import uuid
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, Form, Request
-from pydantic import ValidationError as PydanticValidationError
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.errors import AppError
 from app.core.security import Actor, get_current_actor
 from app.modules.config.service import ConfigService
 from app.modules.products.schemas import ProductCreate
 from app.modules.products.service import ProductService
-from app.web.core import redirect, render
+from app.web.core import form_action, render
 
 router = APIRouter()
 
@@ -52,7 +50,7 @@ def create_product(
     db: Session = Depends(get_db),
     actor: Actor = Depends(get_current_actor),
 ):
-    try:
+    def work():
         payload = ProductCreate(
             name=name,
             category_id=uuid.UUID(category_id),
@@ -71,8 +69,10 @@ def create_product(
             if purchase_price_rupees
             else None,
         )
-        ProductService(db).create(payload, actor_id=actor.id)
-    except (AppError, PydanticValidationError, ValueError) as exc:
-        db.rollback()
-        return redirect("/products", err=getattr(exc, "message", "Could not create product"))
-    return redirect("/products", ok="Product created")
+        return ProductService(db).create(payload, actor_id=actor.id)
+
+    return form_action(
+        db, work, back="/products",
+        success=("/products", "Product created"),
+        err="Could not create product",
+    )

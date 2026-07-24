@@ -8,8 +8,7 @@ from __future__ import annotations
 import uuid
 from datetime import date
 
-from sqlalchemy import BigInteger, Boolean, Date, ForeignKey, SmallInteger, String, Text
-from sqlalchemy import Uuid
+from sqlalchemy import BigInteger, Boolean, Date, ForeignKey, SmallInteger, String, Text, Uuid
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base, BusinessUnitMixin, EntityMixin

@@ -6,24 +6,21 @@ Global type masters carry no `business_unit_id`; `category` rolls up to a BU
 from __future__ import annotations
 
 import uuid
-from datetime import date, datetime
+from datetime import date
 from decimal import Decimal
 
 from sqlalchemy import (
-    BigInteger,
+    JSON,
     Boolean,
     Date,
-    DateTime,
     ForeignKey,
     Integer,
     Numeric,
     SmallInteger,
     String,
-    Text,
+    Uuid,
     func,
 )
-from sqlalchemy import JSON
-from sqlalchemy import Uuid
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base, BusinessUnitMixin, EntityMixin

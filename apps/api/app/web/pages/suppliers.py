@@ -4,16 +4,14 @@ from __future__ import annotations
 import uuid
 
 from fastapi import APIRouter, Depends, Form, Request
-from pydantic import ValidationError as PydanticValidationError
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.errors import AppError
 from app.core.security import Actor, get_current_actor
 from app.modules.config.service import ConfigService
 from app.modules.suppliers.schemas import SupplierCreate, SupplierEvaluationCreate
 from app.modules.suppliers.service import SupplierService, VendorEvaluationService
-from app.web.core import redirect, render
+from app.web.core import form_action, render
 
 router = APIRouter()
 
@@ -45,7 +43,7 @@ def create_supplier(
     db: Session = Depends(get_db),
     actor: Actor = Depends(get_current_actor),
 ):
-    try:
+    def work():
         payload = SupplierCreate(
             name=name,
             supplier_type_id=uuid.UUID(supplier_type_id),
@@ -56,21 +54,19 @@ def create_supplier(
             city=city or None,
             state=state or None,
         )
-        sup = SupplierService(db).create(payload, actor_id=actor.id)
-    except (AppError, PydanticValidationError, ValueError) as exc:
-        db.rollback()
-        return redirect("/suppliers", err=getattr(exc, "message", "Could not create supplier"))
-    return redirect(f"/suppliers/{sup.id}", ok="Supplier created")
+        return SupplierService(db).create(payload, actor_id=actor.id)
+
+    return form_action(
+        db, work, back="/suppliers",
+        success=lambda sup: (f"/suppliers/{sup.id}", "Supplier created"),
+        err="Could not create supplier",
+    )
 
 
 @router.get("/suppliers/{supplier_id}")
 def supplier_detail(request: Request, supplier_id: uuid.UUID, db: Session = Depends(get_db)):
-    try:
-        sup = SupplierService(db).get(supplier_id)
-    except AppError as exc:
-        return render(
-            request, "error.html", status_code=exc.status_code, code="Not found", message=exc.message
-        )
+    # A missing supplier raises NotFoundError → the web error handler renders error.html.
+    sup = SupplierService(db).get(supplier_id)
     evals = VendorEvaluationService(db).evaluations(supplier_id)
     return render(request, "suppliers/detail.html", sup=sup, evals=evals)
 
@@ -86,7 +82,7 @@ def evaluate_supplier(
     db: Session = Depends(get_db),
     actor: Actor = Depends(get_current_actor),
 ):
-    try:
+    def work():
         payload = SupplierEvaluationCreate(
             supplier_id=uuid.UUID(supplier_id),
             quality_score=quality_score,
@@ -94,8 +90,10 @@ def evaluate_supplier(
             reliability_score=reliability_score,
             notes=notes or None,
         )
-        VendorEvaluationService(db).score(payload, actor_id=actor.id)
-    except (AppError, PydanticValidationError, ValueError) as exc:
-        db.rollback()
-        return redirect(f"/suppliers/{supplier_id}", err=getattr(exc, "message", "Could not add evaluation"))
-    return redirect(f"/suppliers/{supplier_id}", ok="Evaluation added")
+        return VendorEvaluationService(db).score(payload, actor_id=actor.id)
+
+    return form_action(
+        db, work, back=f"/suppliers/{supplier_id}",
+        success=(f"/suppliers/{supplier_id}", "Evaluation added"),
+        err="Could not add evaluation",
+    )

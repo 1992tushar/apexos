@@ -6,17 +6,15 @@ from datetime import date
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, Form, Request
-from pydantic import ValidationError as PydanticValidationError
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.errors import AppError
 from app.core.security import Actor, get_current_actor
 from app.modules.customers.service import CustomerService
 from app.modules.products.service import ProductService
 from app.modules.sales.schemas import SalesOrderCreate, SalesOrderLineCreate
 from app.modules.sales.service import SalesOrderService
-from app.web.core import redirect, render
+from app.web.core import form_action, render
 
 router = APIRouter()
 
@@ -62,9 +60,9 @@ def create_sale(
     db: Session = Depends(get_db),
     actor: Actor = Depends(get_current_actor),
 ):
-    try:
+    def work():
         lines: list[SalesOrderLineCreate] = []
-        for pid, q, up in zip(product_id, qty, unit_price_rupees):
+        for pid, q, up in zip(product_id, qty, unit_price_rupees, strict=False):
             if not pid or not q:
                 continue
             unit_price_minor = int(round(float(up) * 100)) if up else None
@@ -80,21 +78,19 @@ def create_sale(
             order_date=date.fromisoformat(order_date) if order_date else None,
             lines=lines,
         )
-        order = SalesOrderService(db).create(payload, actor_id=actor.id)
-    except (AppError, PydanticValidationError, ValueError) as exc:
-        db.rollback()
-        return redirect("/sales/new", err=getattr(exc, "message", "Could not create order"))
-    return redirect(f"/sales/{order.id}", ok="Order created")
+        return SalesOrderService(db).create(payload, actor_id=actor.id)
+
+    return form_action(
+        db, work, back="/sales/new",
+        success=lambda order: (f"/sales/{order.id}", "Order created"),
+        err="Could not create order",
+    )
 
 
 @router.get("/sales/{order_id}")
 def sale_detail(request: Request, order_id: uuid.UUID, db: Session = Depends(get_db)):
-    try:
-        so = SalesOrderService(db).get(order_id)
-    except AppError as exc:
-        return render(
-            request, "error.html", status_code=exc.status_code, code="Not found", message=exc.message
-        )
+    # A missing order raises NotFoundError → the web error handler renders error.html.
+    so = SalesOrderService(db).get(order_id)
     return render(request, "sales/detail.html", so=so)
 
 
@@ -105,12 +101,10 @@ def confirm_sale(
     db: Session = Depends(get_db),
     actor: Actor = Depends(get_current_actor),
 ):
-    try:
-        SalesOrderService(db).confirm(order_id, actor_id=actor.id)
-    except AppError as exc:
-        db.rollback()
-        return redirect(f"/sales/{order_id}", err=exc.message)
-    return redirect(f"/sales/{order_id}", ok="Order confirmed")
+    return form_action(
+        db, lambda: SalesOrderService(db).confirm(order_id, actor_id=actor.id),
+        back=f"/sales/{order_id}", success=(f"/sales/{order_id}", "Order confirmed"),
+    )
 
 
 @router.post("/sales/{order_id}/fulfill")
@@ -120,12 +114,10 @@ def fulfill_sale(
     db: Session = Depends(get_db),
     actor: Actor = Depends(get_current_actor),
 ):
-    try:
-        SalesOrderService(db).fulfill(order_id, actor_id=actor.id)
-    except AppError as exc:
-        db.rollback()
-        return redirect(f"/sales/{order_id}", err=exc.message)
-    return redirect(f"/sales/{order_id}", ok="Order fulfilled")
+    return form_action(
+        db, lambda: SalesOrderService(db).fulfill(order_id, actor_id=actor.id),
+        back=f"/sales/{order_id}", success=(f"/sales/{order_id}", "Order fulfilled"),
+    )
 
 
 @router.post("/sales/{order_id}/invoice")
@@ -135,9 +127,7 @@ def invoice_sale(
     db: Session = Depends(get_db),
     actor: Actor = Depends(get_current_actor),
 ):
-    try:
-        SalesOrderService(db).invoice(order_id, actor_id=actor.id)
-    except AppError as exc:
-        db.rollback()
-        return redirect(f"/sales/{order_id}", err=exc.message)
-    return redirect(f"/sales/{order_id}", ok="Invoice created")
+    return form_action(
+        db, lambda: SalesOrderService(db).invoice(order_id, actor_id=actor.id),
+        back=f"/sales/{order_id}", success=(f"/sales/{order_id}", "Invoice created"),
+    )

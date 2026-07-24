@@ -6,23 +6,23 @@ from datetime import date
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, Form, Request
-from pydantic import ValidationError as PydanticValidationError
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.errors import AppError
 from app.core.security import Actor, get_current_actor
 from app.modules.procurement.schemas import PurchaseOrderCreate, PurchaseOrderLineCreate
 from app.modules.procurement.service import GoodsReceiptService, PurchaseOrderService
 from app.modules.products.service import ProductService
 from app.modules.suppliers.service import SupplierService
-from app.web.core import redirect, render
+from app.web.core import form_action, render
 
 router = APIRouter()
 
 
 @router.get("/purchase-orders")
-def list_purchase_orders(request: Request, status: str | None = None, db: Session = Depends(get_db)):
+def list_purchase_orders(
+    request: Request, status: str | None = None, db: Session = Depends(get_db)
+):
     rows, total = PurchaseOrderService(db).list(status=status or None, page=1, page_size=200)
     return render(
         request,
@@ -57,9 +57,9 @@ def create_purchase_order(
     db: Session = Depends(get_db),
     actor: Actor = Depends(get_current_actor),
 ):
-    try:
+    def work():
         lines: list[PurchaseOrderLineCreate] = []
-        for pid, q, up in zip(product_id, qty, unit_price_rupees):
+        for pid, q, up in zip(product_id, qty, unit_price_rupees, strict=False):
             if not pid or not q:
                 continue
             unit_price_minor = int(round(float(up) * 100)) if up else None
@@ -75,21 +75,19 @@ def create_purchase_order(
             order_date=date.fromisoformat(order_date) if order_date else None,
             lines=lines,
         )
-        po = PurchaseOrderService(db).create(payload, actor_id=actor.id)
-    except (AppError, PydanticValidationError, ValueError) as exc:
-        db.rollback()
-        return redirect("/purchase-orders/new", err=getattr(exc, "message", "Could not create PO"))
-    return redirect(f"/purchase-orders/{po.id}", ok="PO created")
+        return PurchaseOrderService(db).create(payload, actor_id=actor.id)
+
+    return form_action(
+        db, work, back="/purchase-orders/new",
+        success=lambda po: (f"/purchase-orders/{po.id}", "PO created"),
+        err="Could not create PO",
+    )
 
 
 @router.get("/purchase-orders/{order_id}")
 def purchase_order_detail(request: Request, order_id: uuid.UUID, db: Session = Depends(get_db)):
-    try:
-        po = PurchaseOrderService(db).get(order_id)
-    except AppError as exc:
-        return render(
-            request, "error.html", status_code=exc.status_code, code="Not found", message=exc.message
-        )
+    # A missing PO raises NotFoundError → the web error handler renders error.html.
+    po = PurchaseOrderService(db).get(order_id)
     return render(request, "purchase_orders/detail.html", po=po)
 
 
@@ -100,12 +98,11 @@ def confirm_purchase_order(
     db: Session = Depends(get_db),
     actor: Actor = Depends(get_current_actor),
 ):
-    try:
-        PurchaseOrderService(db).confirm(order_id, actor_id=actor.id)
-    except AppError as exc:
-        db.rollback()
-        return redirect(f"/purchase-orders/{order_id}", err=exc.message)
-    return redirect(f"/purchase-orders/{order_id}", ok="PO confirmed")
+    return form_action(
+        db, lambda: PurchaseOrderService(db).confirm(order_id, actor_id=actor.id),
+        back=f"/purchase-orders/{order_id}",
+        success=(f"/purchase-orders/{order_id}", "PO confirmed"),
+    )
 
 
 @router.post("/purchase-orders/{order_id}/receive")
@@ -115,12 +112,11 @@ def receive_purchase_order(
     db: Session = Depends(get_db),
     actor: Actor = Depends(get_current_actor),
 ):
-    try:
-        GoodsReceiptService(db).receive(order_id, None, actor_id=actor.id)
-    except AppError as exc:
-        db.rollback()
-        return redirect(f"/purchase-orders/{order_id}", err=exc.message)
-    return redirect(f"/purchase-orders/{order_id}", ok="Goods received")
+    return form_action(
+        db, lambda: GoodsReceiptService(db).receive(order_id, None, actor_id=actor.id),
+        back=f"/purchase-orders/{order_id}",
+        success=(f"/purchase-orders/{order_id}", "Goods received"),
+    )
 
 
 @router.post("/purchase-orders/{order_id}/bill")
@@ -130,9 +126,8 @@ def bill_purchase_order(
     db: Session = Depends(get_db),
     actor: Actor = Depends(get_current_actor),
 ):
-    try:
-        PurchaseOrderService(db).bill(order_id, actor_id=actor.id)
-    except AppError as exc:
-        db.rollback()
-        return redirect(f"/purchase-orders/{order_id}", err=exc.message)
-    return redirect(f"/purchase-orders/{order_id}", ok="Bill created")
+    return form_action(
+        db, lambda: PurchaseOrderService(db).bill(order_id, actor_id=actor.id),
+        back=f"/purchase-orders/{order_id}",
+        success=(f"/purchase-orders/{order_id}", "Bill created"),
+    )

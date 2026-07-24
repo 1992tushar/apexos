@@ -8,8 +8,7 @@ stock are only written when a product is first created, and the demo sales order
 """
 from __future__ import annotations
 
-import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 
 from sqlalchemy import func, select
@@ -35,36 +34,7 @@ from app.modules.config.models import (  # noqa: E402
     Uom,
     Warehouse,
 )
-from app.modules.customers.models import Customer, CustomerCreditPolicy  # noqa: E402
-from app.modules.finance.models import Bill, Invoice  # noqa: E402
-from app.modules.identity.models import User  # noqa: E402
-from app.modules.inventory.service import InventoryService  # noqa: E402
-from app.modules.pricing.models import PurchasePrice, SellingPrice  # noqa: E402
-from app.modules.products.models import Product  # noqa: E402
-from app.modules.sales.models import SalesOrder  # noqa: E402
-from app.modules.sales.schemas import SalesOrderCreate, SalesOrderLineCreate  # noqa: E402
-from app.modules.sales.service import SalesOrderService  # noqa: E402
-from app.modules.finance.schemas import BillPaymentCreate, PaymentCreate  # noqa: E402
-from app.modules.finance.service import BillService, InvoiceService  # noqa: E402
-from app.modules.suppliers.models import Supplier  # noqa: E402
-from app.modules.procurement.models import PurchaseOrder  # noqa: E402
-from app.modules.procurement.schemas import (  # noqa: E402
-    PurchaseOrderCreate,
-    PurchaseOrderLineCreate,
-)
-from app.modules.procurement.service import (  # noqa: E402
-    GoodsReceiptService,
-    PurchaseOrderService,
-)
-from app.modules.inventory.schemas import StockTransferCreate  # noqa: E402
-from app.modules.inventory.service import StockTransferService  # noqa: E402
-from app.modules.tasks.models import Task  # noqa: E402
-from app.modules.tasks.schemas import TaskCreate  # noqa: E402
-from app.modules.tasks.service import TaskService  # noqa: E402
-from app.modules.documents.models import Document  # noqa: E402
-from app.modules.documents.service import DocumentService  # noqa: E402
 from app.modules.crm.models import (  # noqa: E402
-    Competitor,
     Lead,
     Opportunity,
     PipelineStage,
@@ -75,9 +45,39 @@ from app.modules.crm.schemas import (  # noqa: E402
     OpportunityCreate,
 )
 from app.modules.crm.service import CrmService  # noqa: E402
+from app.modules.customers.models import Customer, CustomerCreditPolicy  # noqa: E402
+from app.modules.documents.models import Document  # noqa: E402
+from app.modules.documents.service import DocumentService  # noqa: E402
+from app.modules.finance.models import Bill, Invoice  # noqa: E402
+from app.modules.finance.schemas import BillPaymentCreate, PaymentCreate  # noqa: E402
+from app.modules.finance.service import BillService, InvoiceService  # noqa: E402
+from app.modules.identity.models import User  # noqa: E402
+from app.modules.inventory.schemas import StockTransferCreate  # noqa: E402
+from app.modules.inventory.service import (
+    InventoryService,  # noqa: E402
+    StockTransferService,  # noqa: E402
+)
 from app.modules.notifications.models import Notification  # noqa: E402
 from app.modules.notifications.schemas import NotificationCreate  # noqa: E402
 from app.modules.notifications.service import NotificationService  # noqa: E402
+from app.modules.pricing.models import PurchasePrice, SellingPrice  # noqa: E402
+from app.modules.procurement.models import PurchaseOrder  # noqa: E402
+from app.modules.procurement.schemas import (  # noqa: E402
+    PurchaseOrderCreate,
+    PurchaseOrderLineCreate,
+)
+from app.modules.procurement.service import (  # noqa: E402
+    GoodsReceiptService,
+    PurchaseOrderService,
+)
+from app.modules.products.models import Product  # noqa: E402
+from app.modules.sales.models import SalesOrder  # noqa: E402
+from app.modules.sales.schemas import SalesOrderCreate, SalesOrderLineCreate  # noqa: E402
+from app.modules.sales.service import SalesOrderService  # noqa: E402
+from app.modules.suppliers.models import Supplier  # noqa: E402
+from app.modules.tasks.models import Task  # noqa: E402
+from app.modules.tasks.schemas import TaskCreate  # noqa: E402
+from app.modules.tasks.service import TaskService  # noqa: E402
 
 
 def get_or_create(db: Session, model, *, defaults: dict | None = None, **filters):
@@ -258,7 +258,7 @@ def run() -> dict:
                 },
             )
             if created:
-                now = datetime.now(timezone.utc)
+                now = datetime.now(UTC)
                 db.add(SellingPrice(product_id=product.id, price_minor=sell, valid_from=now, created_by=actor_id))
                 db.add(PurchasePrice(product_id=product.id, price_minor=buy, valid_from=now, created_by=actor_id))
                 db.flush()
@@ -323,7 +323,7 @@ def run() -> dict:
                 PurchasePrice.supplier_id == paperwings.id
             )
         ) == 0:
-            now = datetime.now(timezone.utc)
+            now = datetime.now(UTC)
             for sku in ("AUR-TIS-001", "AUR-TIS-002", "AUR-TIS-003"):
                 prod = db.scalar(select(Product).where(Product.sku_code == sku))
                 if prod is None:

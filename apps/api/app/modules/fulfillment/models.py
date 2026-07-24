@@ -5,8 +5,7 @@ import uuid
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import DateTime, ForeignKey, Numeric, String
-from sqlalchemy import Uuid
+from sqlalchemy import DateTime, ForeignKey, Numeric, String, Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, EntityMixin
@@ -25,7 +24,7 @@ class Fulfillment(Base, EntityMixin):
     status: Mapped[str] = mapped_column(String(16), nullable=False, default="draft")
     shipped_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
-    lines: Mapped[list["FulfillmentLine"]] = relationship(
+    lines: Mapped[list[FulfillmentLine]] = relationship(
         back_populates="fulfillment", cascade="all, delete-orphan"
     )
 
@@ -41,4 +40,4 @@ class FulfillmentLine(Base, EntityMixin):
     )
     qty: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
 
-    fulfillment: Mapped["Fulfillment"] = relationship(back_populates="lines")
+    fulfillment: Mapped[Fulfillment] = relationship(back_populates="lines")

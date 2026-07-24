@@ -8,11 +8,10 @@ from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.errors import AppError
 from app.core.security import Actor, get_current_actor
 from app.modules.documents.models import DOCUMENT_CATEGORIES
 from app.modules.documents.service import DocumentService
-from app.web.core import redirect, render
+from app.web.core import form_action, render
 
 router = APIRouter()
 
@@ -57,8 +56,9 @@ async def upload_document(
     actor: Actor = Depends(get_current_actor),
 ):
     data = await file.read()
-    try:
-        DocumentService(db).upload(
+
+    def work():
+        return DocumentService(db).upload(
             filename=file.filename,
             content_type=file.content_type or "application/octet-stream",
             data=data,
@@ -68,10 +68,11 @@ async def upload_document(
             actor_id=actor.id,
             category=category,
         )
-    except (AppError, ValueError) as exc:
-        db.rollback()
-        return redirect("/documents", err=getattr(exc, "message", "Could not upload document"))
-    return redirect("/documents", ok="Document uploaded")
+
+    return form_action(
+        db, work, back="/documents", success=("/documents", "Document uploaded"),
+        err="Could not upload document",
+    )
 
 
 @router.post("/documents/{document_id}/delete")
@@ -81,12 +82,11 @@ def delete_document(
     db: Session = Depends(get_db),
     actor: Actor = Depends(get_current_actor),
 ):
-    try:
-        DocumentService(db).delete(document_id, actor_id=actor.id)
-    except AppError as exc:
-        db.rollback()
-        return redirect("/documents", err=getattr(exc, "message", "Could not delete document"))
-    return redirect("/documents", ok="Document deleted")
+    return form_action(
+        db, lambda: DocumentService(db).delete(document_id, actor_id=actor.id),
+        back="/documents", success=("/documents", "Document deleted"),
+        err="Could not delete document",
+    )
 
 
 @router.get("/documents/{document_id}/download")
@@ -97,13 +97,9 @@ def download_document(
     db: Session = Depends(get_db),
 ):
     svc = DocumentService(db)
-    try:
-        doc = svc.get(document_id)
-        data = svc.read_bytes(doc)
-    except AppError as exc:
-        return render(
-            request, "error.html", status_code=exc.status_code, code="Not found", message=exc.message
-        )
+    # A missing document raises NotFoundError → the web error handler renders error.html.
+    doc = svc.get(document_id)
+    data = svc.read_bytes(doc)
     # dl=1 forces a save dialog (attachment); otherwise render inline in the browser.
     disposition = "attachment" if dl else "inline"
     return Response(

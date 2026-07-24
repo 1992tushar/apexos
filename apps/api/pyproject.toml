@@ -30,6 +30,10 @@ target-version = "py311"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]
+# B008: FastAPI's dependency-injection idiom is `param = Depends(...)` /
+# `Form(...)` / `Query(...)` — function calls in argument defaults are intentional
+# and correct here, so this check is noise for a FastAPI app.
+ignore = ["B008"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

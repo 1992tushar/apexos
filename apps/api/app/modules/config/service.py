@@ -8,7 +8,7 @@ history — D3 spirit); `uom_conversion` factors are validated non-zero/non-cycl
 from __future__ import annotations
 
 import uuid
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from typing import Any
 
 from sqlalchemy import select
@@ -369,7 +369,7 @@ class TaxRateService:
         self.activity = ActivityService(db)
 
     def set_slab(self, payload, *, actor_id) -> TaxRate:
-        on_date = payload.valid_from or datetime.now(timezone.utc).date()
+        on_date = payload.valid_from or datetime.now(UTC).date()
         # Close the currently-open slab(s) for this code.
         open_rows = list(
             self.db.scalars(

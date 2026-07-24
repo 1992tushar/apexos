@@ -9,7 +9,7 @@ derives gross profit (selling − buying) per line.
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy.orm import Session
 
@@ -78,7 +78,7 @@ class PricingService:
     ) -> PurchasePrice:
         """Append a new purchase-price version, closing the prior open row(s) for
         this product+supplier scope (D3: history is kept, never overwritten)."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         self.repo.supersede_purchase_prices(product_id, supplier_id, now)
         price = PurchasePrice(
             product_id=product_id,

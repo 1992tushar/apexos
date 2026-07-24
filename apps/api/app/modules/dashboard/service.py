@@ -1,7 +1,7 @@
 """Dashboard service — assembles the command-center summary tile."""
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 from sqlalchemy import select
@@ -47,7 +47,7 @@ class DashboardService:
         return total
 
     def summary(self) -> DashboardSummary:
-        today = datetime.now(timezone.utc).date()
+        today = datetime.now(UTC).date()
 
         # 14-day revenue trend (inclusive of today), zero-filled.
         since = today - timedelta(days=13)

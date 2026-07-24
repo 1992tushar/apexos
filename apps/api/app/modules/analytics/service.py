@@ -5,16 +5,16 @@ are basis points to round-trip cleanly.
 """
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.modules.analytics.schemas import KpiBoard, RankRow, TrendPoint
 from app.modules.customers.models import Customer
 from app.modules.finance.models import Bill, Invoice, InvoiceLine
 from app.modules.finance.repository import FinanceRepository
-from app.modules.analytics.schemas import KpiBoard, RankRow, TrendPoint
 from app.modules.pricing.service import PricingService
 from app.modules.products.models import Product
 from app.modules.suppliers.models import Supplier
@@ -27,7 +27,7 @@ class AnalyticsService:
         self.pricing = PricingService(db)
 
     def _month_keys(self, n: int) -> list[str]:
-        today = datetime.now(timezone.utc).date()
+        today = datetime.now(UTC).date()
         keys: list[str] = []
         y, m = today.year, today.month
         for _ in range(n):

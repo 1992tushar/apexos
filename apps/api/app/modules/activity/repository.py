@@ -1,8 +1,6 @@
 """Activity repository."""
 from __future__ import annotations
 
-import uuid
-
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 

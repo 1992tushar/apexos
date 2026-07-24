@@ -12,9 +12,9 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
+    Uuid,
     func,
 )
-from sqlalchemy import Uuid
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base, BusinessUnitMixin, EntityMixin

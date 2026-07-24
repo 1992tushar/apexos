@@ -2,15 +2,13 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, Form, Request
-from pydantic import ValidationError as PydanticValidationError
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.errors import AppError
 from app.core.security import Actor, get_current_actor
 from app.modules.config.schemas import SettingUpsert, TaxRateSlabCreate
 from app.modules.config.service import ConfigService, SettingService, TaxRateService
-from app.web.core import redirect, render
+from app.web.core import form_action, redirect, render
 
 router = APIRouter()
 
@@ -45,12 +43,13 @@ def create_master(
 ):
     if entity_type not in _MASTER_TYPES:
         return redirect("/settings", err=f"Unknown master '{entity_type}'")
-    try:
-        ConfigService(db).create_master(entity_type, code=code, name=name, actor_id=actor.id)
-    except (AppError, PydanticValidationError, ValueError) as exc:
-        db.rollback()
-        return redirect("/settings", err=getattr(exc, "message", "Could not add"))
-    return redirect("/settings", ok="Added")
+    return form_action(
+        db,
+        lambda: ConfigService(db).create_master(
+            entity_type, code=code, name=name, actor_id=actor.id
+        ),
+        back="/settings", success=("/settings", "Added"), err="Could not add",
+    )
 
 
 @router.post("/settings/warehouses")
@@ -63,14 +62,15 @@ def create_warehouse(
     db: Session = Depends(get_db),
     actor: Actor = Depends(get_current_actor),
 ):
-    try:
-        ConfigService(db).create_warehouse(
-            code=code, name=name, city=city or None, state_code=state_code or None, actor_id=actor.id
-        )
-    except (AppError, PydanticValidationError, ValueError) as exc:
-        db.rollback()
-        return redirect("/settings", err=getattr(exc, "message", "Could not add warehouse"))
-    return redirect("/settings", ok="Warehouse added")
+    return form_action(
+        db,
+        lambda: ConfigService(db).create_warehouse(
+            code=code, name=name, city=city or None,
+            state_code=state_code or None, actor_id=actor.id
+        ),
+        back="/settings", success=("/settings", "Warehouse added"),
+        err="Could not add warehouse",
+    )
 
 
 @router.post("/settings/tax-rates")
@@ -82,15 +82,16 @@ def create_tax_rate(
     db: Session = Depends(get_db),
     actor: Actor = Depends(get_current_actor),
 ):
-    try:
+    def work():
         payload = TaxRateSlabCreate(
             code=code, name=name, rate_bps=int(round(float(rate_percent) * 100))
         )
-        TaxRateService(db).set_slab(payload, actor_id=actor.id)
-    except (AppError, PydanticValidationError, ValueError) as exc:
-        db.rollback()
-        return redirect("/settings", err=getattr(exc, "message", "Could not add tax rate"))
-    return redirect("/settings", ok="Tax rate added")
+        return TaxRateService(db).set_slab(payload, actor_id=actor.id)
+
+    return form_action(
+        db, work, back="/settings", success=("/settings", "Tax rate added"),
+        err="Could not add tax rate",
+    )
 
 
 @router.post("/settings/settings")
@@ -102,10 +103,11 @@ def create_setting(
     db: Session = Depends(get_db),
     actor: Actor = Depends(get_current_actor),
 ):
-    try:
+    def work():
         payload = SettingUpsert(key=key, value=value, description=description or None)
-        SettingService(db).set(payload, actor_id=actor.id)
-    except (AppError, PydanticValidationError, ValueError) as exc:
-        db.rollback()
-        return redirect("/settings", err=getattr(exc, "message", "Could not save setting"))
-    return redirect("/settings", ok="Setting saved")
+        return SettingService(db).set(payload, actor_id=actor.id)
+
+    return form_action(
+        db, work, back="/settings", success=("/settings", "Setting saved"),
+        err="Could not save setting",
+    )

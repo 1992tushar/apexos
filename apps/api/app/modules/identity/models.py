@@ -7,9 +7,7 @@ from __future__ import annotations
 
 import uuid
 
-from sqlalchemy import Boolean, ForeignKey, String
-from sqlalchemy import JSON
-from sqlalchemy import Uuid
+from sqlalchemy import JSON, Boolean, ForeignKey, String, Uuid
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base, EntityMixin

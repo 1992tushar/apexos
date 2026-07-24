@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -64,7 +64,7 @@ class NotificationService:
             raise NotFoundError(f"Notification {notification_id} not found")
         if not notification.is_read:
             notification.is_read = True
-            notification.read_at = datetime.now(timezone.utc)
+            notification.read_at = datetime.now(UTC)
             notification.updated_by = actor_id
             self.db.flush()
         return NotificationRead.model_validate(notification)
@@ -77,7 +77,7 @@ class NotificationService:
                 )
             )
         )
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         for n in rows:
             n.is_read = True
             n.read_at = now

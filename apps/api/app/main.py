@@ -16,6 +16,7 @@ from app.core.logging import CorrelationIdMiddleware, configure_logging
 from app.db.metadata import Base, import_all_models
 from app.web import build_web_router
 from app.web.core import STATIC_DIR
+from app.web.errors import register_web_error_handlers
 
 
 @asynccontextmanager
@@ -77,6 +78,9 @@ def create_app() -> FastAPI:
     )
 
     register_error_handlers(app)
+    # Registered after the core handlers so it wins for AppError: it renders HTML
+    # for web routes and defers to the JSON envelope for /api/v1 paths.
+    register_web_error_handlers(app)
 
     @app.get("/health", tags=["meta"])
     def health() -> dict[str, str]:

@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.errors import AppError
 from app.modules.analytics.service import AnalyticsService
-from app.web.core import render
+from app.web.core import render, render_error
 
 router = APIRouter()
 
@@ -18,9 +18,7 @@ def analytics_index(request: Request, db: Session = Depends(get_db)):
     try:
         board = AnalyticsService(db).board()
     except AppError as exc:
-        return render(
-            request, "error.html", status_code=exc.status_code, code="Error", message=exc.message
-        )
+        return render_error(request, exc, code="Analytics unavailable")
     max_rev = max((p.amount_minor for p in board.revenue_trend), default=0)
     max_pur = max((p.amount_minor for p in board.purchase_trend), default=0)
     return render(

@@ -2,8 +2,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
-from decimal import Decimal
+from datetime import UTC, datetime
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -91,7 +90,7 @@ class ProductService:
         )
         self.repo.add(product)
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         if payload.selling_price_minor is not None:
             self.db.add(
                 SellingPrice(

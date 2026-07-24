@@ -6,17 +6,18 @@ all pages share one configured environment.
 """
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
-
 from urllib.parse import urlencode
 
 from fastapi import Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
+from pydantic import ValidationError as PydanticValidationError
 
 from app.core.config import settings
+from app.core.errors import AppError
 
 BASE_DIR = Path(__file__).resolve().parent
 TEMPLATES_DIR = BASE_DIR / "templates"
@@ -123,8 +124,8 @@ def time_ago(value: Any) -> str:
     # SQLite hands back naive datetimes (func.now() -> CURRENT_TIMESTAMP is UTC);
     # treat naive values as UTC so the subtraction never mixes naive/aware.
     if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
-    now = datetime.now(timezone.utc)
+        dt = dt.replace(tzinfo=UTC)
+    now = datetime.now(UTC)
     diff = (now - dt).total_seconds()
     mins = round(diff / 60)
     if mins < 1:
@@ -208,3 +209,45 @@ def redirect(path: str, *, ok: str | None = None, err: str | None = None) -> Red
     if params:
         path = f"{path}{'&' if '?' in path else '?'}{urlencode(params)}"
     return RedirectResponse(path, status_code=303)
+
+
+# Errors a form POST is expected to surface to the user (vs. crash). A domain
+# `AppError` carries a `.message`; Pydantic/ValueError are input problems we show
+# with the caller's friendly fallback text.
+FORM_ERRORS = (AppError, PydanticValidationError, ValueError)
+
+
+def form_action(
+    db,
+    run,
+    *,
+    back: str,
+    success,
+    err: str = "Could not complete the action",
+) -> RedirectResponse:
+    """Run a form's work inside one place that owns the rollback + flash contract.
+
+    `run` is a zero-arg callable doing the payload-build + service call. On a
+    `FORM_ERRORS` failure we roll back (the work may have partially flushed) and
+    303 back to `back` with an `err` flash. On success we 303 to `success` —
+    either a `(path, ok_message)` tuple or a callable `result -> (path, message)`.
+    This replaces the per-page `try/except: db.rollback(); redirect(...)` blocks.
+    """
+    try:
+        result = run()
+    except FORM_ERRORS as exc:
+        db.rollback()
+        return redirect(back, err=getattr(exc, "message", None) or err)
+    path, ok = success(result) if callable(success) else success
+    return redirect(path, ok=ok)
+
+
+def render_error(request: Request, exc: AppError, *, code: str | None = None) -> HTMLResponse:
+    """Render the shared HTML error page from a domain error (for GET handlers)."""
+    return render(
+        request,
+        "error.html",
+        status_code=getattr(exc, "status_code", 500),
+        code=code or humanize(getattr(exc, "code", "Error")),
+        message=getattr(exc, "message", None) or str(exc),
+    )

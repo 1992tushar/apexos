@@ -13,9 +13,9 @@ from sqlalchemy import (
     Numeric,
     SmallInteger,
     String,
+    Uuid,
     func,
 )
-from sqlalchemy import Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, BusinessUnitMixin, EntityMixin
@@ -36,7 +36,7 @@ class SalesOrder(Base, EntityMixin, BusinessUnitMixin):
     tax_minor: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
     total_minor: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
 
-    lines: Mapped[list["SalesOrderLine"]] = relationship(
+    lines: Mapped[list[SalesOrderLine]] = relationship(
         back_populates="order", cascade="all, delete-orphan", order_by="SalesOrderLine.line_no"
     )
 
@@ -58,4 +58,4 @@ class SalesOrderLine(Base, EntityMixin):
     line_total_minor: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
     line_no: Mapped[int] = mapped_column(SmallInteger, nullable=False, default=1)
 
-    order: Mapped["SalesOrder"] = relationship(back_populates="lines")
+    order: Mapped[SalesOrder] = relationship(back_populates="lines")

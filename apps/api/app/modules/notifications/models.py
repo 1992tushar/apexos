@@ -4,8 +4,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, String, Text
-from sqlalchemy import Uuid
+from sqlalchemy import Boolean, DateTime, String, Text, Uuid
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base, EntityMixin

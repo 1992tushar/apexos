@@ -5,16 +5,14 @@ from __future__ import annotations
 import uuid
 
 from fastapi import APIRouter, Depends, Form, Request
-from pydantic import ValidationError as PydanticValidationError
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.errors import AppError
 from app.core.security import Actor, get_current_actor
 from app.modules.config.service import ConfigService
 from app.modules.crm.schemas import LeadConvert, LeadCreate, OpportunityAdvance
 from app.modules.crm.service import CrmService
-from app.web.core import redirect, render
+from app.web.core import form_action, render
 
 router = APIRouter()
 
@@ -61,7 +59,7 @@ def create_lead(
     db: Session = Depends(get_db),
     actor: Actor = Depends(get_current_actor),
 ):
-    try:
+    def work():
         payload = LeadCreate(
             company_name=company_name,
             contact_name=contact_name or None,
@@ -69,11 +67,13 @@ def create_lead(
             source=source or None,
             customer_type_id=uuid.UUID(customer_type_id) if customer_type_id else None,
         )
-        CrmService(db).create_lead(payload, actor_id=actor.id)
-    except (AppError, PydanticValidationError, ValueError) as exc:
-        db.rollback()
-        return redirect("/leads", err=getattr(exc, "message", "Could not create lead"))
-    return redirect("/leads", ok="Lead created")
+        return CrmService(db).create_lead(payload, actor_id=actor.id)
+
+    return form_action(
+        db, work, back="/leads",
+        success=("/leads", "Lead created"),
+        err="Could not create lead",
+    )
 
 
 @router.post("/leads/{lead_id}/convert")
@@ -83,12 +83,11 @@ def convert_lead(
     db: Session = Depends(get_db),
     actor: Actor = Depends(get_current_actor),
 ):
-    try:
-        CrmService(db).convert_lead(lead_id, LeadConvert(), actor_id=actor.id)
-    except (AppError, PydanticValidationError, ValueError) as exc:
-        db.rollback()
-        return redirect("/leads", err=getattr(exc, "message", "Could not convert lead"))
-    return redirect("/leads", ok="Lead converted")
+    return form_action(
+        db, lambda: CrmService(db).convert_lead(lead_id, LeadConvert(), actor_id=actor.id),
+        back="/leads", success=("/leads", "Lead converted"),
+        err="Could not convert lead",
+    )
 
 
 @router.post("/opportunities/{opp_id}/advance")
@@ -99,13 +98,15 @@ def advance_opportunity(
     db: Session = Depends(get_db),
     actor: Actor = Depends(get_current_actor),
 ):
-    try:
-        CrmService(db).advance_opportunity(
+    def work():
+        return CrmService(db).advance_opportunity(
             opp_id,
             OpportunityAdvance(pipeline_stage_id=uuid.UUID(pipeline_stage_id)),
             actor_id=actor.id,
         )
-    except (AppError, PydanticValidationError, ValueError) as exc:
-        db.rollback()
-        return redirect("/leads", err=getattr(exc, "message", "Could not advance opportunity"))
-    return redirect("/leads", ok="Opportunity advanced")
+
+    return form_action(
+        db, work, back="/leads",
+        success=("/leads", "Opportunity advanced"),
+        err="Could not advance opportunity",
+    )

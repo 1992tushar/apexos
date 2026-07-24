@@ -15,9 +15,9 @@ from sqlalchemy import (
     Numeric,
     SmallInteger,
     String,
+    Uuid,
     func,
 )
-from sqlalchemy import Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, BusinessUnitMixin, EntityMixin
@@ -42,7 +42,7 @@ class Invoice(Base, EntityMixin, BusinessUnitMixin):
     tax_minor: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
     total_minor: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
 
-    lines: Mapped[list["InvoiceLine"]] = relationship(
+    lines: Mapped[list[InvoiceLine]] = relationship(
         back_populates="invoice", cascade="all, delete-orphan"
     )
 
@@ -64,7 +64,7 @@ class InvoiceLine(Base, EntityMixin):
     line_total_minor: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
     line_no: Mapped[int] = mapped_column(SmallInteger, nullable=False, default=1)
 
-    invoice: Mapped["Invoice"] = relationship(back_populates="lines")
+    invoice: Mapped[Invoice] = relationship(back_populates="lines")
 
 
 class Bill(Base, EntityMixin, BusinessUnitMixin):
@@ -89,7 +89,7 @@ class Bill(Base, EntityMixin, BusinessUnitMixin):
     tax_minor: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
     total_minor: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
 
-    lines: Mapped[list["BillLine"]] = relationship(
+    lines: Mapped[list[BillLine]] = relationship(
         back_populates="bill", cascade="all, delete-orphan"
     )
 
@@ -111,7 +111,7 @@ class BillLine(Base, EntityMixin):
     line_total_minor: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
     line_no: Mapped[int] = mapped_column(SmallInteger, nullable=False, default=1)
 
-    bill: Mapped["Bill"] = relationship(back_populates="lines")
+    bill: Mapped[Bill] = relationship(back_populates="lines")
 
 
 class Payment(Base, EntityMixin):
@@ -131,7 +131,7 @@ class Payment(Base, EntityMixin):
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
 
-    allocations: Mapped[list["PaymentAllocation"]] = relationship(
+    allocations: Mapped[list[PaymentAllocation]] = relationship(
         back_populates="payment", cascade="all, delete-orphan"
     )
 
@@ -150,4 +150,4 @@ class PaymentAllocation(Base, EntityMixin):
     )
     amount_minor: Mapped[int] = mapped_column(BigInteger, nullable=False)
 
-    payment: Mapped["Payment"] = relationship(back_populates="allocations")
+    payment: Mapped[Payment] = relationship(back_populates="allocations")

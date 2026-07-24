@@ -14,16 +14,14 @@ from __future__ import annotations
 import uuid
 
 from fastapi import APIRouter, Depends, Form, Request
-from pydantic import ValidationError as PydanticValidationError
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.errors import AppError
 from app.core.security import Actor, get_current_actor
 from app.modules.config.service import ConfigService
 from app.modules.customers.schemas import CustomerCreate
 from app.modules.customers.service import CustomerService
-from app.web.core import redirect, render
+from app.web.core import form_action, render
 
 router = APIRouter()
 
@@ -58,7 +56,7 @@ def create_customer(
     db: Session = Depends(get_db),
     actor: Actor = Depends(get_current_actor),
 ):
-    try:
+    def work():
         payload = CustomerCreate(
             name=name,
             customer_type_id=uuid.UUID(customer_type_id),
@@ -71,19 +69,17 @@ def create_customer(
             credit_limit_minor=int(round(float(credit_limit_rupees or 0) * 100)),
             payment_terms_days=payment_terms_days,
         )
-        customer = CustomerService(db).create(payload, actor_id=actor.id)
-    except (AppError, PydanticValidationError, ValueError) as exc:
-        db.rollback()
-        return redirect("/customers", err=getattr(exc, "message", "Could not create customer"))
-    return redirect(f"/customers/{customer.id}", ok="Customer created")
+        return CustomerService(db).create(payload, actor_id=actor.id)
+
+    return form_action(
+        db, work, back="/customers",
+        success=lambda c: (f"/customers/{c.id}", "Customer created"),
+        err="Could not create customer",
+    )
 
 
 @router.get("/customers/{customer_id}")
 def customer_detail(request: Request, customer_id: uuid.UUID, db: Session = Depends(get_db)):
-    try:
-        customer = CustomerService(db).get(customer_id)
-    except AppError as exc:
-        return render(
-            request, "error.html", status_code=exc.status_code, code="Not found", message=exc.message
-        )
+    # A missing customer raises NotFoundError → the web error handler renders error.html.
+    customer = CustomerService(db).get(customer_id)
     return render(request, "customers/detail.html", c=customer)

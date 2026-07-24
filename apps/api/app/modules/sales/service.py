@@ -6,7 +6,7 @@ Money is integer minor units; tax is basis points off each line subtotal.
 from __future__ import annotations
 
 import uuid
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 from sqlalchemy import select
@@ -178,7 +178,7 @@ class SalesOrderService:
             raise NotFoundError(f"Customer {payload.customer_id} not found")
 
         bu = payload.business_unit_id or customer.business_unit_id or self._default_bu()
-        order_date = payload.order_date or datetime.now(timezone.utc).date()
+        order_date = payload.order_date or datetime.now(UTC).date()
         order_no = allocate_document_number(
             self.db, doc_type="SO", business_unit_id=bu, on_date=order_date
         )
@@ -272,7 +272,7 @@ class SalesOrderService:
                 on_date=order.order_date,
             ),
             status="shipped",
-            shipped_at=datetime.now(timezone.utc),
+            shipped_at=datetime.now(UTC),
             created_by=actor_id,
         )
         for ln in order.lines:

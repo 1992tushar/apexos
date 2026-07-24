@@ -4,15 +4,13 @@ from __future__ import annotations
 import uuid
 
 from fastapi import APIRouter, Depends, Form, Request
-from pydantic import ValidationError as PydanticValidationError
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.errors import AppError
 from app.core.security import Actor, get_current_actor
 from app.modules.config.schemas import CategoryCreate
 from app.modules.config.service import CategoryService, ConfigService
-from app.web.core import redirect, render
+from app.web.core import form_action, render
 
 router = APIRouter()
 
@@ -42,7 +40,7 @@ def create_category(
     db: Session = Depends(get_db),
     actor: Actor = Depends(get_current_actor),
 ):
-    try:
+    def work():
         payload = CategoryCreate(
             code=code,
             name=name,
@@ -54,11 +52,12 @@ def create_category(
             else None,
             sort_order=int(sort_order or 0),
         )
-        CategoryService(db).create(payload, actor_id=actor.id)
-    except (AppError, PydanticValidationError, ValueError) as exc:
-        db.rollback()
-        return redirect("/categories", err=getattr(exc, "message", "Could not create category"))
-    return redirect("/categories", ok="Category created")
+        return CategoryService(db).create(payload, actor_id=actor.id)
+
+    return form_action(
+        db, work, back="/categories", success=("/categories", "Category created"),
+        err="Could not create category",
+    )
 
 
 @router.post("/categories/{category_id}/reparent")
@@ -69,10 +68,11 @@ def reparent_category(
     db: Session = Depends(get_db),
     actor: Actor = Depends(get_current_actor),
 ):
-    try:
+    def work():
         pid = uuid.UUID(parent_category_id) if parent_category_id else None
-        CategoryService(db).reparent(category_id, pid, actor_id=actor.id)
-    except (AppError, PydanticValidationError, ValueError) as exc:
-        db.rollback()
-        return redirect("/categories", err=getattr(exc, "message", "Could not move category"))
-    return redirect("/categories", ok="Category moved")
+        return CategoryService(db).reparent(category_id, pid, actor_id=actor.id)
+
+    return form_action(
+        db, work, back="/categories", success=("/categories", "Category moved"),
+        err="Could not move category",
+    )

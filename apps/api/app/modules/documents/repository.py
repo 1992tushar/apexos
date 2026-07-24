@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -64,5 +64,5 @@ class DocumentRepository:
 
     def soft_delete(self, document: Document) -> None:
         """Mark a document row deleted; the bytes are left in storage."""
-        document.deleted_at = datetime.now(timezone.utc)
+        document.deleted_at = datetime.now(UTC)
         self.db.flush()

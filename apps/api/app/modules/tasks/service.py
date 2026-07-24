@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -83,7 +83,7 @@ class TaskService:
             if field in data and data[field] is not None:
                 setattr(task, field, data[field])
         if data.get("status") == "completed" and task.completed_at is None:
-            task.completed_at = datetime.now(timezone.utc)
+            task.completed_at = datetime.now(UTC)
         task.updated_by = actor_id
         self.db.flush()
         self.activity.log(
@@ -102,7 +102,7 @@ class TaskService:
         if task.status == "completed":
             raise ConflictError(f"Task {task.title} is already completed")
         task.status = "completed"
-        task.completed_at = datetime.now(timezone.utc)
+        task.completed_at = datetime.now(UTC)
         task.updated_by = actor_id
         self.db.flush()
         self.activity.log(
