@@ -3,9 +3,17 @@
 One command. The API and the web UI are the same process now (Jinja server-rendered
 pages), backed by a SQLite file — no database server, no separate frontend.
 
+## Start (double-click)
+Double-click **`start.cmd`** in the repo root. On a fresh clone it creates the
+virtualenv, installs dependencies and seeds demo data before booting; after that
+it just starts (and restarts) the app.
+
+Want a Desktop icon? Run **`Create-Desktop-Shortcut.cmd`** once — it drops an
+"ApexOS" shortcut on your Desktop pointing at your own clone.
+
 ## Start (one terminal)
 ```powershell
-cd "C:\Imp Data\Personal\apexos\apps\api"
+cd apps\api
 .\.venv\Scripts\python.exe -m uvicorn app.main:app --port 8000
 ```
 

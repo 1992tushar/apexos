@@ -17,6 +17,12 @@ Start with [`docs/00-canonical-foundation.md`](./docs/00-canonical-foundation.md
 - **API:** Python · FastAPI · SQLAlchemy 2.0 · Pydantic v2 · SQLite (self-initializing, no migration tool)
 - **Run:** `uvicorn app.main:app` — one command · **Storage:** local disk (Cloudflare R2 optional)
 
+## Run it
+
+Windows: double-click **`start.cmd`** — it bootstraps the virtualenv, dependencies and
+demo data on first launch, then serves the app at http://localhost:8000/. For a Desktop
+icon, run **`Create-Desktop-Shortcut.cmd`** once. Full details in [`RUNNING.md`](./RUNNING.md).
+
 ## Principles
 
 - Single-tenant, Business Unit as a first-class dimension.

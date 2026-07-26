@@ -7,6 +7,15 @@ is no database server and no separate frontend build.
 ## Prerequisites
 - Python 3.11+
 
+## Run (Windows, no setup)
+Double-click **`start.cmd`** in the repo root. First launch creates
+`apps/api/.venv`, installs dependencies, seeds the demo data and opens the app;
+every later launch just restarts it (it frees port 8000 first).
+
+For a Desktop icon, run **`Create-Desktop-Shortcut.cmd`** once. It writes an
+"ApexOS" shortcut to your Desktop that points at *your* clone — which is why the
+shortcut is generated rather than committed: a `.lnk` stores an absolute path.
+
 ## Run (apps/api)
 ```bash
 cd apps/api
