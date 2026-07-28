@@ -19,7 +19,8 @@ from app.modules.config.service import allocate_document_number
 from app.modules.customers.models import Customer, CustomerCreditPolicy
 from app.modules.finance.models import Invoice, InvoiceLine
 from app.modules.fulfillment.models import Fulfillment, FulfillmentLine
-from app.modules.inventory.service import InventoryService
+from app.modules.inventory.schemas import ReservationCreate
+from app.modules.inventory.service import InventoryService, ReservationService
 from app.modules.pricing.service import PricingService
 from app.modules.products.models import Product
 from app.modules.sales.models import SalesOrder, SalesOrderLine
@@ -274,6 +275,24 @@ class SalesOrderService:
             ref_label=order.order_no,
         )
 
+        # R9.8 — reserve stock, AFTER the credit gate. Calls Part 5's verb; there is no
+        # flag and no second mechanism (R6.5). A reservation reduces AVAILABLE without
+        # touching on-hand, so the stock is committed but has not moved.
+        warehouse_id = self._default_warehouse()
+        reservations = ReservationService(self.db)
+        for ln in order.lines:
+            reservations.reserve(
+                ReservationCreate(
+                    product_id=ln.product_id,
+                    warehouse_id=warehouse_id,
+                    qty=Decimal(ln.qty),
+                    ref_type="sales_order",
+                    ref_id=order.id,
+                    note=f"Confirmed on {order.order_no}",
+                ),
+                actor_id=actor_id,
+            )
+
         order.status = "confirmed"
         order.updated_by = actor_id
         self.db.flush()
@@ -283,6 +302,56 @@ class SalesOrderService:
             entity_type="sales_order",
             entity_id=order.id,
             summary=f"Sales order {order.order_no} confirmed",
+        )
+        return self._to_detail(order)
+
+    # -- cancel ----------------------------------------------------------
+    def cancel(
+        self, order_id: uuid.UUID, *, reason: str, actor_id: uuid.UUID | None
+    ) -> SalesOrderDetail:
+        """R9.9 — cancelling a confirmed order RELEASES its reservation.
+
+        Only draft or confirmed: once fulfilled the stock has physically left, and undoing
+        that is a return (R9.4), not a cancellation. A reason is required for the same
+        reason R7.4 and R8.8 require one — a state change nobody can explain later is not
+        an audit trail.
+        """
+        order = self._require(order_id)
+        if order.status not in ("draft", "confirmed"):
+            raise ConflictError(
+                f"Cannot cancel order in status '{order.status}' — stock has already "
+                f"shipped; record a return instead"
+            )
+        if not (reason or "").strip():
+            raise ValidationError("Cancelling an order needs a reason")
+
+        if order.status == "confirmed":
+            # Release exactly what confirm reserved. A draft never reserved anything.
+            warehouse_id = self._default_warehouse()
+            reservations = ReservationService(self.db)
+            for ln in order.lines:
+                reservations.release(
+                    ReservationCreate(
+                        product_id=ln.product_id,
+                        warehouse_id=warehouse_id,
+                        qty=Decimal(ln.qty),
+                        ref_type="sales_order",
+                        ref_id=order.id,
+                        note=f"Cancelled {order.order_no}: {reason.strip()}",
+                    ),
+                    actor_id=actor_id,
+                )
+
+        order.status = "cancelled"
+        order.updated_by = actor_id
+        self.db.flush()
+        self.activity.log(
+            actor_id=actor_id,
+            verb="cancelled",
+            entity_type="sales_order",
+            entity_id=order.id,
+            summary=f"Sales order {order.order_no} cancelled — {reason.strip()}",
+            data={"reason": reason.strip()},
         )
         return self._to_detail(order)
 
@@ -310,7 +379,24 @@ class SalesOrderService:
         self.db.add(fulfillment)
         self.db.flush()
 
+        reservations = ReservationService(self.db)
         for ln in order.lines:
+            # R9.9 — CONSUME the reservation as the stock actually leaves. Consuming before
+            # the movement would briefly show the stock as neither reserved nor gone; after
+            # it, both would be true at once. They belong in one pass, reservation first,
+            # because `available` is derived from on-hand minus reserved and must never
+            # double-count the same units.
+            reservations.consume(
+                ReservationCreate(
+                    product_id=ln.product_id,
+                    warehouse_id=warehouse_id,
+                    qty=Decimal(ln.qty),
+                    ref_type="fulfillment",
+                    ref_id=fulfillment.id,
+                    note=f"Shipped on {fulfillment.fulfillment_no}",
+                ),
+                actor_id=actor_id,
+            )
             self.inventory.record_movement(
                 product_id=ln.product_id,
                 warehouse_id=warehouse_id,

@@ -62,6 +62,78 @@ class SalesOrderLine(Base, EntityMixin):
 
 
 # ---------------------------------------------------------------------------
+# Sales return (Part 7 C2) — the gap AFTER the invoice
+# ---------------------------------------------------------------------------
+
+
+class SalesReturn(Base, EntityMixin, BusinessUnitMixin):
+    """Goods coming back against an invoice (R9.4–R9.6).
+
+    **The invoice it references is never touched** (G4/R9.5). A return posts stock IN
+    through `InventoryService.record_movement` and raises a credit note; the receivable
+    falls because the credit note is subtracted from it, not because the invoice was edited.
+    A test asserts the invoice is unchanged field-for-field after a return.
+
+    Partial returns are ordinary: `returnable` is derived per product as invoiced minus
+    already returned, clamped at zero — one definition, the same shape
+    `PurchaseOrderService.open_qty` gave back orders (R4.9/G7).
+    """
+
+    __tablename__ = "sales_return"
+
+    customer_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(), ForeignKey("customer.id"), nullable=False, index=True
+    )
+    invoice_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(), ForeignKey("invoice.id"), nullable=False, index=True
+    )
+    warehouse_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(), ForeignKey("warehouse.id"), nullable=False
+    )
+    return_no: Mapped[str] = mapped_column(String(20), nullable=False, unique=True)
+    return_date: Mapped[date] = mapped_column(
+        Date, nullable=False, server_default=func.current_date()
+    )
+    # Why it came back. Required — stock does not reappear on the shelf by itself.
+    reason: Mapped[str] = mapped_column(String(300), nullable=False)
+    subtotal_minor: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
+    tax_minor: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
+    total_minor: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
+
+    lines: Mapped[list[SalesReturnLine]] = relationship(
+        back_populates="sales_return",
+        cascade="all, delete-orphan",
+        order_by="SalesReturnLine.line_no",
+    )
+
+
+class SalesReturnLine(Base, EntityMixin):
+    """One returned line, priced as it was invoiced.
+
+    The price is copied from the invoice line rather than re-resolved: a credit must be for
+    what the customer actually paid, not for today's price.
+    """
+
+    __tablename__ = "sales_return_line"
+
+    sales_return_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(), ForeignKey("sales_return.id", ondelete="CASCADE"), nullable=False
+    )
+    product_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(), ForeignKey("product.id"), nullable=False
+    )
+    qty: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
+    unit_price_minor: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    tax_rate_bps: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    line_subtotal_minor: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
+    line_tax_minor: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
+    line_total_minor: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
+    line_no: Mapped[int] = mapped_column(SmallInteger, nullable=False, default=1)
+
+    sales_return: Mapped[SalesReturn] = relationship(back_populates="lines")
+
+
+# ---------------------------------------------------------------------------
 # Quotation (Part 7 C1) — the gap BEFORE the order
 # ---------------------------------------------------------------------------
 

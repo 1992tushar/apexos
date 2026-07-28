@@ -14,6 +14,72 @@ class SalesOrderLineCreate(BaseModel):
     unit_price_minor: int | None = None
 
 
+# --- Sales return + credit note (Part 7 C2) -------------------------------
+
+
+class ReturnLineCreate(BaseModel):
+    product_id: uuid.UUID
+    qty: Decimal = Field(gt=0)
+
+
+class SalesReturnCreate(BaseModel):
+    invoice_id: uuid.UUID
+    reason: str = Field(min_length=1)
+    warehouse_id: uuid.UUID | None = None
+    lines: list[ReturnLineCreate] = Field(min_length=1)
+
+
+class ReturnableLine(BaseModel):
+    """What may still come back on one invoice line — all derived (R9.6/G7)."""
+
+    product_id: uuid.UUID
+    sku_code: str | None
+    product_name: str | None
+    invoiced_qty: Decimal
+    returned_qty: Decimal
+    returnable_qty: Decimal
+    unit_price_minor: int
+    tax_rate_bps: int
+
+    @property
+    def fully_returned(self) -> bool:
+        return self.returnable_qty == 0
+
+
+class SalesReturnLineRead(BaseModel):
+    product_id: uuid.UUID
+    sku_code: str | None
+    product_name: str | None
+    qty: Decimal
+    unit_price_minor: int
+    line_total_minor: int
+    line_no: int
+
+
+class CreditNoteRead(BaseModel):
+    id: uuid.UUID
+    credit_note_no: str
+    invoice_id: uuid.UUID
+    note_date: date
+    total_minor: int
+    reason: str | None
+
+
+class SalesReturnDetail(BaseModel):
+    id: uuid.UUID
+    return_no: str
+    customer_id: uuid.UUID
+    invoice_id: uuid.UUID
+    invoice_no: str | None
+    return_date: date
+    reason: str
+    subtotal_minor: int
+    tax_minor: int
+    total_minor: int
+    lines: list[SalesReturnLineRead]
+    credit_note: CreditNoteRead | None
+
+
 # --- Quotation (Part 7 C1) ------------------------------------------------
 
 

@@ -361,6 +361,14 @@ def _build_map() -> dict[str, tuple[Reference, ...]]:
         # quotation is history: the order it produced snapshotted what it needed (R1.7).
         "quotation": (),
         "quotation_line": (),
+        # --- Part 7 C2: returns and credit notes (R9.4–R9.7) -----------------
+        # A return and its credit note are HISTORY the moment they are written — both are
+        # append-only ledgers (G4) and neither is ever deleted or deactivated, so there is no
+        # action for a guard to block. Declared rather than omitted, because R3.7 reads a
+        # missing entry as "not yet considered".
+        "sales_return": (),
+        "sales_return_line": (),
+        "credit_note": (),
         # A revision is history, never deleted or deactivated (G4), so there is no action
         # for a guard to block. Declared and deliberately empty.
         "quotation_revision": (),

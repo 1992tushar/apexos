@@ -171,7 +171,7 @@ def status_class(status: Any) -> str:
     # below/above; `sent` is already a warning. Only `draft` needed nothing new — but a
     # future status added here without a bucket renders grey and says nothing.
     negative = {"cancelled", "canceled", "overdue", "lost", "inactive",
-                "failed", "rejected", "void", "quarantine", "damaged"}
+                "failed", "rejected", "void", "quarantine", "damaged", "returned"}
     if s in positive:
         return "ok"
     if s in warning:

@@ -114,6 +114,42 @@ class BillLine(Base, EntityMixin):
     bill: Mapped[Bill] = relationship(back_populates="lines")
 
 
+class CreditNote(Base, EntityMixin, BusinessUnitMixin):
+    """A credit raised against an invoice, normally by a return (R9.5/R9.7).
+
+    **Append-only, and the invoice it credits is never mutated** (G4). The receivable is
+    derived — `Σ invoice.total − Σ allocations − Σ credit_note.total` — so a credit reduces
+    what the customer owes *through the ledger*, which is what R9.7 asks for. Editing the
+    invoice down would destroy the record of what was originally billed, and an invoice is
+    a document the customer already has.
+
+    It carries no lines of its own: the `sales_return` it came from holds them, and a second
+    copy of the same figures is a second thing that can disagree. A credit raised without a
+    return (a goodwill adjustment) is possible — `sales_return_id` is nullable — and then
+    `reason` carries the explanation.
+    """
+
+    __tablename__ = "credit_note"
+
+    customer_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(), ForeignKey("customer.id"), nullable=False, index=True
+    )
+    invoice_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(), ForeignKey("invoice.id"), nullable=False, index=True
+    )
+    sales_return_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(), ForeignKey("sales_return.id"), nullable=True
+    )
+    credit_note_no: Mapped[str] = mapped_column(String(20), nullable=False, unique=True)
+    note_date: Mapped[date] = mapped_column(
+        Date, nullable=False, server_default=func.current_date()
+    )
+    reason: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    subtotal_minor: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
+    tax_minor: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
+    total_minor: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
+
+
 class Payment(Base, EntityMixin):
     __tablename__ = "payment"
 

@@ -62,8 +62,14 @@ class CustomerRepository:
         )
 
     def outstanding_minor(self, customer_id: uuid.UUID) -> int:
-        """Receivable = Σ invoice.total − Σ allocations against those invoices."""
-        from app.modules.finance.models import Invoice, PaymentAllocation
+        """Receivable = Σ invoice.total − Σ allocations − Σ credit notes.
+
+        The credit-note term is R9.7: a return reduces what the customer owes **through the
+        ledger**, not by editing the invoice down. The invoice is a document they already
+        hold, and mutating it would destroy the record of what was billed (G4). So the
+        receivable is derived from three append-only sources and never from a stored balance.
+        """
+        from app.modules.finance.models import CreditNote, Invoice, PaymentAllocation
 
         invoiced = self.db.scalar(
             select(func.coalesce(func.sum(Invoice.total_minor), 0)).where(
@@ -78,7 +84,13 @@ class CustomerRepository:
             .join(Invoice, Invoice.id == PaymentAllocation.invoice_id)
             .where(Invoice.customer_id == customer_id)
         ) or 0
-        return int(invoiced) - int(allocated)
+        credited = self.db.scalar(
+            select(func.coalesce(func.sum(CreditNote.total_minor), 0)).where(
+                CreditNote.customer_id == customer_id,
+                CreditNote.deleted_at.is_(None),
+            )
+        ) or 0
+        return int(invoiced) - int(allocated) - int(credited)
 
     def count_ever(self) -> int:
         """Rows ever created, soft-deleted ones included.
