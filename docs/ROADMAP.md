@@ -40,8 +40,8 @@ real operational data flows into it.
 | Part | Title | Phase | Requirements | Sessions | Tag when done | Status |
 |---|---|---|---|---|---|---|
 | **1** | Foundation finish | 0 | R1.x | 3 | `part-01-done` | **done** — R1.1–R1.10 all pass, tagged |
-| **2** | Master data & shared machinery | 1 | R2.x, R3.x | 3 | `part-02-done` | not started |
-| **3** | Procurement: pre-order → PO depth | 2 | R4.x | 2 | `part-03-done` | not started |
+| **2** | Master data & shared machinery | 1 | R2.x, R3.x | 3 | `part-02-done` | **done** — all of §3/§4 passes, tagged |
+| **3** | Procurement: pre-order → PO depth | 2 | R4.x | 2 | `part-03-done` | **done** — R4.1–R4.16 pass, tagged |
 | **4** | Procurement: vendor intelligence + planning | 2 | R5.x | 2 | `part-04-done` | not started |
 | **5** | Inventory: locations, states, operations, health | 3 | R6.x, R7.x | 3 | `part-05-done` | not started |
 | **6** | Sales: customer depth | 4 | R8.x | 1 | `part-06-done` | not started |
@@ -52,7 +52,7 @@ real operational data flows into it.
 | **11** | Polish & Optimization | 8 | R14.x | 3 | `part-11-done` | not started |
 | **12** | Product Challenge | X | R15.x | 1 | `part-12-done` | not started |
 
-**12 parts · 27 sessions, of which 3 are done — 24 remaining.** A session is a token budget; a part is
+**12 parts · 27 sessions, of which 8 are done — 19 remaining.** A session is a token budget; a part is
 a group of sessions. The *Session protocol* section below lists the checkpoints each part is broken
 into — one per session, each ending in a commit, with the `PROGRESS.md` resume block as the handoff.
 

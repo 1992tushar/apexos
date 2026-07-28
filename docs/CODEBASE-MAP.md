@@ -231,6 +231,21 @@ primitives move to module level rather than being reached across classes — `de
 `tax_bps_for` and `_round_minor` in `service.py` are called by `preorder.py`, so a quotation and the
 PO it becomes cannot disagree about tax. **Do not split a module that has no such seam.**
 
+**A document that must not change in place gets a revision table, not a mutable row** (R4.7, G4).
+`purchase_order_revision` + `purchase_order_revision_line` hold a verbatim snapshot of the lines as
+agreed; the live `purchase_order_line` rows carry current figures, and `PurchaseOrderService.revise`
+appends a snapshot rather than overwriting one. Two rules that make the claim true rather than
+decorative: revision 1 is written by `confirm` (a draft has no agreement to preserve), and there is **no
+`superseded_at`** — the next revision's `created_at` already says when a version stopped applying, and a
+column written after insert would mean the table is not append-only after all. The current version is
+`max(revision_no)`, derived, so no pointer can drift. `goods_receipt.purchase_order_revision_id` records
+which version goods were accepted against, and naming a superseded one is refused (R4.10). Copy this
+shape for sales-order amendments and credit notes rather than inventing a second one.
+
+**One definition of "open"**: `PurchaseOrderService.open_qty(line)` — ordered − received, clamped at
+zero, called by `receive` too. Adding a second subtraction inline is how the screen and the guard start
+disagreeing.
+
 **Conversion between documents calls the target's service; it never rebuilds it** (G16).
 `RequisitionService.convert_to_po` and `RfqService.award` both assemble a `PurchaseOrderCreate` and
 hand it to `PurchaseOrderService.create`, so document numbering, price snapshotting, tax and totals
@@ -298,6 +313,8 @@ real trade-off rather than one obviously-best column (R4.15, G14).
 | `test_master_pages.py` | R2.11: the machinery through the real `/products` and `/customers` pages — search/filter/sort/pagination, export matching the screen, duplicate rejection as a flash, history panel |
 | `test_masters.py` | R3.1–R3.12: the same capabilities parametrised over **every** master in the registry, plus category reparent/tree, UoM factors, tax-slab versioning, and relationship integrity naming its blockers |
 | `test_preorder.py` | R4.1–R4.6: requisition request/approve/reject/convert (to PO and to RFQ), RFQ issue to many suppliers, quote capture and its guards, the comparison's cheapest/fastest marking, award → PO at the quoted price, quotation history, and the `REFERENCES` entry per new model |
+| `test_po_revisions.py` | R4.7–R4.11: revision preserves the prior version verbatim, revisions accumulate, one activity row per revise, partial receipt's back-order arithmetic, the back order derived and absent as a column, receipt-against-revision including the superseded refusal, `confirmed_at` persisted, and `blocking_references` run against a real revision |
+| `_web_routes.py` | Not a test — the shared route walk both `test_web_authz.py` and `test_web_smoke.py` use. FastAPI ≥ 0.140 wraps `include_router` in `_IncludedRouter`, so a shallow walk of `.routes` sees nothing; recurse via `.original_router`. Both callers assert a floor on what they found, because the R1.5 walk silently became `[] == []` when that changed |
 
 Run `pytest -q`, never verbose.
 
@@ -319,11 +336,9 @@ should wire them onto `ListSpec` rather than raising the page size again.
 later: a category picker that loads once and is reused, or a reparent form on the detail page only, is
 the fix when it stops being fine.
 
-**`/purchase-orders/new` still repeats a 311-option `<select>` per line row** (~1,900 `<option>`s) and
-cannot be typed into. The pre-order forms solved this with one shared `<datalist>` and a SKU input —
-`product_datalist` / `line_grid` in `templates/_preorder.html`, resolved by `_lines()` in
-`web/pages/preorder.py`, which names an unknown SKU back rather than dropping the row. **Part 3 C2 owns
-porting the PO entry screen to it** (R4.12).
+**`/settings` renders eight master lists on one page**, so none of them can own `?q=`/`?sort=`/`?page=`.
+Part 2 split them onto `/masters/{slug}` for exactly that reason; `/settings` is the hub. Any new
+multi-list screen inherits the same constraint — decide the namespace before writing the page.
 
 ---
 
