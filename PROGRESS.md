@@ -46,7 +46,7 @@ Type **`Start next part of development`** in a fresh session. `CLAUDE.md` binds 
 to type. **The session that closes a checkpoint owns that prompt** — one still naming last checkpoint's
 baseline counts is worse than none, because the next session will trust it.
 
-#### ▶ NEXT SESSION PROMPT — Part 7, C2 (returns, reservation, health score, speed) · CLOSES PART 7
+#### ▶ NEXT SESSION PROMPT — Part 7, C2b (health score + speed) · CLOSES PART 7
 
 ```
 Continue the ApexOS build. Do this in order:
@@ -56,9 +56,10 @@ Continue the ApexOS build. Do this in order:
    tags for Parts 5–7), so do not expect part-05-done or part-06-done to exist.
 
 2. Read the "▶ CURRENT WORK" block below, especially "▶ Handoff". PARTS 5 AND 6 ARE
-   COMPLETE and PART 7 C1 IS DONE (quotation). That block names the edit set, carries
-   verified signatures to call WITHOUT opening the source, and its "Do NOT read" list is
-   binding. **C2 closes Part 7.**
+   COMPLETE; PART 7 C1 (quotation) and C2a (reservation wiring + returns) ARE DONE. That
+   block names the edit set, carries verified signatures to call WITHOUT opening the source,
+   and its "Do NOT read" list is binding. **What remains is the health score and the speed
+   work, and finishing them CLOSES PART 7.**
 
 3. Read docs/REQUIREMENTS.md §1 (global invariants G1–G17) and §10 (R9.x). NOT optional:
    the invariants you must not break — integer minor units, exactly one activity_log row
@@ -67,65 +68,56 @@ Continue the ApexOS build. Do this in order:
    Then docs/prompts/part-07.md (self-contained) and docs/STANDING-RULES.md (binding).
    Do NOT open docs/ROADMAP.md — planning only, ~17k tokens.
 
-4. `git show --stat eeae971` for what C1 changed. Not a tree walk.
+4. `git show --stat 27d1c49` for what C2a changed. Not a tree walk.
 
 5. Verify the baseline before writing code (from apps/api, venv activated):
-     python -m pytest -q                  # expect 568 passed
+     python -m pytest -q                  # expect 591 passed
      python -m ruff check app/ tests/     # expect EXACTLY 37 — 38 is a regression
    If either is off, stop and report. 37 is pre-existing (32 E501, 4 F841, 1 B007, all in
-   untouched modules). Parts 1–7 C1 added zero new findings; hold that line.
+   untouched modules). Parts 1–7 C2a added zero new findings; hold that line.
 
-6. C2 is FIVE things. Do them in this order — the reservation wiring is the one another
-   part is waiting on, and the speed work is the one with the most value per line.
+6. THREE things remain. The health score is service work; the speed work has the most
+   value per line in the whole part.
 
-   a. R9.8/R9.9 — RESERVATION WIRING. Confirming a sales order reserves stock by calling
-      **ReservationService.reserve** (Part 5 C1). Fulfilment CONSUMES; cancellation
-      RELEASES. Two tests. NO flag, NO second mechanism — R6.5's acceptance is literally
-      "no boolean reserved column exists" and a source walk backs it.
-      **RESERVE AFTER THE CREDIT CHECK PASSES.** SalesOrderService.confirm already runs
-      CreditPolicyService.enforce and raises on a breach, leaving the order in draft.
-      Reserving first would hold stock for an order that never confirmed.
-      There is currently NO cancel verb on SalesOrderService — R9.9 needs one.
+   a. R9.10/R9.11 — CUSTOMER HEALTH SCORE: order frequency, profitability (the EXISTING
+      margin logic — `MarginService.gp`, do NOT add a second), outstanding + ageing, and
+      recency. Inputs AND weighting ON SCREEN through `Explained` + the `explain_panel`
+      macro (G11, one shape). Insufficient history yields **`Explained.unknown`**, never a
+      default number, and R9.11 needs its own test.
+      **Part 4's `VendorIntelService.score` is the worked example** — read it: it weights
+      60/40, RENORMALISES over whichever inputs exist, and says so in a caveat rather than
+      inventing a zero. A four-input score should do the same, and "unknown" is only for
+      when NO input is available.
+      Everything it needs already exists: `CustomerRepository.outstanding_minor` (now net of
+      credit notes), `CustomerTimelineService.events` for recency and frequency, and
+      `MarginService.gp` for profitability. Reuse, do not rebuild (G16).
 
-   b. R9.4–R9.7 — RETURNS AND CREDIT NOTES. A return posts stock IN through
-      InventoryService.record_movement (G8 — the only writer) and raises a credit note
-      against the invoice. **THE ORIGINAL INVOICE IS NEVER MUTATED (G4/R9.5)** — a test
-      must assert it is unchanged after the return. Partial returns leave a correct
-      DERIVED returnable quantity (G7): returnable = invoiced − already returned, and
-      PurchaseOrderService.open_qty is the precedent for "one definition, clamped at zero".
-      R9.7: the credit note reduces the receivable THROUGH THE LEDGER, not by mutation —
-      test the receivable projection (CustomerRepository.outstanding_minor).
+   b. R9.12–R9.14 — SPEED. **The highest-value item in the part.** D-B makes the founder the
+      only operator, so every order is entered personally: keyboard-first entry, product
+      search-as-you-type showing price AND **available stock** inline (that is
+      `InventoryService.available`, not on-hand — committed stock cannot be sold twice),
+      reorder-from-last-order, defaults from customer history, bulk line entry.
+      REUSE Part 3's `<datalist>` picker: `_preorder.html`'s `line_grid(products, rows,
+      autofocus, title, with_price)` and `app/web/pages/preorder.py`'s `_lines` resolver,
+      which NAMES an unknown SKU back to the user instead of dropping the row. A `<select>`
+      of 311 products cannot be typed into.
+      **R9.13: MEASURE the keystrokes for a 5-line repeat order BEFORE and AFTER, and put
+      BOTH numbers in PROGRESS.md.** Measure FIRST. A session that measures and optimises in
+      one pass loses the baseline — Part 11's C1 is measurement-only for exactly this reason.
 
-   c. R9.10/R9.11 — CUSTOMER HEALTH SCORE: order frequency, profitability (the EXISTING
-      margin logic — MarginService.gp, do not add a second), outstanding + ageing, and
-      recency. Inputs AND weighting ON SCREEN through `Explained` + the explain_panel
-      macro (G11, one shape). Insufficient history yields **Explained.unknown**, never a
-      default number, and R9.11 needs its own test. Part 4's VendorIntelService.score is
-      the worked example: it renormalises over available inputs and says so.
-
-   d. R9.12–R9.14 — SPEED. **The highest-value item in the part** (D-B raises it: the
-      founder enters every order personally). Keyboard-first entry, product
-      search-as-you-type showing price AND available stock inline, reorder-from-last-order,
-      defaults from customer history, bulk line entry. REUSE Part 3's `<datalist>` picker
-      (`_preorder.html` line_grid — C1 just added its optional `with_price` column) and
-      `_lines` resolver. A `<select>` of 311 products cannot be typed into.
-      R9.13: MEASURE the keystrokes for a 5-line repeat order BEFORE and AFTER and put
-      BOTH numbers in PROGRESS.md. Measure first — a session that does both at once loses
-      the baseline (Part 11's C1 exists for exactly this reason).
-
-   e. R9.15's remainder: a confirmed order HOLDING a reservation, and a partial return
-      with its credit note. Extend app/seed/quotations.py or add a new module.
+   c. R9.15's remainder: a confirmed order HOLDING a reservation (the seed already produces
+      one via Part 6's override order — verify rather than duplicate) and a PARTIAL RETURN
+      with its credit note. Extend `app/seed/quotations.py` or add a new module.
 
 7. Constraints that bind:
      - G4: `stock_movement`, `payment`, invoices, bills and credit notes are APPEND-ONLY.
-     - G8: InventoryService.record_movement is the ONLY writer of stock_movement; a source
-       walk fails if anything else constructs one.
+     - G8: `record_movement` is the ONLY writer of `stock_movement`; a source walk enforces it.
      - G5: exactly one activity_log row per state change.
-     - G7: returnable quantity, the health score and the receivable are all DERIVED.
+     - G7: the health score is DERIVED — no stored score column, and no cached rating.
      - G10: every new POST carries the R1.4 authz guard; the authz walk enforces it.
      - G11 on the health score; G12 arithmetic only, no ML and no runtime LLM call.
-     - Every new model owes app/db/references.py an entry, even an empty tuple (R3.7),
-       EXERCISED with blocking_references(db, row).
+     - Any new model owes app/db/references.py an entry (R3.7) — **the health score should
+       need none.** If you are adding a table for a score, re-read G7.
      - status_class needs a bucket for any new status, or the badge renders grey.
 
 8. Work on main. No branches, no PRs, no tags. Commit at the end and push. **C2 CLOSES
@@ -171,16 +163,19 @@ Parts 5 and 6 are **COMPLETE**; Part 7's quotation half is done. **Not tagged** 
 |---|---|---|
 | 5 | `437a185` `b442322` `eaee67b` `4667a5e` | Inventory: locations, four states, reservation ledger, weighted-average cost, ageing, count sheets, in-transit transfers, ABC / dead stock / fast-slow / low-stock |
 | 6 | `a8c9bde` | Customer depth: contacts, branches, VERSIONED credit terms, the credit gate at confirm, the override, the timeline |
-| **7 C1** | **`eeae971`** | **Quotation: create / send / revise / expire / convert, append-only revisions** |
+| 7 C1 | `eeae971` | Quotation: create / send / revise / expire / convert, append-only revisions |
+| **7 C2a** | **`27d1c49`** | **Reservation wiring (confirm/fulfil/cancel) + returns with credit notes** |
 
-**Verified at C1:** **568 tests passing**, ruff **exactly 37** — zero new findings across seven
-checkpoints. Evidence: `-k r6_` (53) `-k r7_` (47, inventory) `-k r8_` (35) `-k r9_` (24).
+**Verified at C2a:** **591 tests passing**, ruff **exactly 37** — zero new findings across eight
+checkpoints. Evidence: `-k r6_` (53) `-k r7_` (47, inventory) `-k r8_` (35) `-k r9_` (47).
 
 | R | State |
 |---|---|
 | R9.1 R9.2 R9.3 | ✅ quotation, append-only revisions, conversion carrying the quoted price |
-| R9.15 | ⚠️ quotation seed done; **the reservation-holding order and the partial return are C2's** |
-| **R9.4–R9.9, R9.10–R9.14** | ❌ **all of C2** |
+| R9.4 R9.5 R9.6 R9.7 | ✅ return posts stock IN, credit note raised, invoice UNTOUCHED, receivable net of credits |
+| R9.8 R9.9 | ✅ confirm reserves (after the credit gate), fulfil consumes, cancel releases |
+| R9.15 | ⚠️ quotations + a reservation-holding order exist; **the partial return is still owed** |
+| **R9.10 R9.11 R9.12 R9.13 R9.14** | ❌ **health score + speed — all that remains of Part 7** |
 
 ### Four decisions C1 made that C2 must not reverse
 
@@ -195,28 +190,43 @@ checkpoints. Evidence: `-k r6_` (53) `-k r7_` (47, inventory) `-k r8_` (35) `-k 
 4. **The quotation document type is `SQT`, not `QUO`** — `QUO` is Part 3's *supplier* quotation.
    Doc types now in use: PO GRN BILL REQ RFQ QUO SO INV TRF CNT FUL **SQT**.
 
-### Two things C2 inherits and must not break
+### Four decisions C2a made that C2b must not reverse
 
-1. **R9.8 must reserve AFTER the credit check passes.** `SalesOrderService.confirm` runs
-   `CreditPolicyService.enforce` first and raises on a breach, leaving the order in **draft**.
-   Reserving first would hold stock for an order that never confirmed. Call
-   `ReservationService.reserve` — no flag, no second mechanism. **There is no cancel verb on
-   `SalesOrderService` yet; R9.9 needs one.**
-2. **`uuid7()` is not monotonic within a millisecond** — it fills its low bits from `os.urandom`,
-   so `ORDER BY (timestamp, id)` cannot break a same-millisecond tie. Two Part 6 tests that read
-   "the newest activity row" now select by verb instead. **Product code is fine today** (credit
-   history orders by an explicit `datetime.now(UTC)`, revisions by `revision_no`) — but do not
-   assume the `id` tiebreaker is total.
+1. **Reserve runs AFTER the credit gate**, and a refused confirm leaves NO reservation — there is
+   a test. On fulfilment, consume and the outbound movement happen in one pass with the
+   reservation FIRST: consuming after would briefly show the units as both reserved and gone,
+   and `available` (on-hand − reserved) would double-count them.
+2. **Cancel refuses a fulfilled order** and says to record a return instead. Stock that has
+   shipped is undone by R9.4, not by a status change. A reason is required.
+3. **The invoice is never mutated by a return** (G4/R9.5). The receivable falls because
+   `CustomerRepository.outstanding_minor` now subtracts credit notes:
+   `Σ invoice − Σ allocations − Σ credit_notes`. **Anything computing a receivable must use that
+   method, not re-derive it** — including the health score's "outstanding" input.
+4. **A credit note carries no lines**; the `sales_return` holds them. A second copy of the same
+   figures is a second thing that can disagree.
 
-### Read for C2 — these and nothing else
+### Two things C2b inherits and must not break
 
-- `docs/REQUIREMENTS.md` §10 (R9.x) — R9.4–R9.14 remain. §1 for the invariants.
+1. **`uuid7()` is not monotonic within a millisecond** — it fills its low bits from `os.urandom`,
+   so `ORDER BY (timestamp, id)` cannot break a same-millisecond tie. Select by a discriminating
+   column rather than by "newest". Product code is fine today; do not assume otherwise.
+2. **Returns do not reduce measured demand.** `InventoryRepository.CONSUMPTION_REASONS` is
+   `("SALE",)`, so a returned unit still counts as sold for ABC, dead stock and fast/slow.
+   That is a **known limitation, not an oversight** — netting returns off demand would change
+   Part 5's semantics, and it was left alone deliberately. Say so if a health-score input needs
+   net revenue.
+
+### Read for C2b — these and nothing else
+
+- `docs/REQUIREMENTS.md` §10 — **R9.10–R9.14 remain.** §1 for the invariants.
 - `docs/prompts/part-07.md` — self-contained. Binding rules: `docs/STANDING-RULES.md`.
-- **The edit set:** `app/modules/sales/{models,service}.py` (the cancel verb, reservation wiring) ·
-  a returns/credit-note module (`app/modules/sales/returns.py` beside `quotation.py`) ·
-  `app/modules/finance/models.py` for the credit note · a health-score module (Part 4's
-  `suppliers/vendor.py` is the shape) · `app/web/pages/{sales,customers}.py` + templates ·
-  `app/db/references.py` · `app/seed/` · `tests/test_returns.py`, `tests/test_customer_health.py`.
+- **`app/modules/suppliers/vendor.py`'s `score`** — the worked example for R9.10: weighted,
+  renormalising over available inputs, with a caveat instead of an invented zero. This is the one
+  file worth reading in full; it is otherwise on the do-not-read list.
+- **The edit set:** a health module (`app/modules/customers/health.py`, beside `credit.py` and
+  `timeline.py`) · `app/web/pages/{customers,sales}.py` + templates for the score and the fast
+  entry path · `app/seed/` for R9.15's partial return · `tests/test_customer_health.py`,
+  `tests/test_fast_entry.py`.
 
 ### Call, don't read — verified signatures, copied from source at Part 6 close
 
@@ -299,11 +309,27 @@ CustomerTimelineService(db).events(customer_id, *, limit=200) -> list[TimelineEv
 #   Six sources, six queries, NO events table. TimelineEvent(.at .kind .summary .href
 #   .amount_minor); kinds: order invoice payment task note activity.
 
-# app/modules/sales/service.py — the confirm path C2 hooks
+# app/modules/sales/service.py — the order spine, now reservation-aware
 SalesOrderService(db).confirm(order_id, *, actor_id, credit_override_reason=None)
-#   Runs the credit gate FIRST. On a breach with no reason it raises and the order stays
-#   DRAFT. R9.8 must reserve stock AFTER this passes. NO cancel verb exists yet (R9.9).
-SalesOrderService(db).create/fulfill/invoice(...)
+#   Credit gate FIRST, then reserves every line (R9.8). A refusal leaves it DRAFT.
+SalesOrderService(db).fulfill(order_id, *, actor_id)   # consumes, then posts stock OUT
+SalesOrderService(db).cancel(order_id, *, reason, actor_id)   # releases; refuses fulfilled
+SalesOrderService(db).create/invoice(...)
+
+# app/modules/sales/returns.py — Part 7 C2a
+SalesReturnService(db).returnable(invoice_id) -> list[ReturnableLine]
+#   (.invoiced_qty .returned_qty .returnable_qty .unit_price_minor) · .fully_returned
+SalesReturnService.returnable_qty(invoiced, already) -> Decimal   # STATICMETHOD, clamped
+#   THE definition (R9.6) — the shape open_qty gave back orders. Do not inline a second.
+SalesReturnService(db).create(SalesReturnCreate, *, actor_id) -> SalesReturnDetail
+#   Validates the WHOLE payload first, then posts stock IN (reason "RETURN") and raises a
+#   CreditNote. NEVER touches the invoice (G4/R9.5). Priced AS INVOICED.
+SalesReturnService(db).get(id) · .for_invoice(invoice_id) · .credit_notes(customer_id)
+DOC_TYPE_RETURN = "RET" · DOC_TYPE_CREDIT = "CRN"
+
+# app/modules/customers/repository.py — the receivable, now net of credits (R9.7)
+CustomerRepository(db).outstanding_minor(customer_id) -> int
+#   Σ invoice.total − Σ allocations − Σ credit_notes. USE THIS; do not re-derive it.
 
 # app/modules/sales/quotation.py — Part 7 C1
 QuotationService(db).create(QuotationCreate, *, actor_id)  -> QuotationDetail

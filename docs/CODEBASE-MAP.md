@@ -240,6 +240,25 @@ The verbs other modules call:
 - `InventoryService.states()` / `.bin_stock()` / `.location_rollup()` / `.available()` — derived reads
   for the screens; each is one or two grouped queries for a whole page, never a query per row.
 
+### `app/modules/sales/returns.py` — the gap after the invoice (Part 7 C2a)
+
+**The invoice is never mutated** (G4/R9.5). A return posts stock IN through `record_movement` and
+raises a `CreditNote`; the receivable falls because
+`CustomerRepository.outstanding_minor` = `Σ invoice − Σ allocations − Σ credit_notes`. An invoice is
+a document the customer already holds, and editing it destroys the record of what was billed.
+
+- **`returnable_qty(invoiced, already)` is THE definition** (R9.6), clamped at zero — the shape
+  `PurchaseOrderService.open_qty` gave back orders. Do not inline a second subtraction.
+- **The whole payload is validated before anything is written**, so a partly-invalid return does not
+  leave half its stock posted.
+- **Returns are priced as invoiced**, never re-resolved: a credit is for what the customer paid.
+- **The credit note carries no lines** — the return holds them.
+
+**Reservation is wired here too** (R9.8/R9.9): `SalesOrderService.confirm` reserves *after* the
+credit gate, `fulfill` consumes then posts stock OUT (reservation first, or `available` would
+double-count), and `cancel` releases — refusing a fulfilled order, because shipped stock is undone
+by a return, not a status change.
+
 ### `app/modules/sales/quotation.py` — the gap before the order (Part 7 C1)
 
 create → send → (revise…) → convert, or → expire. Sits beside `service.py`'s order spine.
