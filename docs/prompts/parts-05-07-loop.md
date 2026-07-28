@@ -59,7 +59,8 @@ found into the resume block, commit nothing else, and **stop the loop**.
 | 4 | **P6-C1** customer depth — contacts, branches, credit limit + override, timeline | ✅ done — `a8c9bde` · **Part 6 CLOSED** |
 | 5 | **P7-C1** quotation — create / revise / send / expire / convert | ✅ done — `eeae971` |
 | 6a | **P7-C2** reservation wiring + returns + credit notes | ✅ done — `27d1c49` |
-| 6b | **P7-C2** customer health score + the speed work (R9.12's keystroke measurements) | next — **closes Part 7** |
+| 6b | **P7-C2** customer health score + R9.15's partial return | ✅ done — `761e9aa` |
+| 6c | **P7-C2** the SPEED work — R9.12 keyboard-first entry, R9.13 keystroke measurements | next — **closes Part 7** |
 | 7 | **E2E** the cross-part walkthrough + final PROGRESS.md and CODEBASE-MAP.md | |
 
 After #7, stop the loop — that is the terminal state. The per-checkpoint requirement detail is

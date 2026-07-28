@@ -275,6 +275,22 @@ create → send → (revise…) → convert, or → expire. Sits beside `service
 - **Its document type is `SQT`.** `QUO` already numbers Part 3's *supplier* quotations, and sharing
   it would interleave two unrelated sequences in `number_sequence`.
 
+### `app/modules/customers/health.py` — the customer health score (Part 7 C2b)
+
+Four measured inputs — frequency, profitability, payment, recency — each on a 0–100 scale with the
+conversion **shown**, weighted 25/30/25/20 and **renormalising over whichever inputs exist**. The
+house pattern for a weighted figure, taken from `suppliers/vendor.py`. Stores nothing (G7).
+
+- **Profitability goes through `MarginService.gp`** — the existing margin logic (R11.6), never a
+  valuation layer. A source walk enforces it.
+- **"Never invoiced" is a MISSING input, not perfect payment behaviour.** Collapsing the two made a
+  brand-new customer score 100 — worse than the default R9.11 forbids, because it reads as praise.
+  Invoiced-and-settled earns full marks; never-invoiced is unmeasurable.
+- **No input at all ⇒ `Explained.unknown`**, and the panel still lists every input it would have
+  used with the reason each is missing.
+- **The partial-basis caveat names what was left out**, and a test re-derives the published score
+  from its own published inputs — so "the numbers are on screen" means they can be redone.
+
 ### `app/modules/customers/` — versioned terms, the credit gate, the timeline (Part 6)
 
 `credit.py` and `timeline.py` sit beside `service.py` for the same reason `valuation.py` and

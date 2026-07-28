@@ -46,7 +46,7 @@ Type **`Start next part of development`** in a fresh session. `CLAUDE.md` binds 
 to type. **The session that closes a checkpoint owns that prompt** — one still naming last checkpoint's
 baseline counts is worse than none, because the next session will trust it.
 
-#### ▶ NEXT SESSION PROMPT — Part 7, C2b (health score + speed) · CLOSES PART 7
+#### ▶ NEXT SESSION PROMPT — Part 7, C2c (the SPEED work) · CLOSES PART 7
 
 ```
 Continue the ApexOS build. Do this in order:
@@ -56,10 +56,10 @@ Continue the ApexOS build. Do this in order:
    tags for Parts 5–7), so do not expect part-05-done or part-06-done to exist.
 
 2. Read the "▶ CURRENT WORK" block below, especially "▶ Handoff". PARTS 5 AND 6 ARE
-   COMPLETE; PART 7 C1 (quotation) and C2a (reservation wiring + returns) ARE DONE. That
-   block names the edit set, carries verified signatures to call WITHOUT opening the source,
-   and its "Do NOT read" list is binding. **What remains is the health score and the speed
-   work, and finishing them CLOSES PART 7.**
+   COMPLETE; PART 7 C1 (quotation), C2a (reservation wiring + returns) and C2b (health
+   score) ARE DONE. **ONLY THE SPEED WORK REMAINS — R9.12, R9.13, R9.14 — and finishing it
+   CLOSES PART 7 and the whole build except the E2E gate.** That block names the edit set and
+   carries verified signatures; its "Do NOT read" list is binding.
 
 3. Read docs/REQUIREMENTS.md §1 (global invariants G1–G17) and §10 (R9.x). NOT optional:
    the invariants you must not break — integer minor units, exactly one activity_log row
@@ -68,57 +68,53 @@ Continue the ApexOS build. Do this in order:
    Then docs/prompts/part-07.md (self-contained) and docs/STANDING-RULES.md (binding).
    Do NOT open docs/ROADMAP.md — planning only, ~17k tokens.
 
-4. `git show --stat 27d1c49` for what C2a changed. Not a tree walk.
+4. `git show --stat 761e9aa` for what C2b changed. Not a tree walk.
 
 5. Verify the baseline before writing code (from apps/api, venv activated):
-     python -m pytest -q                  # expect 591 passed
+     python -m pytest -q                  # expect 606 passed
      python -m ruff check app/ tests/     # expect EXACTLY 37 — 38 is a regression
    If either is off, stop and report. 37 is pre-existing (32 E501, 4 F841, 1 B007, all in
-   untouched modules). Parts 1–7 C2a added zero new findings; hold that line.
+   untouched modules). Parts 1–7 C2b added zero new findings; hold that line.
 
-6. THREE things remain. The health score is service work; the speed work has the most
-   value per line in the whole part.
+6. R9.12–R9.14 — SPEED, and nothing else. **This is the highest-value item in the part and
+   the only one judged by feel rather than by an assertion.** D-B makes the founder the sole
+   operator, so every order is entered personally; this is the screen they touch most.
 
-   a. R9.10/R9.11 — CUSTOMER HEALTH SCORE: order frequency, profitability (the EXISTING
-      margin logic — `MarginService.gp`, do NOT add a second), outstanding + ageing, and
-      recency. Inputs AND weighting ON SCREEN through `Explained` + the `explain_panel`
-      macro (G11, one shape). Insufficient history yields **`Explained.unknown`**, never a
-      default number, and R9.11 needs its own test.
-      **Part 4's `VendorIntelService.score` is the worked example** — read it: it weights
-      60/40, RENORMALISES over whichever inputs exist, and says so in a caveat rather than
-      inventing a zero. A four-input score should do the same, and "unknown" is only for
-      when NO input is available.
-      Everything it needs already exists: `CustomerRepository.outstanding_minor` (now net of
-      credit notes), `CustomerTimelineService.events` for recency and frequency, and
-      `MarginService.gp` for profitability. Reuse, do not rebuild (G16).
+   a. MEASURE FIRST (R9.13). Count the keystrokes to enter a 5-line repeat order on the
+      CURRENT `/sales` form and write that number down BEFORE changing anything. A session
+      that measures and optimises in one pass loses the baseline — Part 11's C1 is
+      measurement-only for exactly this reason. Count honestly: tabs, the SKU characters
+      actually needed before the datalist narrows to one, quantities, and the submit.
 
-   b. R9.12–R9.14 — SPEED. **The highest-value item in the part.** D-B makes the founder the
-      only operator, so every order is entered personally: keyboard-first entry, product
-      search-as-you-type showing price AND **available stock** inline (that is
-      `InventoryService.available`, not on-hand — committed stock cannot be sold twice),
-      reorder-from-last-order, defaults from customer history, bulk line entry.
-      REUSE Part 3's `<datalist>` picker: `_preorder.html`'s `line_grid(products, rows,
-      autofocus, title, with_price)` and `app/web/pages/preorder.py`'s `_lines` resolver,
-      which NAMES an unknown SKU back to the user instead of dropping the row. A `<select>`
-      of 311 products cannot be typed into.
-      **R9.13: MEASURE the keystrokes for a 5-line repeat order BEFORE and AFTER, and put
-      BOTH numbers in PROGRESS.md.** Measure FIRST. A session that measures and optimises in
-      one pass loses the baseline — Part 11's C1 is measurement-only for exactly this reason.
+   b. R9.12 — then build: keyboard-first entry (autofocus the first field, tab order that
+      matches reading order, no mouse needed for a whole order), product search-as-you-type
+      showing price AND **AVAILABLE STOCK** inline, reorder-from-last-order, defaults from
+      customer history, and bulk line entry.
+      **Available, not on-hand** — `InventoryService.available(product_id, warehouse_id)`.
+      Now that confirm reserves, the two genuinely differ, and showing on-hand would offer
+      the founder stock that is already committed to another order.
+      REUSE Part 3's picker: `_preorder.html`'s `line_grid(products, rows, autofocus, title,
+      with_price)` and `app/web/pages/preorder.py`'s `_lines` resolver, which NAMES an
+      unknown SKU back rather than dropping the row. A `<select>` of 311 products cannot be
+      typed into. **Do not write a second resolver or a second grid** (G16).
+      Reorder-from-last-order needs the customer's most recent order's lines — one query,
+      not one per line.
 
-   c. R9.15's remainder: a confirmed order HOLDING a reservation (the seed already produces
-      one via Part 6's override order — verify rather than duplicate) and a PARTIAL RETURN
-      with its credit note. Extend `app/seed/quotations.py` or add a new module.
+   c. R9.14 — bulk line entry. The grid already takes N rows; make the row count generous
+      and make a blank row cost nothing.
+
+   d. R9.13 again: MEASURE AFTER, and **put BOTH numbers in PROGRESS.md**. If the improvement
+      is small, say so plainly — an honest "38 → 31" is worth more than a flattering
+      estimate, and R9.13 asks for the measurement, not for a win.
 
 7. Constraints that bind:
-     - G4: `stock_movement`, `payment`, invoices, bills and credit notes are APPEND-ONLY.
-     - G8: `record_movement` is the ONLY writer of `stock_movement`; a source walk enforces it.
-     - G5: exactly one activity_log row per state change.
-     - G7: the health score is DERIVED — no stored score column, and no cached rating.
+     - G7: nothing new is stored. "Available" and "last order" are reads.
      - G10: every new POST carries the R1.4 authz guard; the authz walk enforces it.
-     - G11 on the health score; G12 arithmetic only, no ML and no runtime LLM call.
-     - Any new model owes app/db/references.py an entry (R3.7) — **the health score should
-       need none.** If you are adding a table for a score, re-read G7.
-     - status_class needs a bucket for any new status, or the badge renders grey.
+     - G16: no second SKU resolver, no second line grid, no second price lookup.
+     - G12: arithmetic only. Search-as-you-type is a `<datalist>`, not a model.
+     - R9.12 is P0; R9.13 and R9.14 are P1 (D-B relaxed the printable/training ones, NOT
+       these — D-B explicitly RAISES keyboard-first entry in importance).
+     - No new model should be needed. If you are adding a table, re-read the requirement.
 
 8. Work on main. No branches, no PRs, no tags. Commit at the end and push. **C2 CLOSES
    PART 7:** write docs/parts/part-07.md, delete the Part 7 block from PROGRESS.md, and
@@ -164,18 +160,20 @@ Parts 5 and 6 are **COMPLETE**; Part 7's quotation half is done. **Not tagged** 
 | 5 | `437a185` `b442322` `eaee67b` `4667a5e` | Inventory: locations, four states, reservation ledger, weighted-average cost, ageing, count sheets, in-transit transfers, ABC / dead stock / fast-slow / low-stock |
 | 6 | `a8c9bde` | Customer depth: contacts, branches, VERSIONED credit terms, the credit gate at confirm, the override, the timeline |
 | 7 C1 | `eeae971` | Quotation: create / send / revise / expire / convert, append-only revisions |
-| **7 C2a** | **`27d1c49`** | **Reservation wiring (confirm/fulfil/cancel) + returns with credit notes** |
+| 7 C2a | `27d1c49` | Reservation wiring (confirm/fulfil/cancel) + returns with credit notes |
+| **7 C2b** | **`761e9aa`** | **Customer health score, R9.15's partial return** |
 
-**Verified at C2a:** **591 tests passing**, ruff **exactly 37** — zero new findings across eight
-checkpoints. Evidence: `-k r6_` (53) `-k r7_` (47, inventory) `-k r8_` (35) `-k r9_` (47).
+**Verified at C2b:** **606 tests passing**, ruff **exactly 37** — zero new findings across nine
+checkpoints. Evidence: `-k r6_` (53) `-k r7_` (47, inventory) `-k r8_` (35) `-k r9_` (62).
 
 | R | State |
 |---|---|
 | R9.1 R9.2 R9.3 | ✅ quotation, append-only revisions, conversion carrying the quoted price |
 | R9.4 R9.5 R9.6 R9.7 | ✅ return posts stock IN, credit note raised, invoice UNTOUCHED, receivable net of credits |
 | R9.8 R9.9 | ✅ confirm reserves (after the credit gate), fulfil consumes, cancel releases |
-| R9.15 | ⚠️ quotations + a reservation-holding order exist; **the partial return is still owed** |
-| **R9.10 R9.11 R9.12 R9.13 R9.14** | ❌ **health score + speed — all that remains of Part 7** |
+| R9.10 R9.11 | ✅ four-input weighted score, renormalising, "unknown" with no history |
+| R9.15 | ✅ quotations, a reservation-holding order, a partial return with its credit note |
+| **R9.12 R9.13 R9.14** | ❌ **the SPEED work — all that remains of Part 7** |
 
 ### Four decisions C1 made that C2 must not reverse
 
@@ -205,7 +203,19 @@ checkpoints. Evidence: `-k r6_` (53) `-k r7_` (47, inventory) `-k r8_` (35) `-k 
 4. **A credit note carries no lines**; the `sales_return` holds them. A second copy of the same
    figures is a second thing that can disagree.
 
-### Two things C2b inherits and must not break
+### Two decisions C2b made that C2c must not reverse
+
+1. **"Never invoiced" is a MISSING input on the health score, not perfect payment
+   behaviour.** Collapsing the two made a brand-new customer score **100** — worse than the
+   default R9.11 forbids, because it reads as a compliment about someone nobody has traded
+   with. Invoiced-and-settled earns full marks; never-invoiced is unmeasurable. Both
+   directions are pinned by `test_r9_10_payment_needs_an_invoice_to_be_measurable_at_all`.
+2. **Notes stamp `created_at` explicitly** (`datetime.now(UTC)`, microsecond resolution).
+   The server default is whole-second, so two notes added in one request tied and the list
+   could flip order between page loads — `uuid7` cannot break that tie either. **Any new
+   list ordered by a `func.now()` column has the same defect.**
+
+### Two things C2c inherits and must not break
 
 1. **`uuid7()` is not monotonic within a millisecond** — it fills its low bits from `os.urandom`,
    so `ORDER BY (timestamp, id)` cannot break a same-millisecond tie. Select by a discriminating
@@ -216,17 +226,17 @@ checkpoints. Evidence: `-k r6_` (53) `-k r7_` (47, inventory) `-k r8_` (35) `-k 
    Part 5's semantics, and it was left alone deliberately. Say so if a health-score input needs
    net revenue.
 
-### Read for C2b — these and nothing else
+### Read for C2c — these and nothing else
 
-- `docs/REQUIREMENTS.md` §10 — **R9.10–R9.14 remain.** §1 for the invariants.
+- `docs/REQUIREMENTS.md` §10 — **only R9.12–R9.14 remain.** §1 for the invariants.
 - `docs/prompts/part-07.md` — self-contained. Binding rules: `docs/STANDING-RULES.md`.
-- **`app/modules/suppliers/vendor.py`'s `score`** — the worked example for R9.10: weighted,
-  renormalising over available inputs, with a caveat instead of an invented zero. This is the one
-  file worth reading in full; it is otherwise on the do-not-read list.
-- **The edit set:** a health module (`app/modules/customers/health.py`, beside `credit.py` and
-  `timeline.py`) · `app/web/pages/{customers,sales}.py` + templates for the score and the fast
-  entry path · `app/seed/` for R9.15's partial return · `tests/test_customer_health.py`,
-  `tests/test_fast_entry.py`.
+- **`app/web/templates/_preorder.html`** and **`app/web/pages/preorder.py`'s `_lines`** — the
+  picker and resolver to reuse. Both short; read them rather than writing a second pair.
+- **`app/web/pages/sales.py` + `templates/sales/`** — the form being made fast. This is the
+  measurement baseline, so read it before touching it.
+- **The edit set:** `app/web/pages/sales.py` + its templates · possibly one read helper on
+  `SalesOrderService` or the repository for "the customer's last order" · `app/web/static/app.css`
+  for the entry grid · `tests/test_fast_entry.py`. **No new model.**
 
 ### Call, don't read — verified signatures, copied from source at Part 6 close
 
