@@ -16,7 +16,9 @@
 | I need to… | Read | Don't read |
 |---|---|---|
 | Build or change a list screen | `app/modules/<feature>/listing.py` (the spec — usually the only file you touch), then `app/db/listing.py` / `app/web/listing.py` for the contracts | Any individual page module "for an example" — the usage block at the top of the list-macro section is the example |
-| Add a master to the uniform treatment | `app/modules/products/listing.py` + `app/web/pages/products.py` — the reference pair (~80 lines total) | Re-deriving the pattern from the machinery; copy the pair and change the config |
+| Add a master to the uniform treatment | `app/web/pages/masters.py` — a `MasterPage(...)` registry entry is the whole screen (~6 lines) | Writing a page module; nine masters already share one |
+| Add a master with its own domain page | `app/modules/products/listing.py` + `app/web/pages/products.py` — the reference pair (~80 lines total) | Re-deriving the pattern from the machinery; copy the pair and change the config |
+| Block deleting/deactivating something in use | `app/db/references.py` — `REFERENCES` is the policy | Writing a count query in a service; that is what this replaced |
 | Delete something | `app/db/soft_delete.py` (its docstring is the contract) | Per-module delete code — there isn't any, by design |
 | Prevent duplicates | `app/db/duplicates.py` — `NATURAL_KEYS` is the config | — |
 | Show change history | `app/modules/activity/history.py` + `ActivityService.history()` | Any new table — there is none (R2.10) |
@@ -74,9 +76,12 @@ Declarative list config and the only place `LIMIT` / `OFFSET` / `ORDER BY` appea
   column and `business_unit_id` for any model with the mixin, automatically (R2.5).
 - `query_page` / `query_rows` / `count_rows` — execution, all over `build_select`.
 - `coerce` / `is_valid` — filter-value parsing; an invalid value degrades rather than raising.
-- `static_options` / `model_options` / `distinct_options` — the three `Filter.options` providers
-  (fixed choices · another table's live rows · the values a column actually holds). A filter dropdown
-  should need none of its own SQL.
+- `static_options` / `model_options` / `distinct_options` / `active_options` — the `Filter.options`
+  providers (fixed choices · another table's live rows · the values a column actually holds · an
+  `is_active` boolean). A filter dropdown should need none of its own SQL.
+- `Column.kind` renderers: `text · mono · money · number · date · datetime · badge · bool · bps · link`.
+  `bool` is for `is_active`, `bps` for integer basis points (a GST rate). Both render identically on the
+  list, on a detail page's `<dl>` and in the CSV — add a kind here rather than formatting in a template.
 
 ### `app/web/listing.py` — request → view (R2.3, R2.8)
 
@@ -101,6 +106,32 @@ are the two worked examples.
   product dropdown asks for 300); everything else comes from the spec.
 - Projection happens in one place: `Service.to_read_many(rows)`, handed to `view_from_request(project=)`
   and `csv_response_from_request(project=)` so the screen and the file show the same values.
+
+### `app/web/pages/masters.py` — nine config masters, one screen definition (R3.1, R3.2)
+
+`MASTERS` is a tuple of `MasterPage(slug, title, label, entity_type, spec, fields, …)`. From it come
+`/masters/{slug}` (list + export), `/masters/{slug}/{id}` (detail + change history), create, delete and
+activate/deactivate — generically. **Adding a master is a registry entry**, not a page module.
+
+- `/settings` is the hub, not a list: each `ListView` owns `?q=`, `?sort=` and `?page=`, so several
+  lists on one URL would fight over them (R2.3). It kept the typed key/value settings.
+- `deletable=False` / `toggleable=False` turn off the verbs a master should not have — tax slabs are
+  version records (R3.6).
+- Writes go to `ConfigService.create_master` / `set_master_active` / `delete_master`, which are one
+  implementation across every master, guarded by `references.py`.
+
+### `app/db/references.py` — relationship integrity (R3.7)
+
+`REFERENCES` maps table → the references that block retiring a row, and `ensure_unreferenced` raises a
+`ConflictError` **naming the documents in the way**. Read its module docstring; the rule is Part 1's:
+*does anything read this row live?* A confirmed invoice snapshotted what it needed and never blocks
+(which is what keeps R1.7 true); an open purchase order will read the master again at receipt, so it
+does. `live_statuses` defines "open" per document type; `via=Via(...)` reaches a master through a
+document *line* so the message quotes the document number.
+
+**Every new model owes this map an entry, even an empty tuple** — a missing table reads as "not yet
+considered", and silently permits deleting something live depends on. Deletion and deactivation ask the
+same question, deliberately.
 
 ### `app/db/soft_delete.py` — the delete write path (R1.1)
 
@@ -196,6 +227,10 @@ bill → partial payment) → one complete sell loop (order → confirm → fulf
 payment) → second warehouse + transfer, tasks, a document → pipeline stages, leads, opportunity,
 competitors.
 
+Two passes run **last**, after every section: the master change-history backfill
+(`record_creation` over the ten master tables) and the tax-slab window repair. Later sections create
+masters too, so a mid-file pass would miss them.
+
 **Bulk master rows** (R2.13): products and customers are ~311 and ~253 rows. The named demo rows stay
 as literal lists (`PRODUCTS`, `DEMO_CUSTOMERS`) because other seed steps order and invoice them by
 code; the rest come from `bulk_products()` / `bulk_customers()` in the reference-data section —
@@ -227,6 +262,7 @@ to bite on (G14). `record_creation()` gives the *named* masters their `created` 
 | `test_change_history.py` | R2.10: derived from `activity_log`, fails if a history table appears |
 | `test_list_macros.py` | R2.1/R2.2: each macro renders against a real `ListView` |
 | `test_master_pages.py` | R2.11: the machinery through the real `/products` and `/customers` pages — search/filter/sort/pagination, export matching the screen, duplicate rejection as a flash, history panel |
+| `test_masters.py` | R3.1–R3.12: the same capabilities parametrised over **every** master in the registry, plus category reparent/tree, UoM factors, tax-slab versioning, and relationship integrity naming its blockers |
 
 Run `pytest -q`, never verbose.
 
@@ -243,6 +279,10 @@ that's the bar.** Part 11 (`R14.x`) clears them; until then `ruff check app/ tes
 **`/warehouse` and `/inventory` render every product** (`page_size=300`, no pagination) — harmless at
 17 rows, now ~170 KB of HTML at 311. They are not list-machinery pages yet; whichever part owns them
 should wire them onto `ListSpec` rather than raising the page size again.
+
+**`/categories` renders a full parent dropdown per row** (~90 KB at 24 categories). Fine now, quadratic
+later: a category picker that loads once and is reused, or a reparent form on the detail page only, is
+the fix when it stops being fine.
 
 ---
 

@@ -72,7 +72,7 @@ finish the part". Start each session fresh (`/clear` or a new window) rather tha
 one. And if a session ends messy, the recovery is `git log --oneline -5` plus the resume block, not
 re-reading the design docs.
 
-## Part 2 — Master data & shared machinery · on `main` · checkpoint 2 of 3 · tag when done: `part-02-done`
+## Part 2 — Master data & shared machinery · **COMPLETE** · on `main` · tagged `part-02-done`
 
 **Part 1 is COMPLETE and tagged `part-01-done`.** Its record is in the log below.
 
@@ -80,7 +80,60 @@ re-reading the design docs.
       prevention + change history → commit `7419f67`
 - [x] **C2** proven on products + customers, seed extended to 311/253 rows, R2.14 recorded →
       commit `5a1f89e`
-- [ ] **C3** roll out to the remaining 8 masters + their special cases
+- [x] **C3** rolled out to every remaining master + the special cases → commit `de73c23`
+
+**Every P0/P1 requirement in §3 and §4 passes.** R2.6/R2.7 (CSV import) stay unbuilt — P2 by D-C.
+R3.13 is a "do not build" and was not built.
+
+### ▶ R3.1 — the capability matrix (no empty cells)
+
+`S` search · `F` filters · `O` sort · `P` pagination · `X` CSV export · `A` audit trail (activity_log)
+· `T` status · `D` soft delete · `H` change history · `V` validation · `I` relationship integrity
+· `U` duplicate prevention
+
+| Master | Screen | S | F | O | P | X | A | T | D | H | V | I | U |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| Products | `/products` | ✅ | 3 | ✅ | 25 | ✅ | ✅ | 3-state | ✅ | ✅ | ✅ | open SO/PO | SKU + name/spec/brand |
+| Customers | `/customers` | ✅ | 3 | ✅ | 25 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | open SO | code + name/city |
+| Suppliers | `/suppliers` | ✅ | 3 | ✅ | 25 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | open PO | code + name/city |
+| Categories | `/categories` | ✅ | 3 | ✅ | 25 | ✅ | ✅ | ✅ | ✅ | ✅ | cycle | products, children | code + name/parent |
+| Business units | `/masters/business-units` | ✅ | 1 | ✅ | 25 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | cats, products, custs | code + name |
+| Brands | `/masters/brands` | ✅ | 1 | ✅ | 25 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | products | code + name |
+| Manufacturers | `/masters/manufacturers` | ✅ | 2 | ✅ | 25 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | none yet | code + name/city |
+| Procurement models | `/masters/procurement-models` | ✅ | 1 | ✅ | 25 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | cats, products | code + name |
+| Units of measure | `/masters/units` | ✅ | 1 | ✅ | 25 | ✅ | ✅ | ✅ | ✅ | ✅ | factor | products, conversions | code + name |
+| Customer types | `/masters/customer-types` | ✅ | 1 | ✅ | 25 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | customers, leads | code + name |
+| Supplier types | `/masters/supplier-types` | ✅ | 1 | ✅ | 25 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | suppliers | code + name |
+| Warehouses | `/masters/warehouses` | ✅ | 2 | ✅ | 25 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | movements, open POs | code + name |
+| Tax slabs | `/masters/tax-slabs` | ✅ | 1 | ✅ | 25 | ✅ | ✅ | ✅ | ⛔ versioned | ✅ | ✅ | products | n/a — code reuse **is** a version |
+
+Two deliberate non-✅s. **Tax slabs are not deletable** (`deletable=False` in the registry): a slab is a
+version record, and R3.6 forbids editing history — a rate change appends. **Manufacturers have no
+integrity guard** because nothing references them yet; their `references.py` entry is an explicit empty
+tuple, so a later part that adds `product.manufacturer_id` finds the place to declare it.
+
+**Requirements passed at C3:**
+
+| ID | How it was verified |
+|---|---|
+| R3.1 | The matrix above; `tests/test_masters.py` parametrises the first five columns over every registry entry, so a master added without a spec, an export or a history panel fails. |
+| R3.2 | One route set, one list template, one detail template for nine masters. Each list test asserts `html.count("<tbody>") == 1` and the presence of markers only the shared macros emit. |
+| R3.3 | Applied three times rather than worked around: `model_options`/`distinct_options` (C2), then `kind="bool"` + `kind="bps"` + `active_options` + a `cell` that works with no `ListView`. Each is ~5 lines in the machinery and removes ~10 per master. |
+| R3.4 | `CategoryService.reparent` (pre-existing) + `tree()` (new): depth-first, `sort_order` then code, carrying the business unit each row rolls up to. Rendered above the list. Tests: reparent to a descendant and to self both raise; the seeded tree is three levels deep and a child's BU equals its parent's. |
+| R3.5 | `UomConversionService.upsert` rejects `from == to` and a non-positive factor; both asserted. |
+| R3.6 | `TaxRateService.set_slab` appends and closes the prior window. Test: after a revision the prior row's code, name, `rate_bps` and `valid_from` are unchanged and only `valid_to` is set. The list shows every version with its window; `NATURAL_KEYS` deliberately has no `tax_rate` entry. |
+| R3.7 | `app/db/references.py`. Refusals name the blockers: *"Cannot deactivate brand Apex — it is still used by 268 products (Black Garbage Bag 19x21, …, and 265 more)"*. Verified in the booted app, and by a test that puts a product on a draft PO and asserts the PO number appears in the refusal. Closed documents never block, so R1.7 still holds. |
+| R3.8 | `NATURAL_KEYS` covers every master. Parametrised test posts a duplicate code per master and asserts a readable flash with no `IntegrityError` — including the tax-slab exception, where a reused code must *succeed*. |
+| R3.9 | SKU generation untouched; `ProductService.set_status` makes Active/Draft/Discontinued a real verb with one activity row, a field-level diff and the R3.7 guard. Existing product tests still green. |
+| R3.10 | 12 sub-categories + 3 sub-sub-categories, and GST_12 as two versions (12% from 2025-04-01, closed 2026-04-01; 5% from then). Seeded through `set_slab`, not hand-authored. |
+| R3.11 | `tests/test_masters.py` — 65 tests. |
+| R3.12 | `SupplierRepository.search` was the last old-path query; a test asserts none of the three repositories has a `search` attribute any more. Category deletion's two hand-rolled counts and four hand-rolled `code already exists` checks are gone. |
+| R3.13 | Not built. |
+
+**Verify loop at Part 2 close:** 251 tests passing; `ruff check app/ tests/` at 38 findings (the C2
+baseline), zero new; app boots on `--port 8013`; all 26 web routes 200 including the nine new
+`/masters/*` screens and `/products/{id}`; deactivating a referenced brand refuses with a message that
+names the products; an unreferenced manufacturer deactivates and re-activates cleanly.
 
 ### ▶ R2.14 — what the second master cost (this is C3's gate)
 
@@ -138,7 +191,12 @@ all 19 web routes 200 including the new `/products/{id}`; an unknown product id 
 **New files at C2:** `app/modules/products/listing.py`, `app/modules/customers/listing.py`,
 `app/web/templates/products/detail.html`, `tests/test_master_pages.py`.
 
-**Changed since last checkpoint** (`git show --stat 5a1f89e` — 17 files, +755/−147; use
+**New files at C3:** `app/db/references.py`, `app/modules/config/listing.py`,
+`app/modules/suppliers/listing.py`, `app/web/pages/masters.py`,
+`app/web/templates/masters/{list,detail}.html`, `app/web/templates/categories/detail.html`,
+`tests/test_masters.py`.
+
+**Changed at C2** (`git show --stat 5a1f89e` — 17 files, +755/−147; use
 `git diff part-01-done..HEAD --stat` for the whole part):
 `db/listing.py` (+41, the two options providers) · `web/listing.py` (+5, `Decimal` in the export) ·
 `modules/products/{listing.py*,service.py,repository.py}` · `modules/customers/{listing.py*,service.py,repository.py}` ·
@@ -147,27 +205,20 @@ all 19 web routes 200 including the new `/products/{id}`; an unknown product id 
 `tests/test_list_macros.py` (one seed-dependent assertion)
   *(`*` = new file)*
 
-**Read for the next checkpoint (C3)** — these and nothing else:
-- **The reference pair, in full:** `app/modules/products/listing.py` + `app/web/pages/products.py`.
-  Together they are ~130 lines and they are the whole pattern. Copy them per master.
-- **Modify:** three page modules hold every remaining master — **verified, not guessed:**
-  - `web/pages/settings.py` → `GET /settings` renders business_units, brands, uoms, customer_types,
-    supplier_types, warehouses, tax_rates, settings in one template (`settings/index.html`), with
-    `POST /settings/masters/{entity_type}`, `/settings/warehouses`, `/settings/tax-rates`.
-    **This page is the bulk of C3.** Eight card-lists on one screen is the thing to decide first —
-    one `ListSpec` per master with its own query string namespace, or a page per master.
-  - `web/pages/categories.py` → `GET /categories`, `POST /categories`,
-    `POST /categories/{id}/reparent` (R3.4's cycle prevention already has a route), `.../delete`.
-  - `web/pages/suppliers.py` → `GET /suppliers` (still hand-rolled; `SupplierRepository.search` is
-    the last surviving old-path query — delete it the way C2 deleted the other two).
-  - Plus a `listing.py` per module, and `seed.py`'s category / tax-rate sections for R3.10 (multi-level
-    category tree + two tax slab versions).
-  - **Manufacturers do not exist yet** — `ConfigService` has no `manufacturers()`. R3.1 lists them as
-    in scope, so C3 either adds the model or records why not. Check before planning the session.
-- **Reference only:** `docs/CODEBASE-MAP.md` § Shared machinery → the `<feature>/listing.py` entry.
-- **Already built, do not rewrite:** `CategoryService.reparent` (R3.4), `UomConversionService.upsert`
-  (R3.5), `TaxRateService.set_slab` (R3.6) all exist in `app/modules/config/service.py`. C3 may only
-  owe them *tests* and a list screen — read those three methods before writing any new validation.
+**Changed at C3** (`git show --stat de73c23` — 32 files, +1816/−252). Whole part:
+`git diff part-01-done..HEAD --stat` — 52 files, +5634/−432.
+
+**Read for the next part (Part 3 — Procurement: pre-order → PO depth)** — these and nothing else:
+- `docs/REQUIREMENTS.md` §5 (R4.x) — the acceptance contract for Part 3.
+- `docs/ROADMAP.md` → PROMPT for Part 3, and its SESSION PROTOCOL (2 checkpoints).
+- `docs/08-module-breakdown.md` § Procurement.
+- **The edit set:** `app/modules/procurement/{models,repository,service,schemas,router}.py` ·
+  `app/web/pages/{procurement,purchase_orders}.py` and their templates · `seed.py`'s buy-loop section.
+- **Reference only, and only if you add a list screen:** `app/modules/products/listing.py` +
+  `app/web/pages/products.py` — the pattern for one, `app/web/pages/masters.py` — the pattern for many.
+- **Already built, do not rewrite:** `PurchaseOrderService` covers create → confirm → receive → bill
+  with the status vocabulary `draft / confirmed / partially_received / received`. Part 3 adds depth to
+  it; read those methods before adding a verb that already exists (G16).
 
 **Call, don't read** — verified signatures, so you don't have to open these files:
 
@@ -213,6 +264,27 @@ record_creation(db, activity, *, entity_type, entity_id, summary, actor_id) -> N
 #   the `created` history line for a get_or_create'd master; idempotent, skips if the
 #   row already has any activity
 
+# app/db/references.py — relationship integrity (R3.7). ADD AN ENTRY PER NEW MODEL.
+ensure_unreferenced(db, instance, *, action: str, label: str) -> None
+#   raises ConflictError naming the live documents that block `action`
+blocking_references(db, instance) -> list[str]      # the phrases, without raising
+Reference(model, column, noun, plural, label="name", live_statuses=(), via=None)
+Via(model, child_column, label, live_statuses=())   # a reference through a document LINE
+REFERENCES: dict[tablename, tuple[Reference, ...]]  # the whole policy, as data
+
+# app/modules/config/service.py — one creator/toggle/delete for nine masters
+ConfigService(db).create_master(entity_type, *, code, name, extra=None, actor_id)
+ConfigService(db).set_master_active(entity_type, row_id, *, active: bool, actor_id)
+ConfigService(db).delete_master(entity_type, row_id, *, actor_id)
+MASTER_LABELS: dict[entity_type, str]               # the label messages use
+CategoryService(db).tree() -> list[(depth, Category, business_unit_name)]
+CategoryService(db).get(category_id) -> CategoryRow
+ProductService(db).set_status(product_id, status, *, actor_id)   # R3.9 lifecycle
+
+# app/modules/config/listing.py
+simple_master_spec(entity, model, *, plural, extra=(), search=(), filters=()) -> ListSpec
+#   a code/name/is_active master's whole list, in one call
+
 # app/db/duplicates.py
 ensure_unique(db, model, values, *, exclude_id=None) -> None
 #   raises DuplicateError(.field); pass exclude_id on update so a row isn't its own duplicate
@@ -242,8 +314,19 @@ soft_delete(db, instance, *, actor_id, label=None) -> None
 
 **Gotchas for the next session:**
 - **Do not build a second query helper or a second table macro.** R2.1/R2.4 are one definition each.
-  `SupplierRepository.search` is the **last surviving old-path query** — C2 deleted the product and
-  customer ones. Delete it the same way: `list()` builds `ListParams` and calls `query_page`.
+  All three repository `search()` methods are gone and `tests/test_masters.py` fails if one returns.
+  A new list screen is a `ListSpec` + `view_from_request`; a new *set* of list screens is a
+  `MasterPage` entry in `app/web/pages/masters.py`.
+- **Every new model owes `app/db/references.py` an entry** — even an empty tuple. R3.7's guard reads
+  that map, so a model missing from it silently permits deletion of something live points at. An
+  explicit `(): nothing reads this live` is the difference between decided and forgotten.
+- **A reference through a document line needs `via=`**, or the refusal quotes a line id instead of the
+  document number the founder can act on.
+- **`live_statuses` is what "open" means.** `("draft", "confirmed", "partially_received")` for a PO,
+  `("draft", "confirmed", "partially_fulfilled")` for an SO. A part that adds a status to either
+  vocabulary must decide whether it is open here too — otherwise a new state silently stops blocking.
+- **One route set can serve many screens.** `/masters/{slug}` handles nine masters; `/settings` is the
+  hub. Before adding a page module, check whether a registry entry does it.
 - **`ListSpec.columns` read the *projected* row; `sort`/`filters`/`search` read the *model*.** On
   products, `category_name` and `stock_on_hand` exist only on `ProductRead`, so they are columns with
   no `sort=`. A `?sort=` naming a projection-only key silently falls back to the spec default — that's
@@ -265,8 +348,10 @@ soft_delete(db, instance, *, actor_id, label=None) -> None
   page. `?q=` and `?page=` are per-`ListView`, so eight specs on one route would fight over them.
   Decide this before writing code — separate routes per master is the cheap answer.
 - **The seed's masters bypass their services**, so `get_or_create` writes no `activity_log` row and the
-  history panel is empty on demo rows. `record_creation()` fixes that for the *named* rows only; if C3
-  wants history on a config master, call it there too. Don't log the generated hundreds.
+  history panel would be empty on demo rows. `record_creation()` backfills the named rows and every
+  config master, in a pass that runs **last** in `run()` — later sections create masters too (the
+  Phase B warehouse), and a mid-file pass misses them. The generated hundreds are deliberately not
+  logged; they would bury the activity feed.
 - **A re-seed can't recover a real `occurred_at`.** `ActivityService.log` has no `occurred_at`
   parameter (it defaults to now), so a backfilled `created` line on an already-seeded DB reads
   "just now". A fresh DB is correct. Don't add the parameter to make demo data prettier.
@@ -331,6 +416,32 @@ soft_delete(db, instance, *, actor_id, label=None) -> None
    `bulk_products()` / `bulk_customers()` — deterministic index arithmetic, no `random`, so re-seeding
    is idempotent, tests can name a row, and diffs stay readable. The named demo rows stay literal
    because later seed steps order and invoice them by code.
+15. **Nine config masters are one route set, not nine page modules** (`/masters/{slug}` over the
+   `MASTERS` registry). Eight lists on `/settings` could not each own `?q=`, `?sort=` and `?page=`, so
+   the split was forced by R2.3 rather than chosen for tidiness. `/settings` kept the typed key/value
+   settings and became the hub. The registry entry is the whole per-master cost: a spec plus a field
+   list, ~6 lines.
+16. **"Still referenced" is a question about *live* work, not about foreign keys** —
+   `app/db/references.py`. A confirmed invoice snapshotted what it needed, so it never blocks (that is
+   what keeps R1.7 true); an open purchase order will read the master again at receipt, so it does.
+   Every refusal names the documents in the way, because "cannot delete: still referenced" is not
+   something the founder can act on.
+17. **Deactivation is guarded exactly like deletion.** Hiding a master from every picker breaks an open
+   order as thoroughly as removing it, and two policies would drift. One question, one map.
+18. **`tax_rate` has no `NATURAL_KEYS` entry, and slabs are not deletable.** Reusing a code *is* how a
+   new version is expressed (R3.6), so a duplicate check there would forbid the feature; and deleting a
+   slab would delete history. The registry's `deletable=False` keeps the button off the page.
+19. **`create_master` grew an `extra` dict rather than a second creator.** Warehouses and manufacturers
+   are the same master with extra text columns; `create_warehouse` is now a two-line wrapper kept for
+   its callers. The four hand-rolled `code already exists` checks are gone — they each phrased the error
+   differently and none of them noticed a soft-deleted row still holding the `UNIQUE` code.
+20. **`kind="bool"` and `kind="bps"` are machinery, not per-page formatting.** Config masters carry
+   `is_active` (a boolean, not a status string) and tax slabs carry integer basis points. Both now
+   render in the shared `cell` macro and in the CSV export, so no page formats a value itself. The
+   `bps` filter uses integer arithmetic — 1800 → "18%", never a float.
+21. **`cell` works without a `ListView`.** A detail page renders the same spec columns as a `<dl>`
+   (`masters/detail.html`), which means a new column appears on both screens. Duplicating the kind
+   switch for detail pages was the alternative, and it would have drifted within a part.
 
 **Decisions made mid-part (Part 1 — do not silently reverse):**
 1. **Soft delete is one function, not a base-repository method** — `soft_delete()` in
@@ -352,18 +463,15 @@ soft_delete(db, instance, *, actor_id, label=None) -> None
    so it needed its own path) and `StarletteHTTPException` (an unrouted web path). API, `/docs`,
    `/health` and `/static` keep their JSON.
 
-**NEXT SESSION:** start Part 2 at **C3** using the Part 2 prompt in `docs/ROADMAP.md`, from STAGE 2.
-Read this block + `docs/REQUIREMENTS.md` §4 (R3.1–R3.13 is everything C3 owes) + the read list above.
-**Do not re-read the machinery** — the signature block above is what C2 verified against source.
+**NEXT SESSION:** **Part 2 is complete and tagged `part-02-done`. Start Part 3** (Procurement:
+pre-order → PO depth, Phase 2) using the Part 3 prompt in `docs/ROADMAP.md` — 2 checkpoints, one per
+session. Read this block + `docs/REQUIREMENTS.md` §5 + the read list above, then the procurement module.
+**Do not re-read the list machinery** — the signature block above is what C2 and C3 verified against
+source, and Part 3 is domain work, not screen work.
 
-C3's work, in order: (1) decide the `/settings` question — eight masters on one page need either a
-query-string namespace per list or a route per master; (2) suppliers first, since it's the closest twin
-of what C2 did and its `SupplierRepository.search` must go; (3) categories, whose `reparent` service
-already exists (R3.4 may be tests only); (4) the config masters, cheapest last; (5) `seed.py` for R3.10
-(multi-level category tree + two tax slab versions); (6) R3.7 relationship integrity — deactivating a
-product on an open PO must refuse *and name the PO*; (7) the R3.1 capability matrix in this file, no
-empty cells. If a master needs materially more than the ~60–80 lines R2.14 measured, **fix
-`app/db/listing.py` and say so here** (R3.3) rather than working around it.
+Two things Part 3 inherits and must not break: every new model needs an `app/db/references.py` entry
+(even an empty one), and if it adds a status to the PO vocabulary it must decide whether that status is
+"open" in `REFERENCES` — a new state that silently stops blocking is R3.7 quietly regressing.
 
 Do **not** re-read the older `docs/` design files, `docs/DELETION-POLICY.md`, or
 `docs/MIGRATION-STRATEGY.md` — Part 1 resolved those. Do not re-read `docs/17-design-system.md` §6
