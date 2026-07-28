@@ -140,13 +140,27 @@ session starts. A session that dies with an accurate block costs nothing.
 The standing rules below are reproduced inside every part prompt, so a session does **not** need to
 re-read the design corpus. Per session, read only:
 
-1. `docs/REQUIREMENTS.md` — **your part's sections only.** That is the acceptance contract.
-2. The `PROGRESS.md` CURRENT WORK block.
-3. The one `08-module-breakdown.md` § named in your prompt.
-4. `git log --oneline -15` if resuming mid-part.
+1. The `PROGRESS.md` CURRENT WORK block — it names the files this checkpoint touches.
+2. `docs/CODEBASE-MAP.md` — what exists and where. **Read this instead of exploring the tree.**
+3. `docs/REQUIREMENTS.md` — **your part's sections only.** That is the acceptance contract.
+4. `git diff <last-tag>..HEAD --stat` (e.g. `part-01-done..HEAD`) — the delta since the last part, in
+   one command. Then `git log --oneline -5 --stat` if you need per-commit detail.
+5. The one `08-module-breakdown.md` § named in your prompt, if you're touching that domain.
+6. **The 4–6 source files you are actually going to modify.** These you read in full — you cannot
+   design against a summary.
 
 Anything beyond that only when you hit something you genuinely cannot resolve. The older `docs/` files
 describe a retired stack; reaching for them mid-session usually costs more than it returns.
+
+**The distinction that matters.** There are three reasons to read, and only one of them is unavoidable:
+
+| Reason | Question | Cost |
+|---|---|---|
+| **Orientation** | What exists, where, how is it shaped? | **Should be near zero** — that's `CODEBASE-MAP.md`. A session that reads twenty files to learn the layout is re-deriving a committed document. |
+| **Continuity** | What changed since last time? | **One `git diff --stat`.** Never explore for this. |
+| **Working context** | What am I about to modify? | **Irreducible.** Read those files in full. |
+
+Orientation and continuity are the waste. Working context is the job.
 
 ### Session hygiene
 

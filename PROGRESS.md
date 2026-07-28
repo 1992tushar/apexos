@@ -38,8 +38,8 @@ python -m app.seed          # creates apexos.db with demo data
 Then verify the baseline before writing any code:
 
 ```bash
-python -m pytest -q                  # expect 43 passed
-python -m ruff check app/ tests/     # only pre-existing E501 in untouched modules
+python -m pytest -q                  # count is in the CURRENT WORK block below (166 at Part 2 C1)
+python -m ruff check app/ tests/     # expect exactly 39 pre-existing findings — 40 is a regression
 python -m uvicorn app.main:app --port 8000   # http://localhost:8000/ — click through every nav page
 ```
 
@@ -104,6 +104,31 @@ an unknown id 404s and a malformed id 422s, both rendering `error.html`.
 
 **New files:** `app/db/listing.py`, `app/db/duplicates.py`, `app/web/listing.py`,
 `app/modules/activity/history.py`, `app/core/money.py`, plus the four test modules above.
+
+**Changed since last checkpoint** (`git diff part-01-done..HEAD --stat` — 20 files, +2595/−39):
+`core/errors.py` · `core/money.py`* · `db/duplicates.py`* · `db/listing.py`* ·
+`modules/activity/{history.py*,repository.py,service.py}` · `modules/customers/{repository,service}.py` ·
+`modules/products/{repository,service}.py` · `web/core.py` · `web/listing.py`* · `web/static/app.css` ·
+`web/templates/_macros.html` · `tests/test_{listing,duplicates,change_history,list_macros}.py`*
+  *(`*` = new file)*
+
+**Read for the next checkpoint (C2)** — these and nothing else:
+- **Modify:** `web/pages/{products,customers}.py` · `web/templates/{products,customers}/list.html` ·
+  `modules/{products,customers}/{service,repository}.py` · `seed.py` (the products and customers
+  sections only — the section list is in `docs/CODEBASE-MAP.md` § Seed)
+- **Reference, don't re-derive:** the usage block at the top of the list-macro section in
+  `_macros.html`; the public surface of `db/listing.py` and `web/listing.py` (summarised in
+  `CODEBASE-MAP.md` § Shared machinery — read the files only for the parts you actually call)
+
+**Do NOT read:**
+- `docs/CODEBASE-MAP.md` covers the layout, the shared machinery, the patterns, `seed.py`'s section
+  structure and the test inventory. **Read it instead of exploring the tree.** If it's wrong, fix it.
+- `seed.py` end to end (575 lines). Jump to the two `# --- section ---` blocks you need.
+- The other 15 page modules "for an example" — the `_macros.html` usage block *is* the example.
+- `db/soft_delete.py`, `web/security.py`, `activity/history.py`, `db/duplicates.py` internals — C1
+  wired them and C2 doesn't change them; the map's one-line contracts are enough.
+- The older `docs/` design files (`00`, `07`, `08` beyond §2.3/§2.4, `09`–`17`). Retired stack.
+- Anything in this file below the `▶ CURRENT WORK` section — historical log.
 
 **Gotchas for the next session:**
 - **The machinery is built but no page uses it yet.** That is C1's scope on purpose (R2.12 forbids
@@ -218,8 +243,13 @@ block in the `CURRENT WORK` section — move finished parts down into the chrono
 **Gotchas for the next session:** <signature changes, migrations, half-finished refactors>
 **Decisions made mid-part:**     <choices a later session must not silently reverse>
 
-**NEXT SESSION:** start at C<i+1>. Read this block + `docs/REQUIREMENTS.md` §<n> + `git log --oneline -15`.
-              Do NOT re-read <the docs this session already resolved>.
+**Changed since last checkpoint:** <paths — paste from `git diff <last-tag>..HEAD --stat`>
+**Read for the next checkpoint:**  <the 4–6 files it will actually modify. Be specific.>
+**Do NOT read:**                   <what CODEBASE-MAP.md already covers; files listed above that
+                                    the next checkpoint won't touch; docs already resolved>
+
+**NEXT SESSION:** start at C<i+1>. Read this block + `docs/CODEBASE-MAP.md` + `docs/REQUIREMENTS.md` §<n>,
+              then `git diff <last-tag>..HEAD --stat` for the delta. Nothing else.
 ```
 
 Rules that make the block worth writing:
@@ -231,6 +261,11 @@ Rules that make the block worth writing:
    decision is the expensive failure mode.
 4. **Say what NOT to read.** Resuming sessions burn most of their budget re-establishing context they
    do not need.
+5. **Name the files.** `Read for the next checkpoint` is the single highest-value line in the block.
+   A session that has to *discover* which four files it needs will read twenty-five finding out.
+6. **Keep `docs/CODEBASE-MAP.md` true.** If a checkpoint changes the *shape* of things — a new piece
+   of shared machinery, a new pattern, a module that moved — amend the map in the same session. It is
+   what lets the next session skip orientation entirely, and it is only worth reading if it's right.
 
 ---
 
