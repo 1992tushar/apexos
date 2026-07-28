@@ -25,7 +25,7 @@
 | Show change history | `app/modules/activity/history.py` + `ActivityService.history()` | Any new table — there is none (R2.10) |
 | Add a web page | `app/web/core.py` (render/redirect/filters), one existing page module in `app/web/pages/` | The other 16 page modules |
 | Guard a web mutation | `app/web/security.py` | The JSON API's `require_permission` — the web one mirrors it |
-| Add seed data | § Seed below, then the one `# --- section ---` you need | `seed.py` end to end |
+| Add seed data | `app/seed/__init__.py`'s docstring, then write your own `app/seed/<domain>.py` | `core.py` end to end, and appending to `run()` |
 | Understand a domain module | `docs/08-module-breakdown.md` § for that module | The module's four files, until you're actually changing them |
 | Know what "done" means | `docs/REQUIREMENTS.md` § for your part | — |
 | Know what changed recently | `git log --oneline -5 --stat`, `git diff part-0N-done..HEAD --stat` | Anything, until you've run those |
@@ -38,7 +38,7 @@
 apps/api/app/
   main.py            FastAPI app + lifespan (create_all, _ensure_new_columns, model imports)
   api.py             JSON API router assembly
-  seed.py            demo data — see § Seed
+  seed/              demo data, one module per section — see § Seed
   core/              config, database (engine/Session), errors, logging, security, money
   db/                cross-cutting persistence machinery — see § Shared machinery
   modules/<feature>/ domain logic: models · repository · service · router · schemas
@@ -259,7 +259,24 @@ template, and marks **every** tied entry: silently picking one would be advice t
 
 ---
 
-## Seed (`app/seed.py`)
+## Seed (`app/seed/`)
+
+A package since Move 0 (2026-07-28), because G14 makes every part extend the seed and the old
+single 1,075-line module had to be read in full to append to it:
+
+```
+app/seed/
+  __init__.py    the docstring that tells you how to ADD a section — read this one
+  core.py        run() — the orchestrator, plus sections not yet extracted
+  helpers.py     SeedContext + get_or_create + record_creation
+  catalogue.py   the static data tables + the deterministic bulk generators
+  preorder.py    seed_preorder(ctx) — Part 3's section, the worked example
+```
+
+**Adding a section:** write `app/seed/<domain>.py` exposing
+`def seed_<domain>(ctx: SeedContext) -> dict | None`, guard it on its own emptiness check, and add one
+call in `run()` **before** the master-change-history pass. Do **not** append to `run()`. You then read
+your own module plus `run()`'s call order — not the whole seed.
 
 `run()` is idempotent via `get_or_create`, and builds in this order — each block is a
 `# --- section ---` comment, so jump to the one you need:
@@ -322,11 +339,13 @@ Run `pytest -q`, never verbose.
 
 ## Known debt
 
-**38 pre-existing `ruff` findings**, all in modules the current work hasn't touched — 32 `E501`, 4
-`F841`, 1 `B007`, 1 `E402` (the last two in `seed.py`). It was 39 through Part 2 C1; C2 deleted
-`CustomerRepository.search`, which held one of the `E501`s. **New work has added zero findings, and
-that's the bar.** Part 11 (`R14.x`) clears them; until then `ruff check app/ tests/` reporting exactly
-38 is a *pass*, and 39 is a regression to fix before committing.
+**37 pre-existing `ruff` findings**, all in modules the current work hasn't touched — 32 `E501`, 4
+`F841`, 1 `B007`. It was 39 through Part 2 C1; C2 deleted `CustomerRepository.search`, which held one
+of the `E501`s, taking it to 38. Move 0 took it to **37**: splitting `seed.py` into `app/seed/` moved
+`import_all_models()` into the package `__init__`, so `core.py`'s imports sit at the top of their file
+and the one `E402` is gone. **New work has added zero findings, and that's the bar.** Part 11 (`R14.x`)
+clears them; until then `ruff check app/ tests/` reporting exactly 37 is a *pass*, and 38 is a
+regression to fix before committing.
 
 **`/warehouse` and `/inventory` render every product** (`page_size=300`, no pagination) — harmless at
 17 rows, now ~170 KB of HTML at 311. They are not list-machinery pages yet; whichever part owns them

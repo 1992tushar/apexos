@@ -27,7 +27,7 @@ Each requirement has:
   requirement; it is a wish, and it belongs in prose.
 - **Pri** — **P0** (no product without it) · **P1** (important) · **P2** (valuable, later).
 
-A part is done when every P0 and P1 requirement in its section passes and the `ROADMAP.md` verify loop
+A part is done when every P0 and P1 requirement in its section passes and the `docs/STANDING-RULES.md` verify loop
 is green. P2 items may be deferred, but must be listed as deferred in `PROGRESS.md` — silent omission
 is the failure mode this register exists to prevent.
 
@@ -71,7 +71,7 @@ These are not re-stated per part. A PR that violates one is not done, regardless
 | G11 | Every score, alert, recommendation and forecast MUST render its inputs, its formula, its data window, and links to the records it reasoned from. Where it cannot be computed, it MUST say "unknown" — never a misleading default such as 0 or 50. | Screen review; a test asserting a non-empty explanation and ≥1 linked record per output; a test for the insufficient-data path | P0 |
 | G12 | No ML dependency, and no LLM call at runtime, for any number the product displays. | Dependency review | P0 |
 | G13 | New behaviour MUST have tests in `apps/api/tests/`; `pytest -q` and `ruff check app/ tests/` MUST be green with no new findings. | CI / verify loop | P0 |
-| G14 | New screens MUST have seed data in `app/seed.py` sufficient to exercise them (including edge cases, not just a happy row). | Boot the app on a fresh DB; every new screen shows meaningful data | P0 |
+| G14 | New screens MUST have seed data sufficient to exercise them (including edge cases, not just a happy row), added as a new `app/seed/<domain>.py` section rather than appended to `run()`. | Boot the app on a fresh DB; every new screen shows meaningful data | P0 |
 | G15 | Reads MUST NOT write `activity_log` rows. Projection layers own no entities. | Review; a test that loading a projection page writes no rows | P1 |
 | G16 | A part MUST NOT reimplement logic an earlier part already owns; it calls the earlier service. | Named per part below; PR review cites the service reused | P0 |
 | G17 | A part MUST NOT build anything cut by decisions D-A..D-D. Finding yourself building batch tracking, FIFO layers, a roles/permissions UI, a QBO bridge, notifications, saved views, an ADR log or an SOP index means the session has drifted. | Scope review of the diff | P0 |

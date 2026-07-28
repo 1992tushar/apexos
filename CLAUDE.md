@@ -11,17 +11,24 @@ checkpoint.
 Treat that prompt as if the user had pasted it verbatim, including its read lists and its
 "do NOT read" list.
 
-## The three documents that carry state
+## The four documents that carry state
 
 - **`PROGRESS.md`** — the source of truth for status. Its `▶ CURRENT WORK` block names the part in
   flight, the checkpoint to start at, the exact edit set, verified signatures for things you should
   call without opening, and what not to read. **Ending a session by updating it is not optional.**
+  **It is capped at ~350 lines and does not grow** — closing a part means moving its record to
+  `docs/parts/part-0N.md` and deleting it from here, not appending below the previous one.
 - **`docs/REQUIREMENTS.md`** — the acceptance contract. §1 is the global invariants (G1–G17); every
   part has its own § of R-numbers. A change that violates an invariant is not done, regardless of
   whether the part's own requirements pass.
-- **`docs/ROADMAP.md`** — the per-part PROMPT, the standing rules, and the "Reading diet" that explains
-  which reading is irreducible and which is waste. `docs/CODEBASE-MAP.md` is what exists and where —
-  read it instead of exploring the tree.
+- **`docs/STANDING-RULES.md`** — the binding rules: decisions D-A..D-D, the session protocol and
+  checkpoint table, the "Reading diet" that explains which reading is irreducible and which is waste,
+  and the verify loop. **This is the rules document you read — not `ROADMAP.md`.**
+- **`docs/prompts/part-NN.md`** — one self-contained prompt per part. Open only the part in flight.
+
+`docs/CODEBASE-MAP.md` is what exists and where — read it instead of exploring the tree.
+`docs/ROADMAP.md` is planning only (sequence, dependencies, prompt index); **do not read it mid-part.**
+`docs/parts/` holds closed part records for audit; never read them during a session.
 
 ## Non-negotiables
 

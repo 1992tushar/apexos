@@ -1,30 +1,24 @@
-"""Idempotent seed of real Apex data + one completed spine sales order.
+"""`run()` — the seed orchestrator, plus the sections not yet extracted.
 
-Run with:  python -m app.seed
-
-Safe to re-run: every row is get-or-created by its natural key, prices/opening
-stock are only written when a product is first created, and the demo sales order
-+ payment are only generated once (when none exist yet).
+Sections still inline here predate the section-per-module split (Move 0, 2026-07-28).
+**Do not add another one.** A new part writes `app/seed/<domain>.py` exposing
+`def seed_<domain>(ctx: SeedContext)` and adds one call below, before the
+master-change-history pass — which must stay last, because it backfills the
+`created` line for every master any earlier section created.
 """
 from __future__ import annotations
 
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, date, datetime
 from decimal import Decimal
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.database import SessionLocal, engine
-from app.db.metadata import Base, import_all_models
-
-# Ensure every model is imported so Base.metadata is complete, then make sure the
-# tables physically exist (create_all runs below in run(); this just completes the
-# metadata for the model imports that follow).
-import_all_models()
-
-from app.modules.activity.models import ActivityLog  # noqa: E402
-from app.modules.activity.service import ActivityService  # noqa: E402
-from app.modules.config.models import (  # noqa: E402
+from app.db.metadata import Base
+from app.modules.activity.models import ActivityLog
+from app.modules.activity.service import ActivityService
+from app.modules.config.models import (
     Brand,
     BusinessUnit,
     Category,
@@ -36,278 +30,60 @@ from app.modules.config.models import (  # noqa: E402
     Uom,
     Warehouse,
 )
-from app.modules.config.schemas import TaxRateSlabCreate  # noqa: E402
-from app.modules.config.service import MASTER_LABELS, TaxRateService  # noqa: E402
-from app.modules.crm.models import (  # noqa: E402
+from app.modules.config.schemas import TaxRateSlabCreate
+from app.modules.config.service import MASTER_LABELS, TaxRateService
+from app.modules.crm.models import (
     Lead,
     Opportunity,
     PipelineStage,
 )
-from app.modules.crm.schemas import (  # noqa: E402
+from app.modules.crm.schemas import (
     CompetitorCreate,
     LeadCreate,
     OpportunityCreate,
 )
-from app.modules.crm.service import CrmService  # noqa: E402
-from app.modules.customers.models import Customer, CustomerCreditPolicy  # noqa: E402
-from app.modules.customers.schemas import CustomerUpdate  # noqa: E402
-from app.modules.customers.service import CustomerService  # noqa: E402
-from app.modules.documents.models import Document  # noqa: E402
-from app.modules.documents.service import DocumentService  # noqa: E402
-from app.modules.finance.models import Bill, Invoice  # noqa: E402
-from app.modules.finance.schemas import BillPaymentCreate, PaymentCreate  # noqa: E402
-from app.modules.finance.service import BillService, InvoiceService  # noqa: E402
-from app.modules.identity.models import User  # noqa: E402
-from app.modules.inventory.schemas import StockTransferCreate  # noqa: E402
-from app.modules.inventory.service import (
-    InventoryService,  # noqa: E402
-    StockTransferService,  # noqa: E402
-)
-from app.modules.notifications.models import Notification  # noqa: E402
-from app.modules.notifications.schemas import NotificationCreate  # noqa: E402
-from app.modules.notifications.service import NotificationService  # noqa: E402
-from app.modules.pricing.models import PurchasePrice, SellingPrice  # noqa: E402
-from app.modules.procurement.models import (  # noqa: E402
-    PurchaseOrder,
-    PurchaseRequisition,
-    Rfq,
-)
-from app.modules.procurement.preorder import (  # noqa: E402
-    RequisitionService,
-    RfqService,
-)
-from app.modules.procurement.schemas import (  # noqa: E402
-    GoodsReceiptCreate,
-    GoodsReceiptLineInput,
+from app.modules.crm.service import CrmService
+from app.modules.customers.models import Customer, CustomerCreditPolicy
+from app.modules.customers.schemas import CustomerUpdate
+from app.modules.customers.service import CustomerService
+from app.modules.documents.models import Document
+from app.modules.documents.service import DocumentService
+from app.modules.finance.models import Bill, Invoice
+from app.modules.finance.schemas import BillPaymentCreate, PaymentCreate
+from app.modules.finance.service import BillService, InvoiceService
+from app.modules.identity.models import User
+from app.modules.inventory.schemas import StockTransferCreate
+from app.modules.inventory.service import InventoryService, StockTransferService
+from app.modules.notifications.models import Notification
+from app.modules.notifications.schemas import NotificationCreate
+from app.modules.notifications.service import NotificationService
+from app.modules.pricing.models import PurchasePrice, SellingPrice
+from app.modules.procurement.models import PurchaseOrder, PurchaseRequisition, Rfq
+from app.modules.procurement.schemas import (
     PurchaseOrderCreate,
     PurchaseOrderLineCreate,
-    PurchaseOrderRevise,
-    PurchaseOrderReviseLine,
-    QuotationCreate,
-    QuotationLineInput,
-    RequisitionCreate,
-    RequisitionLineCreate,
 )
-from app.modules.procurement.service import (  # noqa: E402
-    GoodsReceiptService,
-    PurchaseOrderService,
+from app.modules.procurement.service import GoodsReceiptService, PurchaseOrderService
+from app.modules.products.models import Product
+from app.modules.sales.models import SalesOrder
+from app.modules.sales.schemas import SalesOrderCreate, SalesOrderLineCreate
+from app.modules.sales.service import SalesOrderService
+from app.modules.suppliers.models import Supplier
+from app.modules.tasks.models import Task
+from app.modules.tasks.schemas import TaskCreate
+from app.modules.tasks.service import TaskService
+from app.seed.catalogue import (
+    CATEGORIES,
+    DEMO_CUSTOMERS,
+    DEMO_SUPPLIERS,
+    PRODUCTS,
+    SUB_SUBCATEGORIES,
+    SUBCATEGORIES,
+    bulk_customers,
+    bulk_products,
 )
-from app.modules.products.models import Product  # noqa: E402
-from app.modules.sales.models import SalesOrder  # noqa: E402
-from app.modules.sales.schemas import SalesOrderCreate, SalesOrderLineCreate  # noqa: E402
-from app.modules.sales.service import SalesOrderService  # noqa: E402
-from app.modules.suppliers.models import Supplier  # noqa: E402
-from app.modules.tasks.models import Task  # noqa: E402
-from app.modules.tasks.schemas import TaskCreate  # noqa: E402
-from app.modules.tasks.service import TaskService  # noqa: E402
-
-
-def get_or_create(db: Session, model, *, defaults: dict | None = None, **filters):
-    """Return (instance, created)."""
-    stmt = select(model)
-    for key, val in filters.items():
-        stmt = stmt.where(getattr(model, key) == val)
-    instance = db.scalar(stmt)
-    if instance is not None:
-        return instance, False
-    params = {**filters, **(defaults or {})}
-    instance = model(**params)
-    db.add(instance)
-    db.flush()
-    return instance, True
-
-
-# --- reference data ------------------------------------------------------
-
-CATEGORIES = [
-    ("TIS", "Tissue & Paper Consumables", "AUR", "PRIVATE_LABEL"),
-    ("GB", "Garbage Bags & Waste Management", "APX", "MASTER_DIST"),
-    ("FP", "Food Packaging", "APX", "MASTER_DIST"),
-    ("FSD", "Food Service Disposables", "APX", "MASTER_DIST"),
-    ("CC", "Cleaning Chemicals", "APX", "CONTRACT_MFR"),
-    ("CT", "Cleaning Tools", "APX", "MASTER_DIST"),
-    ("WS", "Washroom Solutions", "APX", "PRIVATE_LABEL"),
-    ("GLV", "Gloves & Safety Consumables", "APX", "MASTER_DIST"),
-    ("GA", "Guest Amenities", "APX", "PRIVATE_LABEL"),
-]
-
-# (sku, name, spec, uom_code, sell_minor, buy_minor, category_code, brand_code)
-PRODUCTS = [
-    ("AUR-TIS-001", "Toilet Roll", "2 Ply Standard", "PACK", 12000, 8400, "TIS", "AUR"),
-    ("AUR-TIS-002", "Toilet Roll", "3 Ply Premium", "PACK", 18000, 12600, "TIS", "AUR"),
-    ("AUR-TIS-003", "Kitchen Towel", "2 Ply", "ROLL", 9000, 6300, "TIS", "AUR"),
-    ("AUR-TIS-004", "M-Fold Hand Towel", "1 Ply", "PACK", 15000, 10500, "TIS", "AUR"),
-    ("AUR-TIS-005", "C-Fold Hand Towel", "1 Ply", "PACK", 14000, 9800, "TIS", "AUR"),
-    ("AUR-TIS-006", "Facial Tissue", "2 Ply", "PACK", 8000, 5600, "TIS", "AUR"),
-    ("AUR-TIS-007", "Napkin Tissue", "1 Ply", "PACK", 6000, 4200, "TIS", "AUR"),
-    ("AUR-TIS-008", "Dispenser Napkin", "1 Ply", "PACK", 7000, 4900, "TIS", "AUR"),
-    ("APX-GB-001", "Black Garbage Bag 19x21", "19x21", "PACK", 5000, 3500, "GB", "APX"),
-    ("APX-GB-002", "Black Garbage Bag 24x32", "24x32", "PACK", 7500, 5250, "GB", "APX"),
-    ("APX-GB-003", "Black Garbage Bag 30x37", "30x37", "PACK", 10000, 7000, "GB", "APX"),
-    ("APX-GB-004", "Bin Liner Small", "Small", "ROLL", 4000, 2800, "GB", "APX"),
-    ("APX-GB-005", "Bin Liner Medium", "Medium", "ROLL", 5500, 3850, "GB", "APX"),
-    ("APX-GB-006", "Bin Liner Large", "Large", "ROLL", 7000, 4900, "GB", "APX"),
-    ("APX-GB-007", "Heavy Duty Garbage Bag 30x50", "30x50", "PACK", 14000, 9800, "GB", "APX"),
-    ("APX-GB-008", "Heavy Duty Garbage Bag 36x48", "36x48", "PACK", 16000, 11200, "GB", "APX"),
-    ("APX-GB-009", "Biodegradable Garbage Bag 24x32", "24x32 Bio", "PACK", 12000, 8400, "GB", "APX"),
-]
-
-# (code, name, parent_code) — the second level of the tree (R3.10). Products stay on the
-# top-level categories, so a sub-category is a real "no products yet" row: deleting it is
-# allowed, deleting its parent is not.
-SUBCATEGORIES = [
-    ("TIS1", "Toilet Rolls", "TIS"),
-    ("TIS2", "Hand Towels", "TIS"),
-    ("TIS3", "Napkins & Facial", "TIS"),
-    ("GB1", "Bin Liners", "GB"),
-    ("GB2", "Heavy Duty Sacks", "GB"),
-    ("GB3", "Biodegradable", "GB"),
-    ("CC1", "Floor Care", "CC"),
-    ("CC2", "Washroom Chemicals", "CC"),
-    ("FSD1", "Cups & Plates", "FSD"),
-    ("FSD2", "Cutlery & Straws", "FSD"),
-    ("GLV1", "Hand Protection", "GLV"),
-    ("GA1", "Bath Amenities", "GA"),
-]
-
-# Third level under two of the above, so the tree is genuinely multi-level.
-SUB_SUBCATEGORIES = [
-    ("TS2A", "M-Fold", "TIS2"),
-    ("TS2B", "C-Fold", "TIS2"),
-    ("CC1A", "Neutral pH", "CC1"),
-]
-
-DEMO_CUSTOMERS = [
-    ("CUST-0001", "Blue Fig Restaurant", "RESTAURANT", "Pune", "Maharashtra", 30000000, 30),
-    ("CUST-0002", "Grand Sarovar Hotel", "HOTEL", "Mumbai", "Maharashtra", 50000000, 30),
-    ("CUST-0003", "CafeMocha", "CAFE", "Pune", "Maharashtra", 20000000, 30),
-]
-
-# --- bulk catalogue + book (R2.13) ---------------------------------------
-#
-# Pagination and filtering are only real against hundreds of rows, so the demo
-# data is generated rather than typed. Generation is deterministic — index
-# arithmetic, no randomness — so a re-seed produces the same rows, `get_or_create`
-# stays idempotent, and a test can name a row it expects to find. Status, stock
-# and credit are deliberately uneven: an all-happy-row seed exercises no filter
-# and no empty state (G14).
-
-BULK_ITEMS: dict[str, list[str]] = {
-    "TIS": ["Toilet Roll", "Kitchen Towel", "Hand Towel", "Facial Tissue", "Napkin"],
-    "GB": ["Garbage Bag", "Bin Liner", "Compactor Sack", "Biohazard Bag"],
-    "FP": ["Cling Film", "Aluminium Foil", "Butter Paper", "Food Container"],
-    "FSD": ["Paper Cup", "Paper Plate", "Wooden Cutlery", "Straw", "Carry Bag"],
-    "CC": ["Floor Cleaner", "Glass Cleaner", "Toilet Cleaner", "Degreaser", "Hand Wash"],
-    "CT": ["Microfibre Cloth", "Mop Refill", "Scrub Pad", "Broom", "Squeegee"],
-    "WS": ["Soap Dispenser", "Tissue Dispenser", "Air Freshener", "Urinal Screen"],
-    "GLV": ["Nitrile Glove", "Latex Glove", "Face Mask", "Apron", "Shoe Cover"],
-    "GA": ["Shampoo Sachet", "Bath Soap", "Dental Kit", "Shower Cap", "Sewing Kit"],
-}
-BULK_GRADES = ["Economy", "Standard", "Premium", "Industrial", "Eco"]
-BULK_SIZES = ["Small", "Medium", "Large", "XL", "Jumbo", "Twin Pack", "Bulk Case"]
-BULK_UOMS = ["PACK", "ROLL", "CASE", "PIECE"]
-# Most of the catalogue is sellable; the rest exercises the status filter.
-BULK_STATUSES = ["active"] * 7 + ["draft", "discontinued"]
-
-BULK_CITIES = [
-    ("Pune", "Maharashtra"), ("Mumbai", "Maharashtra"), ("Nashik", "Maharashtra"),
-    ("Ahmedabad", "Gujarat"), ("Surat", "Gujarat"), ("Bengaluru", "Karnataka"),
-    ("Hyderabad", "Telangana"), ("Indore", "Madhya Pradesh"),
-]
-BULK_CUSTOMER_WORDS = [
-    "Green", "Royal", "Urban", "Coastal", "Golden", "Silver", "Spice", "Orchid",
-    "Maple", "Sunrise", "Lotus", "Copper", "Velvet", "Harbour", "Summit", "Aster",
-]
-BULK_CUSTOMER_SUFFIX = {
-    "RESTAURANT": ["Kitchen", "Diner", "Bistro", "Grill"],
-    "HOTEL": ["Hotel", "Residency", "Inn", "Suites"],
-    "CAFE": ["Cafe", "Coffee House", "Bakehouse"],
-    "HOSPITAL": ["Hospital", "Clinic", "Care Centre"],
-    "CORPORATE": ["Technologies", "Industries", "Solutions"],
-    "SCHOOL": ["School", "Academy", "Campus"],
-    "FACILITY_MANAGEMENT": ["Facilities", "Services", "Maintenance"],
-}
-
-
-def record_creation(
-    db: Session, activity, *, entity_type: str, entity_id, summary: str, actor_id
-) -> None:
-    """Give a seeded record the `created` history line it would have had.
-
-    The seed writes masters with `get_or_create` rather than through their service,
-    so their change-history panel would be empty on the demo rows the founder
-    actually clicks (R2.10, G14). The existence check makes it idempotent and also
-    backfills a database seeded before this existed; `occurred_at` is then the
-    backfill time rather than the original insert, which is the one thing a
-    re-seeded demo database cannot recover.
-    """
-    if not db.scalar(
-        select(func.count()).select_from(ActivityLog).where(ActivityLog.entity_id == entity_id)
-    ):
-        activity.log(
-            actor_id=actor_id,
-            verb="created",
-            entity_type=entity_type,
-            entity_id=entity_id,
-            summary=summary,
-        )
-
-
-def bulk_products() -> list[tuple]:
-    """~300 catalogue rows: (sku, name, spec, uom, sell, buy, cat, brand, status)."""
-    rows: list[tuple] = []
-    for cat_code, items in BULK_ITEMS.items():
-        brand = "AUR" if cat_code == "TIS" else "APX"
-        for item_no, item in enumerate(items):
-            for variant in range(7):
-                seq = len(rows) + 1
-                grade = BULK_GRADES[(item_no + variant) % len(BULK_GRADES)]
-                size = BULK_SIZES[variant % len(BULK_SIZES)]
-                # Integer minor units only, and a margin that never rounds (G1).
-                sell = 4000 + (seq % 37) * 500 + variant * 250
-                rows.append((
-                    f"{brand}-{cat_code}-{100 + seq:03d}",
-                    f"{grade} {item}",
-                    f"{size} · {grade}",
-                    BULK_UOMS[seq % len(BULK_UOMS)],
-                    sell,
-                    sell * 7 // 10,
-                    cat_code,
-                    brand,
-                    BULK_STATUSES[seq % len(BULK_STATUSES)],
-                ))
-    return rows
-
-
-def bulk_customers(start_seq: int, count: int = 250) -> list[tuple]:
-    """(code, name, type, city, state, credit_limit_minor, terms, status)."""
-    types = list(BULK_CUSTOMER_SUFFIX)
-    rows: list[tuple] = []
-    for i in range(count):
-        seq = start_seq + i
-        ctype = types[i % len(types)]
-        suffixes = BULK_CUSTOMER_SUFFIX[ctype]
-        word = BULK_CUSTOMER_WORDS[(i * 3) % len(BULK_CUSTOMER_WORDS)]
-        city, state = BULK_CITIES[i % len(BULK_CITIES)]
-        rows.append((
-            f"CUST-{seq:04d}",
-            f"{word} {suffixes[i % len(suffixes)]} {seq}",
-            ctype,
-            city,
-            state,
-            # Every 9th is a cash-only account: a zero limit is a real state, not a gap.
-            0 if i % 9 == 0 else (5000000 + (i % 8) * 2500000),
-            [15, 30, 45, 60][i % 4],
-            "inactive" if i % 11 == 0 else "active",
-        ))
-    return rows
-
-# (code, name, supplier_type, city, state, gstin)
-DEMO_SUPPLIERS = [
-    ("SUPP-0001", "PaperWings Sanaswadi", "MANUFACTURER", "Sanaswadi", "Maharashtra", "27AAECP1234A1Z5"),
-    ("SUPP-0002", "Baroda Packaging", "DISTRIBUTOR", "Vadodara", "Gujarat", "24AABCB5678B1Z2"),
-    ("SUPP-0003", "K K Sales Corporation", "DISTRIBUTOR", "Pune", "Maharashtra", "27AADFK9012C1Z9"),
-]
+from app.seed.helpers import SeedContext, get_or_create, record_creation
+from app.seed.preorder import seed_preorder
 
 
 def run() -> dict:
@@ -653,150 +429,13 @@ def run() -> dict:
                 actor_id=actor_id,
             )
 
-        # --- Part 3 C1: the pre-order flow (R4.15) -------------------------
-        # Three requisitions on purpose, so /requisitions shows every state the
-        # screen can be in: one still awaiting approval, one approved and already a
-        # PO, and one approved and out as an RFQ with two quotes back to compare.
-        preorder_result = None
-        if (db.scalar(select(func.count()).select_from(PurchaseRequisition)) or 0) == 0:
-            requisitions = RequisitionService(db)
-            rfqs = RfqService(db)
-            gb1 = db.scalar(select(Product).where(Product.sku_code == "APX-GB-001"))
-            tis3 = db.scalar(select(Product).where(Product.sku_code == "AUR-TIS-003"))
-            today = datetime.now(UTC).date()
-
-            # 1. Awaiting approval — the one the founder lands on with a decision to make.
-            pending_req = requisitions.create(
-                RequisitionCreate(
-                    needed_by=today + timedelta(days=21),
-                    note="Warehouse running low ahead of the festive season",
-                    lines=[
-                        RequisitionLineCreate(product_id=gb1.id, qty=Decimal("400")),
-                        RequisitionLineCreate(product_id=tis3.id, qty=Decimal("120")),
-                    ],
-                ),
-                actor_id=actor_id,
+        # --- Part 3's pre-order flow, extracted to app/seed/preorder.py (Move 0).
+        #     New sections go in their own module too - see app/seed/__init__.py.
+        preorder_result = seed_preorder(
+            SeedContext(
+                db=db, actor_id=actor_id, activity=activity, suppliers=suppliers
             )
-
-            # 2. Approved and converted straight to a PO — price already settled.
-            direct_req = requisitions.create(
-                RequisitionCreate(
-                    needed_by=today + timedelta(days=10),
-                    note="Repeat buy, price already agreed with PaperWings",
-                    lines=[RequisitionLineCreate(product_id=tis3.id, qty=Decimal("60"))],
-                ),
-                actor_id=actor_id,
-            )
-            requisitions.approve(
-                direct_req.id,
-                reason="Within the monthly consumables budget",
-                actor_id=actor_id,
-            )
-            req_po = requisitions.convert_to_po(
-                direct_req.id, supplier_id=paperwings.id, actor_id=actor_id
-            )
-
-            # 3. Approved, out as an RFQ, two quotes in — the comparison screen's data.
-            #    Deliberately not symmetric: the cheaper unit price comes with the
-            #    slower lead time and a higher MOQ, so the screen has a real trade-off
-            #    to show rather than one obviously-best column.
-            quote_req = requisitions.create(
-                RequisitionCreate(
-                    needed_by=today + timedelta(days=45),
-                    note="New line — no agreed price yet, ask the market",
-                    lines=[RequisitionLineCreate(product_id=gb1.id, qty=Decimal("1000"))],
-                ),
-                actor_id=actor_id,
-            )
-            requisitions.approve(
-                quote_req.id, reason="Volume justifies going out to quote", actor_id=actor_id
-            )
-            second_supplier = suppliers["SUPP-0002"]
-            rfq = requisitions.convert_to_rfq(
-                quote_req.id,
-                supplier_ids=[paperwings.id, second_supplier.id],
-                due_date=today + timedelta(days=14),
-                actor_id=actor_id,
-            )
-            gb_buy = db.scalar(
-                select(PurchasePrice.price_minor).where(
-                    PurchasePrice.product_id == gb1.id, PurchasePrice.supplier_id.is_(None)
-                )
-            ) or 10000
-            rfqs.capture_quote(
-                rfq.id,
-                QuotationCreate(
-                    supplier_id=paperwings.id,
-                    lead_time_days=7,
-                    valid_until=today + timedelta(days=30),
-                    note="Ex-works Pune, pallet quantities",
-                    lines=[
-                        QuotationLineInput(
-                            product_id=gb1.id,
-                            unit_price_minor=int(gb_buy * 1.02) or gb_buy,
-                            moq=Decimal("500"),
-                        )
-                    ],
-                ),
-                actor_id=actor_id,
-            )
-            rfqs.capture_quote(
-                rfq.id,
-                QuotationCreate(
-                    supplier_id=second_supplier.id,
-                    lead_time_days=18,
-                    valid_until=today + timedelta(days=45),
-                    note="Cheaper per unit but a longer lead time and a bigger minimum",
-                    lines=[
-                        QuotationLineInput(
-                            product_id=gb1.id,
-                            unit_price_minor=int(gb_buy * 0.94) or gb_buy,
-                            moq=Decimal("1000"),
-                        )
-                    ],
-                ),
-                actor_id=actor_id,
-            )
-            preorder_result = {
-                "awaiting_approval": pending_req.requisition_no,
-                "converted_to_po": f"{direct_req.requisition_no} → {req_po.po_no}",
-                "rfq": rfq.rfq_no,
-                "quotes": len(rfqs.get(rfq.id).quotations),
-            }
-
-            # --- Part 3 C2: a partial receipt with a live back order, then a
-            #     revision (R4.15). The requisition's PO is the subject, so the
-            #     screen tells one story end to end: requested → approved → ordered
-            #     → part-delivered → renegotiated.
-            #
-            #     60 ordered, 40 arrived (back order 20), then the supplier admits
-            #     they can only ship 50 in total, so version 2 cuts the order to 50
-            #     and the back order becomes 10. Version 1 stays readable at 60, and
-            #     the receipt stays stamped against version 1 — which is the whole
-            #     point of R4.10.
-            po_service = PurchaseOrderService(db)
-            grn_service = GoodsReceiptService(db)
-            po_service.confirm(req_po.id, actor_id=actor_id)
-            grn_service.receive(
-                req_po.id,
-                GoodsReceiptCreate(
-                    lines=[GoodsReceiptLineInput(product_id=tis3.id, qty=Decimal("40"))],
-                    against_revision_no=1,
-                ),
-                actor_id=actor_id,
-            )
-            revised_po = po_service.revise(
-                req_po.id,
-                PurchaseOrderRevise(
-                    reason="PaperWings can only supply 50 of the 60 ordered this month",
-                    lines=[PurchaseOrderReviseLine(product_id=tis3.id, qty=Decimal("50"))],
-                ),
-                actor_id=actor_id,
-            )
-            preorder_result["revised_po"] = (
-                f"{revised_po.po_no} v{revised_po.revision_no}, "
-                f"back order {revised_po.open_qty_total}"
-            )
+        )
 
         # --- one completed spine order (create -> confirm -> fulfill -> invoice) + partial payment
         existing_orders = db.scalar(select(func.count()).select_from(SalesOrder)) or 0
@@ -1066,10 +705,3 @@ def run() -> dict:
         raise
     finally:
         db.close()
-
-
-if __name__ == "__main__":
-    import json
-
-    result = run()
-    print(json.dumps(result, indent=2, default=str))

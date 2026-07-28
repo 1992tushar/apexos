@@ -20,7 +20,7 @@
 | Authority | The models are the schema | The migration chain is the schema |
 
 The stack-lightening commit removed Alembic entirely (2026-07-23) because a
-single-file SQLite database that any machine can recreate from `app/seed.py` in
+single-file SQLite database that any machine can recreate from `app/seed/` in
 one second does not benefit from a migration chain — it benefits from *not having
 one*. That trade is correct for dev and wrong for prod, so the two are decided
 separately rather than forcing one tool to serve both.
@@ -59,7 +59,7 @@ no-op once applied.
    backfills: delete `apexos.db` and re-run `python -m app.seed`. There is no
    production data to lose (D-C — starting fresh, no migration), which is
    precisely what makes this cheap.
-4. **Extend `app/seed.py`** so new columns and new screens have demo data (G14).
+4. **Extend the seed** so new columns and new screens have demo data (G14) — a new `app/seed/<domain>.py` section plus one call in `run()`, never appended to `run()`.
 
 ### Why not keep Alembic for dev too
 
@@ -112,4 +112,4 @@ where that is written down.
 | Declarative base, mixins | `apps/api/app/db/base.py` |
 | Metadata / model registry | `apps/api/app/db/metadata.py` |
 | Engine + `DATABASE_URL` | `apps/api/app/core/database.py`, `app/core/config.py` |
-| Demo data | `apps/api/app/seed.py` |
+| Demo data | `apps/api/app/seed/` (one module per section) |
