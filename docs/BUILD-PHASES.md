@@ -1,5 +1,10 @@
 # ApexOS — Remaining Build, in 3 Phases
 
+> **SUPERSEDED — historical record only.** Phases A, B and C below are all **done**, and the prompts
+> describe the retired stack (Next.js SPA under `apps/web/`, Postgres on :5433, Alembic migrations),
+> none of which exists any more. The current roadmap and session prompts live in
+> [`ROADMAP.md`](ROADMAP.md). Kept for the design rationale.
+
 > Phase 1 (the Spine) is **done and E2E-verified**: Dashboard, Sales, Customers, Products,
 > Inventory, Finance — the `Customer → Product → SalesOrder → Fulfillment → Invoice → Payment`
 > loop. Everything below is the pending work, regrouped into three deliverable phases that respect
