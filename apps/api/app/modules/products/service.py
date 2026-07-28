@@ -7,7 +7,8 @@ from datetime import UTC, datetime
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.core.errors import ConflictError, NotFoundError
+from app.core.errors import NotFoundError
+from app.db.duplicates import ensure_unique
 from app.db.soft_delete import soft_delete
 from app.modules.activity.service import ActivityService
 from app.modules.config.models import BusinessUnit
@@ -81,11 +82,19 @@ class ProductService:
         soft_delete(self.db, product, actor_id=actor_id, label="Product")
 
     def create(self, payload: ProductCreate, *, actor_id: uuid.UUID | None) -> ProductRead:
-        sku = payload.sku_code
-        if sku and self.db.scalar(select(Product.id).where(Product.sku_code == sku)):
-            raise ConflictError(f"SKU {sku} already exists")
-        if not sku:
-            sku = f"SKU-{self.repo.count_all() + 1:05d}"
+        sku = payload.sku_code or f"SKU-{self.repo.count_ever() + 1:05d}"
+        # The one duplicate check (R2.9) — natural keys are configured in
+        # app.db.duplicates, not spelled out here.
+        ensure_unique(
+            self.db,
+            Product,
+            {
+                "sku_code": sku,
+                "name": payload.name,
+                "specification": payload.specification,
+                "brand_id": payload.brand_id,
+            },
+        )
         product = Product(
             sku_code=sku,
             name=payload.name,

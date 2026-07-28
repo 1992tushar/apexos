@@ -7,6 +7,7 @@ all pages share one configured environment.
 from __future__ import annotations
 
 from datetime import UTC, date, datetime
+from decimal import Decimal
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlencode
@@ -80,9 +81,15 @@ def money(minor: int | None, *, symbol: str = "₹") -> str:
     return ("-" + out) if neg else out
 
 
-def number(n: int | float | None) -> str:
+def number(n: int | float | Decimal | None) -> str:
     if n is None:
         return "0"
+    if isinstance(n, Decimal):
+        # Quantities are Numeric(18,4), so a whole number arrives as "20.0000".
+        # Show the significant part: 20, and 1.25 rather than 1.2500.
+        if n == n.to_integral_value():
+            return _indian_group(str(int(n)))
+        return format(n.normalize(), "f")
     if isinstance(n, float) and n.is_integer():
         n = int(n)
     if isinstance(n, int):

@@ -94,6 +94,16 @@ class CustomerRepository:
         ) or 0
         return int(invoiced) - int(allocated)
 
+    def count_ever(self) -> int:
+        """Rows ever created, soft-deleted ones included.
+
+        The basis for a generated code. `count_all()` would be wrong here: it
+        excludes deleted rows, so after one deletion the next generated code is one
+        a deleted customer still holds — `code` is UNIQUE across every row in the
+        table, deleted or not.
+        """
+        return self.db.scalar(select(func.count()).select_from(Customer)) or 0
+
     def next_code(self) -> str:
-        n = self.count_all() + 1
+        n = self.count_ever() + 1
         return f"CUST-{n:04d}"

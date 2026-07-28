@@ -29,6 +29,16 @@ class ProductRepository:
             select(func.count()).select_from(Product).where(Product.deleted_at.is_(None))
         ) or 0
 
+    def count_ever(self) -> int:
+        """Rows ever created, soft-deleted ones included.
+
+        The basis for a generated SKU. `count_all()` would be wrong here: it
+        excludes deleted rows, so after one deletion the next generated code is one
+        a deleted product still holds — `sku_code` is UNIQUE across every row in
+        the table, deleted or not.
+        """
+        return self.db.scalar(select(func.count()).select_from(Product)) or 0
+
     def search(
         self, *, search: str | None, category_id: uuid.UUID | None, page: int, page_size: int
     ) -> tuple[list[Product], int]:

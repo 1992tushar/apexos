@@ -72,35 +72,97 @@ finish the part". Start each session fresh (`/clear` or a new window) rather tha
 one. And if a session ends messy, the recovery is `git log --oneline -5` plus the resume block, not
 re-reading the design docs.
 
-## Part 2 — Master data & shared machinery · on `main` · checkpoint 0 of 3 · tag when done: `part-02-done`
+## Part 2 — Master data & shared machinery · on `main` · checkpoint 1 of 3 · tag when done: `part-02-done`
 
 **Part 1 is COMPLETE and tagged `part-01-done`.** Its record is in the log below.
 
-- [ ] **C1** table/filter macros + generic query helper + duplicate prevention + change history
-- [ ] **C2** prove the machinery on products + customers, record the R2.14 line count
+- [x] **C1** the machinery: list/table macros + generic query helper + CSV export + duplicate
+      prevention + change history → commit `<recorded below>`
+- [ ] **C2** prove the machinery on products + customers, extend the seed, record the R2.14 line count
 - [ ] **C3** roll out to the remaining 8 masters + their special cases
 
-**Requirements passed:** R2.x / R3.x — none yet, part not started.
-**Requirements outstanding:** all of `docs/REQUIREMENTS.md` §3 (R2.1–R2.15) and §4 (R3.1–R3.x).
-**Baseline:** 82 tests passing; `ruff check app/ tests/` reports 39 findings, **all pre-existing** in
-untouched modules (`app/seed.py` ×17, `app/modules/*`; E501/E402/B007/F841). `app/web/` is fully
-clean. That 39 is the number to compare against — do not add to it (G13).
+**Requirements passed (stage 1 machinery — built and tested, not yet wired to a page):**
+
+| ID | How it was verified |
+|---|---|
+| R2.1 | `list_toolbar` / `list_table` / `pagination` / `list_empty` / `cell` / `history_panel` in `_macros.html` — search box, filter selects, chips, sortable headers, pagination controls. One definition; `tests/test_list_macros.py` renders each against a real `ListView`. |
+| R2.2 | Driven by `ListSpec(columns=, filters=, sort=, page_size=)` in `app/db/listing.py`. `Column.kind` picks the renderer, so adding a column is a config line. Test asserts headers/cells/sortability all come from the spec. |
+| R2.3 | `?q=&sort=&dir=&page=&<filter>=` only — no session, no cookie. `ListView.url/sort_url/page_url/clear_url` rebuild current state with one thing changed; tests assert sorting keeps the search, a new sort resets to page 1, and a stale filter value degrades instead of raising. |
+| R2.4 | One helper: `query_page` / `query_rows` / `count_rows` over one `build_select`. No `LIMIT`/`OFFSET`/`ORDER BY` anywhere else. |
+| R2.5 | `build_select` applies `deleted_at IS NULL` for any model with the column and `business_unit_id ==` for any model with the mixin. Tests: soft-deleting a row drops it from the count, the page and the search; another BU sees zero; a model without the column ignores the scope. |
+| R2.8 | `csv_response` runs the same `build_select` with pagination removed. Tests: a filtered export's row count equals the on-screen count, and an unfiltered one is strictly larger. |
+| R2.9 | `NATURAL_KEYS` + `ensure_unique` in `app/db/duplicates.py`; `DuplicateError` carries `.field` and `details={"field","value"}`. Wired into `ProductService.create`, `CustomerService.create` and `CustomerService.update`, replacing three hand-rolled checks. Tests assert the field, the message and that no `IntegrityError` ever reaches the caller. |
+| R2.10 | Derived from `activity_log` — **no new table**, and `test_history_uses_the_activity_log_and_nothing_else` fails if one appears. `ActivityService.history()` reads it back with actor names; `field_changes()` records field-level before/after into the `data` JSON column that already existed. |
+| R2.15 | `tests/test_listing.py` (29), `tests/test_duplicates.py` (17), `tests/test_change_history.py` (16), `tests/test_list_macros.py` (22) = 84 new tests. |
+
+**Requirements outstanding:** R2.11, R2.13, R2.14 (all C2 — they need pages wired and the seed
+extended). R2.6/R2.7 are **P2** and deliberately not built (D-C). All of §4 (R3.1–R3.13) is C3.
+
+**Verify loop at C1 close:** 166 tests passing (82 baseline + 84 new); `ruff check app/ tests/` at
+exactly the 39 pre-existing findings, **zero new**; app boots on `--port 8010`; all 17 nav pages 200;
+an unknown id 404s and a malformed id 422s, both rendering `error.html`.
+
+**New files:** `app/db/listing.py`, `app/db/duplicates.py`, `app/web/listing.py`,
+`app/modules/activity/history.py`, `app/core/money.py`, plus the four test modules above.
 
 **Gotchas for the next session:**
-- **Do not build a second query helper or a second table macro.** R2.1/R2.4 are explicit that these
-  are one definition each. Part 1 set the precedent with soft delete (one mechanism in
-  `app/db/soft_delete.py`, every caller uses it) — follow that shape.
-- **`ui.delete_button` in `_macros.html` already exists.** When C1 builds the list/table macros, the
-  Actions column has to keep rendering it; don't replace the column wholesale and drop delete.
-- **Every web POST route now carries `require_web_permission`.** A new mutation route added without
-  one fails `tests/test_web_authz.py::test_every_web_post_route_carries_the_guard`. That test is the
-  coverage guarantee — add the guard, don't weaken the test.
-- **R2.13 wants hundreds of products/customers** in the seed to make pagination real. The seed
-  currently loads 17 products and 3 customers, so this is a real seed extension, not a tweak.
+- **The machinery is built but no page uses it yet.** That is C1's scope on purpose (R2.12 forbids
+  rolling out during stage 1). C2's job is to wire `/products` and `/customers` onto it — nothing in
+  `app/web/pages/` was touched, so both lists still hand-roll their query and their table markup.
+- **Do not build a second query helper or a second table macro.** R2.1/R2.4 are one definition each.
+  `ProductRepository.search` and `CustomerRepository.search` are now the *old* path — C2 should route
+  the services' `list()` through `query_page` and delete them, not leave both alive.
+- **The page wiring is 5 template lines.** Copy the usage block from the comment at the top of the
+  list-macro section in `_macros.html`; `{% call(row) ui.list_table(view) %}` is what keeps the
+  Actions column's `ui.delete_button` (R1.2) while the rest of the table stays generic.
+- **A GET list route needs two branches:** `view_from_request(...)` for HTML and
+  `csv_response_from_request(...)` when `wants_csv(request)`. Both live in `app/web/listing.py`.
+- **`ListSpec.columns` read the *projected* row, `sort`/`filters`/`search` read the *model*.** For
+  products that matters: `category_name` and `stock_on_hand` exist only on `ProductRead`, so they can
+  be columns but cannot be sorts. Pass the projection via `project=`.
+- **R2.13 (hundreds of products/customers) moved to C2**, with the page wiring. Doing it in C1 would
+  have left `/products` projecting 300 rows per load — the existing page has no pagination, and each
+  `ProductRead` costs ~7 queries. Wire the page and the seed in the same checkpoint.
+- **Every web POST route carries `require_web_permission`.** A new mutation route added without one
+  fails `tests/test_web_authz.py::test_every_web_post_route_carries_the_guard`. Add the guard, don't
+  weaken the test. (A GET export route needs no guard — the test only walks POSTs.)
 - **Port 8000 may be occupied** on the current build machine by an unrelated app. `uvicorn` logs the
   bind failure but the shell may still report success — check the log, or just use `--port 8010`.
 - **Python is per-user installed** at `C:\Users\Administrator\AppData\Local\Programs\Python\Python312`
   and is not on `PATH` in a fresh shell; the venv at `apps/api/.venv` is what to activate.
+
+**Decisions made mid-part (Part 2 — do not silently reverse):**
+1. **`ListSpec` is shared by the query and the presentation**, not duplicated. `app/db/listing.py`
+   owns the spec + the query; `app/web/listing.py` owns URL building and CSV over the same object.
+   A column that can be sorted in SQL is therefore clickable in the header by construction — the two
+   halves cannot drift into disagreeing.
+2. **Sorting is whitelisted, filters degrade.** `?sort=` is honoured only if a column published it;
+   anything else silently falls back to the spec's default. A filter value that no longer parses is
+   dropped rather than raising, so a stale bookmark renders the list (R2.3) instead of an error page.
+3. **Every order-by appends the primary key as a tiebreak.** Without it, rows sharing a sort value
+   swap between pages and the same row shows twice — or never — while paging. Tested by walking every
+   page and asserting the id set is exactly the total.
+4. **The duplicate check matches the database constraint, not the read filter.** A soft-deleted row
+   still occupies a `UNIQUE` column, so a `NaturalKey` marked `db_unique=True` counts deleted rows as
+   collisions and says so ("a deleted product still holds this SKU"). Checking only live rows would
+   pass and then hit the `IntegrityError` R2.9 exists to prevent. Keys with no DB constraint (the
+   composite business identity) only consider live rows, which is all they promise.
+5. **Code generators now count rows *ever* created, not live rows.** `repo.count_ever()` on products
+   and customers. `count_all()` excludes deleted rows, so after one deletion the next generated code
+   was one a deleted row still held — a latent duplicate that decision 4 would now surface as a user
+   error. Fixed at the generator.
+6. **Change history added no table (R2.10).** `activity_log` already answers all three questions;
+   the only gap was field-level detail, and its `data` JSON column existed for exactly that. Services
+   call `field_changes(instance, updates)` **before** applying the update and pass
+   `data={CHANGES_KEY: changes}` to the *same* activity row — one row per verb still (G5), not a
+   second row for the diff.
+7. **An unresolvable actor says "Unknown user"; a null actor says "System".** No invented attribution
+   (G11). Reading history writes nothing (G15), asserted by a test.
+8. **`app/core/money.py:minor_to_text`** is the one minor-units→decimal-string conversion, integer
+   arithmetic only (G1). Used by the CSV export and the history panel. `app/web/core.py:money` is
+   left alone — it presents a figure with the ₹ symbol and Indian grouping, a different job.
+9. **`number()` now normalises `Decimal`.** A `Numeric(18,4)` quantity was rendering as `20.0000`
+   on screen. It now shows `20` and `1.25`; every quantity column benefits.
 
 **Decisions made mid-part (Part 1 — do not silently reverse):**
 1. **Soft delete is one function, not a base-repository method** — `soft_delete()` in
@@ -122,10 +184,21 @@ clean. That 39 is the number to compare against — do not add to it (G13).
    so it needed its own path) and `StarletteHTTPException` (an unrouted web path). API, `/docs`,
    `/health` and `/static` keep their JSON.
 
-**NEXT SESSION:** start Part 2 at **C1** using the Part 2 prompt in `docs/ROADMAP.md`. Read this block
-+ `docs/REQUIREMENTS.md` §3 and §4 + `git log --oneline -15`. Do **not** re-read the older `docs/`
-design files, and do not re-read `docs/DELETION-POLICY.md` or `docs/MIGRATION-STRATEGY.md` — Part 1
-resolved both and the standing rules are reproduced in the prompt.
+**NEXT SESSION:** start Part 2 at **C2** using the Part 2 prompt in `docs/ROADMAP.md`. Read this block
++ `docs/REQUIREMENTS.md` §3 (R2.11, R2.13, R2.14 are what C2 owes) + `git log --oneline -15`, then
+`app/db/listing.py` and `app/web/listing.py` — the two module docstrings are the machinery's contract.
+
+C2's work, in order: route `ProductService.list` / `CustomerService.list` through `query_page`;
+declare a `ListSpec` in `app/web/pages/products.py` and `.../customers.py`; replace both list
+templates' table markup with the macros; add the CSV branch; add the change-history panel to the
+customer detail page; extend `app/seed.py` to hundreds of products and customers (R2.13); then
+**count the lines the second master needed and write the number in this block** (R2.14) — it is the
+gate for C3, which must come in well under 100 lines per master.
+
+Do **not** re-read the older `docs/` design files, `docs/DELETION-POLICY.md`, or
+`docs/MIGRATION-STRATEGY.md` — Part 1 resolved those. Do not re-read `docs/17-design-system.md` §6
+either: it specifies the retired TanStack/React table, and its server-side-via-query-params rule is
+already what the macros do.
 
 ---
 

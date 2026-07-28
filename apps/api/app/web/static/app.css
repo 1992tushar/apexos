@@ -190,6 +190,46 @@ input:focus, select:focus, textarea:focus {
   border: 1px dashed var(--border-strong); border-radius: var(--radius); background: var(--panel);
 }
 
+/* --- List machinery: toolbar, chips, sortable headers, pagination (R2.1) --- */
+.list-toolbar {
+  display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 12px;
+}
+.list-toolbar input[type="search"] { max-width: 280px; }
+.list-toolbar select { max-width: 220px; width: auto; }
+.filter-chips { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+.chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 500;
+  background: var(--accent-weak); color: var(--accent); border: 1px solid transparent;
+}
+.chip:hover { border-color: var(--accent); }
+.chip-label { color: var(--muted); font-weight: 600; }
+.chip-x { font-weight: 700; }
+a.th-sort { display: inline-flex; align-items: center; gap: 4px; color: inherit; }
+a.th-sort:hover { color: var(--text); }
+.sort-arrow { color: var(--accent); font-size: 11px; }
+.pagination {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; flex-wrap: wrap; margin-top: 14px;
+}
+.pagination-count { color: var(--muted); font-size: 13px; }
+.pagination-controls { display: flex; align-items: center; gap: 10px; }
+.pagination-page { color: var(--muted); font-size: 13px; }
+.btn-disabled { color: var(--faint); border-color: var(--border); cursor: default; }
+.empty-actions { display: flex; justify-content: center; margin-top: 12px; }
+
+/* --- Change history (R2.10) --- */
+.history { list-style: none; margin: 0; padding: 0; }
+.history-item { padding: 10px 0; border-bottom: 1px solid var(--border); }
+.history-item:last-child { border-bottom: none; }
+.history-head { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+.history-verb { font-weight: 600; }
+.history-actor { color: var(--muted); font-size: 13px; }
+.history-when { color: var(--faint); font-size: 12px; margin-left: auto; }
+.history-summary { margin-top: 2px; }
+.history-changes { margin: 6px 0 0; padding-left: 18px; font-size: 13px; }
+.history-changes li { margin-bottom: 2px; }
+
 /* --- Misc --- */
 .row-actions { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
 .row-actions form { display: inline; margin: 0; }

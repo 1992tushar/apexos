@@ -43,6 +43,23 @@ class PermissionDeniedError(AppError):
     code = "permission_denied"
 
 
+class DuplicateError(ConflictError):
+    """A natural-key collision, blamed on the field the user can fix (R2.9).
+
+    A `ConflictError` (409) like any other duplicate, but it carries the offending
+    field so a form can mark it rather than only showing a sentence. Raised by
+    `app.db.duplicates.ensure_unique` — never by a hand-rolled check, and never as
+    a bare `IntegrityError` reaching the user as a 500.
+    """
+
+    code = "duplicate"
+
+    def __init__(self, message: str, *, field: str, value: Any = None) -> None:
+        super().__init__(message, details={"field": field, "value": value})
+        self.field = field
+        self.value = value
+
+
 def _envelope(code: str, message: str, details: Any = None) -> dict[str, Any]:
     return {"error": {"code": code, "message": message, "details": details}}
 

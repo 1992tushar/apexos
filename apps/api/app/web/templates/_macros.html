@@ -36,3 +36,177 @@
   <button class="btn btn-sm btn-danger" type="submit">Delete</button>
 </form>
 {% endmacro %}
+
+
+{# ==========================================================================
+   The one list/table pattern (R2.1, R2.2, R2.3).
+
+   Everything below is driven by the `ListView` that `app.web.listing` builds from
+   a page's `ListSpec` — there is no per-entity table markup anywhere in the app.
+   A list page is:
+
+     {{ ui.list_toolbar(view) }}
+     {% if view.rows %}
+       {% call(row) ui.list_table(view) %}
+         {{ ui.delete_button("/products/" ~ row.id ~ "/delete", row.name) }}
+       {% endcall %}
+     {% else %}
+       {{ ui.list_empty(view, "No products yet.") }}
+     {% endif %}
+     {{ ui.pagination(view) }}
+
+   The call block is optional and receives the row, which is how the Actions
+   column keeps its per-entity verbs (`delete_button`, R1.2) while the rest of the
+   table stays generic. Adding a column is a `Column(...)` in the spec, not an
+   edit here (R2.2).
+   ========================================================================== #}
+
+{# One table cell, rendered by its column's `kind`. #}
+{% macro cell(view, row, col) %}
+{%- set value = view.value(row, col) -%}
+{%- if col.kind == "badge" -%}{{ badge(value) }}
+{%- elif col.kind == "money" -%}{{ value | money }}
+{%- elif col.kind == "number" -%}{{ value | number }}
+{%- elif col.kind == "date" -%}{{ value | fmt_date }}
+{%- elif col.kind == "datetime" -%}{{ value | fmt_datetime }}
+{%- elif col.kind == "link" -%}
+  <a class="row-link" href="{{ view.href(col, row) }}">{{ value if value not in (None, "") else "—" }}</a>
+{%- else -%}{{ value if value not in (None, "") else "—" }}
+{%- endif -%}
+{% endmacro %}
+
+{# Search box + filter selects + export, then the active filters as removable chips.
+   A GET form, so applying a filter produces a shareable URL (R2.3). `page` is
+   deliberately not carried: a new search starts at page 1. #}
+{% macro list_toolbar(view) %}
+<form class="list-toolbar" method="get" action="{{ view.path }}" role="search">
+  <input type="search" name="q" value="{{ view.params.q }}"
+         placeholder="{{ view.spec.search_hint }}" aria-label="{{ view.spec.search_hint }}" />
+  {% for f in view.spec.filters %}
+    {% if view.options.get(f.key) %}
+      <select name="{{ f.key }}" aria-label="{{ f.label }}">
+        <option value="">{{ f.all_label }} — {{ f.label }}</option>
+        {% for value, label in view.options[f.key] %}
+          <option value="{{ value }}"{% if view.params.filters.get(f.key) == value %} selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    {% endif %}
+  {% endfor %}
+  {% if view.params.sort %}
+    <input type="hidden" name="sort" value="{{ view.params.sort }}" />
+    <input type="hidden" name="dir" value="{{ view.params.dir }}" />
+  {% endif %}
+  <button class="btn" type="submit">Apply</button>
+  {% if view.is_filtered %}<a class="btn btn-ghost" href="{{ view.clear_url() }}">Clear</a>{% endif %}
+  <a class="btn" href="{{ view.export_url() }}">Export CSV</a>
+</form>
+{% set chips = view.chips() %}
+{% if chips %}
+<div class="filter-chips">
+  {% for chip in chips %}
+    <a class="chip" href="{{ chip.remove_url }}" title="Remove this filter">
+      <span class="chip-label">{{ chip.label }}</span> {{ chip.value }} <span class="chip-x">×</span>
+    </a>
+  {% endfor %}
+</div>
+{% endif %}
+{% endmacro %}
+
+{# The table itself: headers from the spec's columns, sortable ones as links that
+   flip direction and reset to page 1. #}
+{% macro list_table(view) %}
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        {% for col in view.spec.columns %}
+          <th class="{{ col.css }}">
+            {% if col.sort %}
+              <a class="th-sort" href="{{ view.sort_url(col) }}">{{ col.label }}<span class="sort-arrow">{{ view.sort_glyph(col) }}</span></a>
+            {% else %}{{ col.label }}{% endif %}
+          </th>
+        {% endfor %}
+        {% if caller %}<th>Actions</th>{% endif %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in view.rows %}
+        <tr>
+          {% for col in view.spec.columns %}
+            <td class="{{ col.css }}">{{ cell(view, row, col) }}</td>
+          {% endfor %}
+          {% if caller %}<td class="row-actions">{{ caller(row) }}</td>{% endif %}
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endmacro %}
+
+{# Empty state. A filtered-empty list offers a way out; a genuinely empty one
+   explains how to start. #}
+{% macro list_empty(view, message="Nothing here yet.") %}
+{% if view.is_filtered %}
+  {{ empty("No rows match these filters.") }}
+  <div class="empty-actions"><a class="btn" href="{{ view.clear_url() }}">Clear filters</a></div>
+{% else %}
+  {{ empty(message) }}
+{% endif %}
+{% endmacro %}
+
+{# Row count and page controls. Disabled ends are spans, not dead links. #}
+{% macro pagination(view) %}
+<div class="pagination">
+  <div class="pagination-count">
+    {% if view.total %}
+      Showing {{ view.start | number }}–{{ view.end | number }} of {{ view.total | number }}
+    {% else %}No matching rows{% endif %}
+  </div>
+  {% if view.pages > 1 %}
+    <div class="pagination-controls">
+      {% if view.has_prev %}
+        <a class="btn btn-sm" rel="prev" href="{{ view.page_url(view.page_no - 1) }}">← Prev</a>
+      {% else %}
+        <span class="btn btn-sm btn-disabled" aria-disabled="true">← Prev</span>
+      {% endif %}
+      <span class="pagination-page">Page {{ view.page_no }} of {{ view.pages }}</span>
+      {% if view.has_next %}
+        <a class="btn btn-sm" rel="next" href="{{ view.page_url(view.page_no + 1) }}">Next →</a>
+      {% else %}
+        <span class="btn btn-sm btn-disabled" aria-disabled="true">Next →</span>
+      {% endif %}
+    </div>
+  {% endif %}
+</div>
+{% endmacro %}
+
+{# Change history, derived from activity_log (R2.10). `entries` come from
+   `ActivityService.history(entity_type, entity_id)`. #}
+{% macro history_panel(entries, title="Change history") %}
+<div class="card">
+  <div class="card-title">{{ title }}</div>
+  {% if entries %}
+    <ol class="history">
+      {% for e in entries %}
+        <li class="history-item">
+          <div class="history-head">
+            <span class="history-verb">{{ e.verb | humanize }}</span>
+            <span class="history-actor">{{ e.actor }}</span>
+            <span class="history-when" title="{{ e.occurred_at | fmt_datetime }}">{{ e.occurred_at | time_ago }}</span>
+          </div>
+          <div class="history-summary">{{ e.summary }}</div>
+          {% if e.changes %}
+            <ul class="history-changes">
+              {% for c in e.changes %}
+                <li><span class="muted">{{ c.label }}</span> {{ c.before or "—" }} → <strong>{{ c.after or "—" }}</strong></li>
+              {% endfor %}
+            </ul>
+          {% endif %}
+        </li>
+      {% endfor %}
+    </ol>
+  {% else %}
+    <p class="hint">No recorded changes yet.</p>
+  {% endif %}
+</div>
+{% endmacro %}

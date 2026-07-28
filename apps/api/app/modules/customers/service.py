@@ -6,8 +6,10 @@ import uuid
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.core.errors import ConflictError, NotFoundError
+from app.core.errors import NotFoundError
+from app.db.duplicates import ensure_unique
 from app.db.soft_delete import soft_delete
+from app.modules.activity.history import CHANGES_KEY, field_changes
 from app.modules.activity.service import ActivityService
 from app.modules.config.models import BusinessUnit
 from app.modules.customers.models import Customer, CustomerCreditPolicy
@@ -73,8 +75,13 @@ class CustomerService:
 
     def create(self, payload: CustomerCreate, *, actor_id: uuid.UUID | None) -> CustomerRead:
         code = payload.code or self.repo.next_code()
-        if self.db.scalar(select(Customer.id).where(Customer.code == code)):
-            raise ConflictError(f"Customer code {code} already exists")
+        # The one duplicate check (R2.9) — natural keys are configured in
+        # app.db.duplicates, not spelled out here.
+        ensure_unique(
+            self.db,
+            Customer,
+            {"code": code, "name": payload.name, "city": payload.city},
+        )
         customer = Customer(
             code=code,
             name=payload.name,
@@ -115,8 +122,27 @@ class CustomerService:
         if customer is None:
             raise NotFoundError(f"Customer {customer_id} not found")
         data = payload.model_dump(exclude_unset=True)
-        for field in ("name", "customer_type_id", "phone", "email", "gstin",
-                      "billing_address", "city", "state", "status"):
+        own_fields = ("name", "customer_type_id", "phone", "email", "gstin",
+                      "billing_address", "city", "state", "status")
+
+        # An edit that moves the record onto another one's natural key is a
+        # duplicate too; `exclude_id` keeps it from colliding with itself (R2.9).
+        ensure_unique(
+            self.db,
+            Customer,
+            {
+                "code": customer.code,
+                "name": data.get("name", customer.name),
+                "city": data.get("city", customer.city),
+            },
+            exclude_id=customer.id,
+        )
+
+        # Captured before the assignment loop: `field_changes` reads the current
+        # values off the row, so after the loop every diff would be empty (R2.10).
+        changes = field_changes(customer, {f: data[f] for f in own_fields if f in data})
+
+        for field in own_fields:
             if field in data:
                 setattr(customer, field, data[field])
         customer.updated_by = actor_id
@@ -126,10 +152,10 @@ class CustomerService:
             if policy is None:
                 policy = CustomerCreditPolicy(customer_id=customer.id, created_by=actor_id)
                 self.repo.add_credit_policy(policy)
-            if "credit_limit_minor" in data and data["credit_limit_minor"] is not None:
-                policy.credit_limit_minor = data["credit_limit_minor"]
-            if "payment_terms_days" in data and data["payment_terms_days"] is not None:
-                policy.payment_terms_days = data["payment_terms_days"]
+            for field in ("credit_limit_minor", "payment_terms_days"):
+                if data.get(field) is not None:
+                    changes.update(field_changes(policy, {field: data[field]}))
+                    setattr(policy, field, data[field])
 
         self.db.flush()
         self.activity.log(
@@ -138,5 +164,6 @@ class CustomerService:
             entity_type="customer",
             entity_id=customer.id,
             summary=f"Customer {customer.name} updated",
+            data={CHANGES_KEY: changes} if changes else None,
         )
         return self._to_read(customer)
