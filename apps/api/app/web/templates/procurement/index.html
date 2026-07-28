@@ -2,33 +2,123 @@
 {% import "_macros.html" as ui %}
 {% block title %}Procurement{% endblock %}
 {% block content %}
-{% call ui.page_header("Procurement", "Goods receipts") %}{% endcall %}
+{% call ui.page_header("Procurement", "What is arriving, what to order, what has landed") %}
+  <a class="btn" href="/purchase-orders">Purchase orders</a>
+  <a class="btn" href="/requisitions">Requisitions</a>
+{% endcall %}
 
-{% if receipts %}
-<div class="table-wrap mt">
-  <table>
-    <thead>
-      <tr>
-        <th>Receipt No</th><th>PO No</th><th>Supplier</th><th>Warehouse</th>
-        <th class="num">Lines</th><th>Status</th><th>Received</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for r in receipts %}
-      <tr>
-        <td class="mono">{{ r.receipt_no }}</td>
-        <td><a class="row-link" href="/purchase-orders/{{ r.purchase_order_id }}">{{ r.po_no }}</a></td>
-        <td>{{ r.supplier_name or "—" }}</td>
-        <td>{{ r.warehouse_name or "—" }}</td>
-        <td class="num">{{ r.line_count | number }}</td>
-        <td>{{ ui.badge(r.status) }}</td>
-        <td>{{ r.received_at | fmt_datetime }}</td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+{# R5.7 — the calendar, both halves. "Due to arrive" is every confirmed or partially
+   received order with something still outstanding, bucketed by the date the supplier
+   PROMISED. An order nobody promised a date for sits in its own column and is never
+   counted as arriving today. #}
+<div class="card mt">
+  <div class="card-title">Due to arrive</div>
+  {% if calendar.arrivals %}
+  <div class="calendar">
+    {% for key, label in buckets %}
+      {% set rows = calendar.arrivals_in(key) %}
+      <div class="calendar-col calendar-{{ key }}">
+        <div class="calendar-head">{{ label }} <span class="muted">{{ rows | length }}</span></div>
+        {% if rows %}
+          {% for a in rows %}
+          <div class="calendar-item">
+            <a class="mono" href="/purchase-orders/{{ a.purchase_order_id }}">{{ a.po_no }}</a>
+            <div class="muted">{{ a.supplier_name or "—" }}</div>
+            <div class="muted">
+              {{ a.open_qty | number }} outstanding ·
+              {% if a.expected_date %}{{ a.expected_date | fmt_date }}
+              {% else %}no date promised{% endif %}
+            </div>
+          </div>
+          {% endfor %}
+        {% else %}
+          <div class="hint">Nothing</div>
+        {% endif %}
+      </div>
+    {% endfor %}
+  </div>
+  {% else %}
+    {{ ui.empty("Nothing is on order. Anything below is what to order first.") }}
+  {% endif %}
 </div>
-{% else %}
-  {{ ui.empty("No goods receipts yet.") }}
-{% endif %}
+
+{# R5.8 — what to order, worst shortfall first. Every row carries its arithmetic
+   through the same explain_panel the vendor figures use (G11): the founder can see
+   that the 40 already on an open purchase order was subtracted, and can click
+   through to every record the number came from. #}
+<div class="card mt">
+  <div class="card-title">
+    Due to order
+    <span class="muted">
+      {% if calendar.recommendation_total > calendar.recommendations | length %}
+        showing {{ calendar.recommendations | length }} of {{ calendar.recommendation_total }}
+      {% else %}
+        {{ calendar.recommendation_total }}
+      {% endif %}
+    </span>
+  </div>
+  {% if calendar.recommendations %}
+    {% for r in calendar.recommendations %}
+    <div class="recommend">
+      <div class="recommend-head">
+        <div>
+          <a class="mono" href="/products/{{ r.product_id }}">{{ r.sku_code }}</a>
+          <strong>{{ r.product_name }}</strong>
+        </div>
+        <div class="recommend-qty">order {{ r.qty | number }}</div>
+      </div>
+      {# R5.8's plain-language line, with the numbers in it. #}
+      <div class="recommend-sentence">{{ r.sentence }}</div>
+      <div class="recommend-buy">
+        {% if r.supplier_id %}
+          <a class="btn btn-sm" href="/suppliers/{{ r.supplier_id }}">{{ r.supplier_name }}</a>
+          <a class="btn btn-sm btn-primary" href="/purchase-orders/new?supplier_id={{ r.supplier_id }}">Raise a PO</a>
+        {% else %}
+          <a class="btn btn-sm" href="/products/{{ r.product_id }}">Map a supplier</a>
+        {% endif %}
+      </div>
+      {{ ui.explain_panel(r.explained, "Why " ~ (r.qty | number)) }}
+    </div>
+    {% endfor %}
+    {% if calendar.recommendation_total > calendar.recommendations | length %}
+      <p class="hint">
+        {{ calendar.recommendation_total - (calendar.recommendations | length) }} more products
+        are below their reorder level. These are the largest shortfalls.
+      </p>
+    {% endif %}
+  {% else %}
+    {{ ui.empty("Nothing is below its reorder level. Set reorder levels on products to get suggestions here.") }}
+  {% endif %}
+</div>
+
+<div class="card mt">
+  <div class="section-title">Goods received</div>
+  {% if receipts %}
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Receipt No</th><th>PO No</th><th>Supplier</th><th>Warehouse</th>
+          <th class="num">Lines</th><th>Status</th><th>Received</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in receipts %}
+        <tr>
+          <td class="mono">{{ r.receipt_no }}</td>
+          <td><a class="row-link" href="/purchase-orders/{{ r.purchase_order_id }}">{{ r.po_no }}</a></td>
+          <td>{{ r.supplier_name or "—" }}</td>
+          <td>{{ r.warehouse_name or "—" }}</td>
+          <td class="num">{{ r.line_count | number }}</td>
+          <td>{{ ui.badge(r.status) }}</td>
+          <td>{{ r.received_at | fmt_datetime }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+    {{ ui.empty("No goods receipts yet.") }}
+  {% endif %}
+</div>
 {% endblock %}

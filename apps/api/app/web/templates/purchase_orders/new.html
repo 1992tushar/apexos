@@ -13,7 +13,9 @@
       <div class="field">
         <label>Supplier</label>
         <select name="supplier_id" required>
-          {% for s in suppliers %}<option value="{{ s.id }}">{{ s.name }}</option>{% endfor %}
+          {% for s in suppliers %}
+            <option value="{{ s.id }}"{% if preselect and preselect == s.id | string %} selected{% endif %}>{{ s.name }}</option>
+          {% endfor %}
         </select>
       </div>
       <div class="field"><label>Order date</label><input name="order_date" type="date" /></div>

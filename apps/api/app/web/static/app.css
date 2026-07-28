@@ -304,6 +304,41 @@ span.explain-record { color: var(--faint); }
    that gets the warning colour; a fall reads as positive. */
 .delta-up { color: var(--bad-fg); font-weight: 600; }
 .delta-down { color: var(--ok-fg); font-weight: 600; }
+
+/* The procurement calendar (R5.7). Five columns, worst first, and the unpromised
+   column is visibly its own thing rather than shading into "later" — an order with
+   no promised date is a different problem from one that is merely far off. */
+.calendar { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; }
+@media (max-width: 1100px) { .calendar { grid-template-columns: repeat(2, 1fr); } }
+.calendar-col {
+  border: 1px solid var(--border); border-radius: var(--radius);
+  background: var(--panel-2); padding: 10px; min-width: 0;
+}
+.calendar-head {
+  font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em;
+  color: var(--muted); margin-bottom: 8px;
+}
+.calendar-overdue { border-color: var(--bad-fg); }
+.calendar-overdue .calendar-head { color: var(--bad-fg); }
+.calendar-today .calendar-head { color: var(--warn-fg); }
+.calendar-unpromised { border-style: dashed; }
+.calendar-item { padding: 6px 0; border-top: 1px solid var(--border); font-size: 13px; }
+.calendar-item:first-of-type { border-top: 0; }
+.calendar-item a.mono { color: var(--accent); font-weight: 600; }
+
+/* Purchase recommendations (R5.8). The quantity is the headline, the plain-language
+   sentence sits under it, and the arithmetic is one block further down — same order
+   a person reads them in. */
+.recommend { padding: 14px 0; border-bottom: 1px solid var(--border); }
+.recommend:last-of-type { border-bottom: 0; }
+.recommend-head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.recommend-head a.mono { color: var(--muted); margin-right: 8px; }
+.recommend-qty {
+  margin-left: auto; font-size: 20px; font-weight: 700; letter-spacing: -.01em;
+  white-space: nowrap;
+}
+.recommend-sentence { margin-top: 4px; }
+.recommend-buy { margin-top: 8px; display: flex; gap: 8px; flex-wrap: wrap; }
 /* `.tag` is green by default (C1 used it for "cheapest"/"fastest"). A version
    marker is neither good nor bad, and a back order is a warning. */
 .tag.neutral { background: var(--border); color: var(--fg); }

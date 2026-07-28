@@ -71,12 +71,23 @@ RECEIPT_HISTORY: tuple[tuple[str, int, int, int], ...] = (
 )
 
 #: (product SKU, supplier code, is_preferred, moq)
+#:
+#: The last two are the reorder cases below, mapped on purpose: a recommendation for
+#: a product with no preferred supplier can say nothing about lead time, and R5.8's
+#: whole point is a sentence that ends "lead time 9 days measured over 6 receipts".
+#: SUPP-0001 measures 4 days and SUPP-0002 measures 14, so the two recommendations
+#: differ in urgency for a visible reason. APX-GB-004's MOQ of 100 is deliberately
+#: ABOVE its shortfall, which is the case that exercises the MOQ step on screen.
+#: The ~99 other products below their reorder level have no mapping, so the
+#: "no preferred supplier" path is on the same screen.
 MAPPING: tuple[tuple[str, str, bool, str | None], ...] = (
     ("APX-GB-001", "SUPP-0001", True, "500"),
     ("APX-GB-001", "SUPP-0002", False, "1000"),
     ("AUR-TIS-003", "SUPP-0001", True, "100"),
     ("APX-GB-002", "SUPP-0002", True, "250"),
     ("APX-GB-002", "SUPP-0001", False, "300"),
+    ("APX-GB-003", "SUPP-0001", True, "25"),
+    ("APX-GB-004", "SUPP-0002", True, "100"),
 )
 
 #: The SKU each receipt-history order is placed for — one line, so the arithmetic
@@ -90,13 +101,24 @@ HISTORY_SKU = "AUR-TIS-001"
 #: because these SKUs already carry opening stock from an earlier seed section — a
 #: hard-coded 80 silently stopped being "below reorder" the moment stock was 100,
 #: and the requirement is the *relationship*, not the number.
+#: The margins are set well above the 20-unit gap most of the catalogue carries so
+#: that these two sort to the TOP of "due to order" — the recommendation list is
+#: worst-shortfall-first, and a demo case buried on page four demonstrates nothing.
 REORDER_CASES: tuple[tuple[str, str, bool], ...] = (
     # Below reorder level AND already on order — the recommendation must NOT
-    # double-order this one; part 4's engine subtracts the open quantity.
-    ("APX-GB-003", "50", True),
+    # double-order this one; part 4's engine subtracts the open quantity. Margin 90
+    # against an open 40 leaves a shortfall of 50, so the subtraction is visible on
+    # screen rather than being the difference between 10 and 0.
+    ("APX-GB-003", "90", True),
     # Below reorder level with nothing on order — the genuine "buy this" case.
     ("APX-GB-004", "60", False),
 )
+
+#: R5.7's other column: one order that is already late. A calendar that never shows
+#: an overdue row hides the one thing a founder most needs from it. Confirmed, past
+#: its promised date, never received. (supplier code, confirmed days ago, promised
+#: days ago.)
+LATE_ARRIVAL: tuple[str, int, int] = ("SUPP-0002", 12, 3)
 
 
 def seed_vendor(ctx: SeedContext) -> dict | None:
@@ -242,8 +264,29 @@ def seed_vendor(ctx: SeedContext) -> dict | None:
                 f"stock {on_hand}, reorder level {level}, nothing on order"
             )
 
+    # --- R5.7: one overdue arrival, so the calendar's worst column is not empty --
+    late_code, late_confirm_ago, late_promised_ago = LATE_ARRIVAL
+    late = po_service.create(
+        PurchaseOrderCreate(
+            supplier_id=suppliers[late_code].id,
+            order_date=today - timedelta(days=late_confirm_ago),
+            lines=[
+                PurchaseOrderLineCreate(product_id=history_product.id, qty=Decimal("30"))
+            ],
+        ),
+        actor_id=actor_id,
+    )
+    # Confirmed and promised, never received: this is what "overdue" means (R5.7).
+    po_service.confirm(
+        late.id,
+        actor_id=actor_id,
+        confirmed_at=datetime.now(UTC) - timedelta(days=late_confirm_ago),
+        expected_date=today - timedelta(days=late_promised_ago),
+    )
+
     return {
         "mapping": f"{len(MAPPING)} product-supplier links",
         "receipts": receipts,
         "reorder_cases": reorder_summary,
+        "overdue_arrival": f"{late.po_no} promised {late_promised_ago} days ago",
     }

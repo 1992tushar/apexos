@@ -43,7 +43,15 @@ def list_purchase_orders(
 
 
 @router.get("/purchase-orders/new")
-def new_purchase_order(request: Request, db: Session = Depends(get_db)):
+def new_purchase_order(
+    request: Request, supplier_id: str = "", db: Session = Depends(get_db)
+):
+    """The blank PO form.
+
+    `supplier_id` preselects the supplier, so "Raise a PO" on a recommendation
+    (R5.8) lands on a form that already knows who to buy from. A quick action that
+    silently drops what it was given is worse than no quick action.
+    """
     suppliers, _ = SupplierService(db).list(search=None, page=1, page_size=200)
     products, _ = ProductService(db).list(search=None, category_id=None, page=1, page_size=300)
     return render(
@@ -52,6 +60,7 @@ def new_purchase_order(request: Request, db: Session = Depends(get_db)):
         suppliers=suppliers,
         products=products,
         rows=range(6),
+        preselect=supplier_id,
     )
 
 
