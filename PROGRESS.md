@@ -116,9 +116,39 @@ an unknown id 404s and a malformed id 422s, both rendering `error.html`.
 - **Modify:** `web/pages/{products,customers}.py` · `web/templates/{products,customers}/list.html` ·
   `modules/{products,customers}/{service,repository}.py` · `seed.py` (the products and customers
   sections only — the section list is in `docs/CODEBASE-MAP.md` § Seed)
-- **Reference, don't re-derive:** the usage block at the top of the list-macro section in
-  `_macros.html`; the public surface of `db/listing.py` and `web/listing.py` (summarised in
-  `CODEBASE-MAP.md` § Shared machinery — read the files only for the parts you actually call)
+- **Reference only:** the usage block at the top of the list-macro section in `_macros.html`.
+
+**Call, don't read** — verified signatures, so you don't have to open these files:
+
+```python
+# app/db/listing.py — declare the spec as a module-level constant beside the page
+ListSpec(entity: str, model: type, columns: tuple[Column, ...], search=(), filters=(),
+         sort="created_at", dir="desc", page_size=25, search_hint="Search")
+Column(key: str, label: str, kind="text", sort=None, href=None, export=True)
+#   kind: text | mono | money | number | date | datetime | badge | link
+#   sort names the MODEL attribute; omit it and the header isn't clickable
+#   key is read off the row the page renders (may be a projection, not the ORM row)
+Filter(key: str, label: str, column: str, coerce="str", options=None, all_label="All")
+#   coerce: str | uuid | int | bool     options: Callable[[Session], Sequence[tuple[str,str]]]
+static_options(*pairs: tuple[str, str])        # for a fixed dropdown
+query_page(db, spec, params, *, business_unit_id=None) -> ListPage
+
+# app/web/listing.py
+view_from_request(request, db, spec, *, business_unit_id=None, project=None) -> ListView
+#   "the one call a GET list route makes"
+wants_csv(request) -> bool                     # branch the GET route on this
+csv_response_from_request(request, db, spec, *, business_unit_id=None, project=None) -> Response
+
+# app/db/duplicates.py
+ensure_unique(db, model, values, *, exclude_id=None) -> None
+#   raises DuplicateError(.field); pass exclude_id on update so a row isn't its own duplicate
+
+# app/db/soft_delete.py
+soft_delete(db, instance, *, actor_id, label=None) -> None
+#   raises ConflictError for PROTECTED_TABLES or an already-deleted row
+```
+
+`build_select` applies `deleted_at IS NULL` and `business_unit_id` itself — do not re-add either.
 
 **Do NOT read:**
 - `docs/CODEBASE-MAP.md` covers the layout, the shared machinery, the patterns, `seed.py`'s section
@@ -245,6 +275,9 @@ block in the `CURRENT WORK` section — move finished parts down into the chrono
 
 **Changed since last checkpoint:** <paths — paste from `git diff <last-tag>..HEAD --stat`>
 **Read for the next checkpoint:**  <the 4–6 files it will actually modify. Be specific.>
+**Call, don't read:**              <verified signatures of anything the next checkpoint calls but does
+                                    not edit — copy them from the source so they're exact. Four lines
+                                    here replaces a 250-line orientation read.>
 **Do NOT read:**                   <what CODEBASE-MAP.md already covers; files listed above that
                                     the next checkpoint won't touch; docs already resolved>
 

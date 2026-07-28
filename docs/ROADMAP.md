@@ -162,6 +162,26 @@ describe a retired stack; reaching for them mid-session usually costs more than 
 
 Orientation and continuity are the waste. Working context is the job.
 
+**Cheapest orientation of all: don't read, be told.** When a checkpoint calls something it doesn't
+edit — a query helper, a uniqueness check — the resume block's `Call, don't read:` section carries the
+verified signature. Four lines there replace opening a 300-line module to learn one function. So the
+ideal reading list for a well-specified checkpoint is just:
+
+1. the `PROGRESS.md` resume block (names the edit set, inlines the contracts),
+2. `docs/REQUIREMENTS.md` § for your part (the rules you must not break — these are *not* in the files
+   you're editing, which is why "only read what I edit" is not a complete policy on its own),
+3. the edit set itself, in full.
+
+`CODEBASE-MAP.md` is then the **fallback**, not a per-session tax — read it when starting an unfamiliar
+part, or when the previous session couldn't name the edit set. Exploratory checkpoints ("find the margin
+leakage indicators") genuinely can't have their files named in advance; that's when the map earns its
+keep. Most checkpoints aren't like that.
+
+**Whoever writes the resume block owes the next session that list.** Naming the edit set and inlining
+the contracts takes two minutes at the end of a session and saves twenty file reads at the start of the
+next one. Copy signatures from the source rather than recalling them — an inlined contract that's wrong
+is worse than none, because the next session will trust it.
+
 ### Session hygiene
 
 - **Commit at every checkpoint.** Uncommitted work dies with the session; committed work makes a blown
