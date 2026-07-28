@@ -78,7 +78,7 @@ These are not re-stated per part. A PR that violates one is not done, regardless
 
 ---
 
-## 2. Part 1 — Foundation finish · Phase 0 · `phase-0/foundation-sweep`
+## 2. Part 1 — Foundation finish · Phase 0 · tag `part-01-done`
 
 **Goal:** the two mechanisms every later part wires into (soft delete, web authz), plus the migration
 strategy written down. **Status:** WS1 (tests) and WS2 (centralized web error handling) complete.
@@ -98,7 +98,7 @@ strategy written down. **Status:** WS1 (tests) and WS2 (centralized web error ha
 
 ---
 
-## 3. Part 2, stage 1 — Shared machinery · Phase 1 · `phase-1/master-data`
+## 3. Part 2, stage 1 — Shared machinery · Phase 1 · tag `part-02-done`
 
 **Goal:** build once what parts 3–8 all consume, and **prove reusability before rolling out**. The
 build-then-prove-then-roll-out order is the point; §4 is stage 2 of the same part and the same branch.
@@ -123,7 +123,7 @@ build-then-prove-then-roll-out order is the point; §4 is stage 2 of the same pa
 
 ---
 
-## 4. Part 2, stage 2 — Masters made uniform · Phase 1 · `phase-1/master-data`
+## 4. Part 2, stage 2 — Masters made uniform · Phase 1 · tag `part-02-done`
 
 **Goal:** apply stage 1's machinery to every master. Depth and uniformity, **not** a rewrite — most of
 these entities already exist in `app/modules/config`, `products`, `customers`, `suppliers`. Traces to
@@ -150,7 +150,7 @@ warehouses, units of measure + conversions, tax masters, customers, suppliers.
 
 ---
 
-## 5. Part 3 — Procurement: pre-order → PO depth · Phase 2 · `phase-2/procurement-core`
+## 5. Part 3 — Procurement: pre-order → PO depth · Phase 2 · tag `part-03-done`
 
 **Goal:** fewest clicks from "we need this" to "it's ordered and received". Extends
 `app/modules/procurement`, `suppliers`, `pricing` — does not rebuild them. Traces to
@@ -177,7 +177,7 @@ warehouses, units of measure + conversions, tax masters, customers, suppliers.
 
 ---
 
-## 6. Part 4 — Procurement: vendor intelligence + planning · Phase 2 · `phase-2/vendor-intelligence`
+## 6. Part 4 — Procurement: vendor intelligence + planning · Phase 2 · tag `part-04-done`
 
 **Goal:** make the buy side smart from part 3's history. Data and arithmetic, not ML (G12). All outputs
 bound by G11 (explainability).
@@ -201,7 +201,7 @@ bound by G11 (explainability).
 
 ---
 
-## 7. Part 5, group A — Inventory: locations, states, valuation · Phase 3 · `phase-3/inventory`
+## 7. Part 5, group A — Inventory: locations, states, valuation · Phase 3 · tag `part-05-done`
 
 **Goal:** answer *what do we have, where is it, what is it worth* at the ledger level. **Part 7 depends
 on the reservation model built here.** §8 is group B of the same part and branch. Traces to
@@ -231,7 +231,7 @@ reason so the omission is a recorded decision, not an oversight.
 
 ---
 
-## 8. Part 5, group B — Inventory: operations + health · Phase 3 · `phase-3/inventory`
+## 8. Part 5, group B — Inventory: operations + health · Phase 3 · tag `part-05-done`
 
 **Goal:** day-to-day operations plus inventory health that explains itself.
 
@@ -254,7 +254,7 @@ reason so the omission is a recorded decision, not an oversight.
 
 ---
 
-## 9. Part 6 — Sales: customer depth · Phase 4 · `phase-4/customer-depth`
+## 9. Part 6 — Sales: customer depth · Phase 4 · tag `part-06-done`
 
 **Goal:** everything you need to know about a customer on one page. Traces to `06-feature-list.md` §3.
 
@@ -277,7 +277,7 @@ reason so the omission is a recorded decision, not an oversight.
 
 ---
 
-## 10. Part 7 — Sales: workflow completion + speed · Phase 4 · `phase-4/sales-workflow`
+## 10. Part 7 — Sales: workflow completion + speed · Phase 4 · tag `part-07-done`
 
 **Goal:** close the two gaps at the ends of the workflow (quotation, returns), wire reservation, make
 entry fast. The middle — order → fulfillment → invoice → payment — already works and is E2E-verified.
@@ -303,7 +303,7 @@ entry fast. The middle — order → fulfillment → invoice → payment — alr
 
 ---
 
-## 11. Part 8, group A — Finance: ledgers + receivables/payables · Phase 5 · `phase-5/finance`
+## 11. Part 8, group A — Finance: ledgers + receivables/payables · Phase 5 · tag `part-08-done`
 
 **Goal:** operational finance — *who owes what, when, who do I chase today*. **No chart of accounts,
 no journals, no double-entry.** §12 is group B of the same part and branch. Traces to
@@ -328,7 +328,7 @@ no journals, no double-entry.** §12 is group B of the same part and branch. Tra
 
 ---
 
-## 12. Part 8, group B — Finance: cash, margin, GST · Phase 5 · `phase-5/finance`
+## 12. Part 8, group B — Finance: cash, margin, GST · Phase 5 · tag `part-08-done`
 
 **Goal:** *are we going to be short of cash* and *where are we losing money*.
 
@@ -351,7 +351,7 @@ no journals, no double-entry.** §12 is group B of the same part and branch. Tra
 
 ---
 
-## 13. Part 9 — Founder Command Center · Phase 6 · `phase-6/command-center`
+## 13. Part 9 — Founder Command Center · Phase 6 · tag `part-09-done`
 
 **Goal:** the homepage a founder actually opens. An operating cockpit, not a dashboard. Replaces the
 placeholder `/dashboard` (`app/web/pages/dashboard.py`, `app/modules/dashboard`). Traces to
@@ -377,7 +377,7 @@ placeholder `/dashboard` (`app/web/pages/dashboard.py`, `app/modules/dashboard`)
 
 ---
 
-## 14. Part 10 — Intelligence Layer · Phase 7 · `phase-7/intelligence`
+## 14. Part 10 — Intelligence Layer · Phase 7 · tag `part-10-done`
 
 **Goal:** trustworthy recommendations from accumulated data. **This part consolidates; it does not
 duplicate.** Bound throughout by G11 and G12.
@@ -401,7 +401,7 @@ duplicate.** Bound throughout by G11 and G12.
 
 ---
 
-## 15. Part 11 — Polish & Optimization · Phase 8 · `phase-8/polish`
+## 15. Part 11 — Polish & Optimization · Phase 8 · tag `part-11-done`
 
 **Goal:** make it feel like a premium internal operating system. **Add no new features.** Behaviour
 must not change — only its quality. **D-B resizes this part substantially.**
@@ -431,7 +431,7 @@ must not change — only its quality. **D-B resizes this part substantially.**
 
 ---
 
-## 16. Part 12 — Product Challenge · Phase X · `phase-x/product-challenge`
+## 16. Part 12 — Product Challenge · Phase X · tag `part-12-done`
 
 **Goal:** adversarial review of the finished product. **Report only — no code changes.**
 

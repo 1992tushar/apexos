@@ -9,14 +9,18 @@ _Last updated: 2026-07-28_
 
 # ▶ CURRENT WORK — read this first
 
-A **part** is a branch and a PR. A **session** is a token budget. They are not the same size, so most
-parts are delivered over several sessions with a checkpoint commit between each. See the *Session
-protocol* in `docs/ROADMAP.md` for the checkpoint list per part.
+A **session** is a token budget; a **part** is a group of sessions. Most parts take several sessions
+with a checkpoint commit between each. See the *Session protocol* in `docs/ROADMAP.md` for the
+checkpoint list per part.
+
+**All work is on `main`** — no feature branches, no PRs. A part is "done" when every P0/P1 requirement
+passes, the verify loop is green, this file is updated, and the part is tagged `part-0N-done`. Those
+tags are the rollback points.
 
 **Every session ends by updating the block below, before it runs out of room.** A session that dies
 with an accurate resume block costs nothing; one that dies without it costs a re-derivation.
 
-## Part 1 — Foundation finish · branch `phase-0/foundation-sweep` · checkpoint 2 of 3
+## Part 1 — Foundation finish · on `main` · checkpoint 2 of 3 · tag when done: `part-01-done`
 
 - [x] **C1** WS1 — test suite → commit `edf51ea`
 - [x] **C2** WS2 — centralized web error handling → commit `edf51ea`
@@ -32,8 +36,8 @@ booted app — R1.10.
 **Decisions made mid-part:** none yet. WS5 will add one (migration strategy).
 
 **NEXT SESSION:** start at C3 using the Part 1 prompt in `docs/ROADMAP.md`. Read this block +
-`docs/REQUIREMENTS.md` §2 + `git log phase-0/foundation-sweep`. Do **not** re-read the older `docs/`
-design files — the standing rules are reproduced in the prompt itself.
+`docs/REQUIREMENTS.md` §2 + `git log --oneline -15`. Do **not** re-read the older `docs/` design
+files — the standing rules are reproduced in the prompt itself.
 
 ---
 
@@ -43,7 +47,7 @@ Copy this at the start of a new part; update it at every checkpoint. Keep only t
 block in the `CURRENT WORK` section — move finished parts down into the chronological log below.
 
 ```
-## Part <n> — <title> · branch `<branch>` · checkpoint <i> of <k>
+## Part <n> — <title> · on `main` · checkpoint <i> of <k> · tag when done: `part-0<n>-done`
 
 - [x] **C1** <what it delivered> → commit `<sha>`
 - [ ] **C2** <next chunk>
@@ -53,7 +57,7 @@ block in the `CURRENT WORK` section — move finished parts down into the chrono
 **Gotchas for the next session:** <signature changes, migrations, half-finished refactors>
 **Decisions made mid-part:**     <choices a later session must not silently reverse>
 
-**NEXT SESSION:** start at C<i+1>. Read this block + `docs/REQUIREMENTS.md` §<n> + `git log <branch>`.
+**NEXT SESSION:** start at C<i+1>. Read this block + `docs/REQUIREMENTS.md` §<n> + `git log --oneline -15`.
               Do NOT re-read <the docs this session already resolved>.
 ```
 

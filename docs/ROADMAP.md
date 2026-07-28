@@ -21,7 +21,7 @@ otherwise are wrong, not aspirational. Every cut below traces to one of these.
 | **D-D** | **Drop all five previously-deferred items:** QuickBooks bridge, notifications/inbox, saved views, decisions log (ADRs), SOP index. | No part owns them. `06-feature-list.md` features 11.14, 14.5, 16.15, 16.16 and X.3 are **cut, not deferred**. Reintroducing any of them is a new decision, not a backlog item. |
 
 **Why 12 parts and not 15.** The plan was split into 15 parts before these decisions. D-A, D-B and D-C
-between them removed enough work that four parts no longer justified their own branch, so the plan was
+between them removed enough work that four parts no longer justified standing alone, so the plan was
 re-cut. Requirement IDs in `REQUIREMENTS.md` deliberately kept their original prefixes — a new part
 number does not renumber a requirement, so today's Part 2 contains both `R2.x` and `R3.x`.
 
@@ -37,28 +37,48 @@ procurement and inventory — the heart of the business — are built first, and
 consumes data that already exists. This minimises rework, and the cockpit is only meaningful once
 real operational data flows into it.
 
-| Part | Title | Phase | Branch | Requirements | Sessions | Status |
+| Part | Title | Phase | Requirements | Sessions | Tag when done | Status |
 |---|---|---|---|---|---|---|
-| **1** | Foundation finish | 0 | `phase-0/foundation-sweep` | R1.x | 3 | **in progress** — C1, C2 done; C3 remaining |
-| **2** | Master data & shared machinery | 1 | `phase-1/master-data` | R2.x, R3.x | 3 | not started |
-| **3** | Procurement: pre-order → PO depth | 2 | `phase-2/procurement-core` | R4.x | 2 | not started |
-| **4** | Procurement: vendor intelligence + planning | 2 | `phase-2/vendor-intelligence` | R5.x | 2 | not started |
-| **5** | Inventory: locations, states, operations, health | 3 | `phase-3/inventory` | R6.x, R7.x | 3 | not started |
-| **6** | Sales: customer depth | 4 | `phase-4/customer-depth` | R8.x | 1 | not started |
-| **7** | Sales: workflow completion + speed | 4 | `phase-4/sales-workflow` | R9.x | 2 | not started |
-| **8** | Finance: ledgers, AR/AP, cash, margin, GST | 5 | `phase-5/finance` | R10.x, R11.x | 3 | not started |
-| **9** | Founder Command Center | 6 | `phase-6/command-center` | R12.x | 2 | not started |
-| **10** | Intelligence Layer | 7 | `phase-7/intelligence` | R13.x | 2 | not started |
-| **11** | Polish & Optimization | 8 | `phase-8/polish` | R14.x | 3 | not started |
-| **12** | Product Challenge | X | `phase-x/product-challenge` | R15.x | 1 | not started |
+| **1** | Foundation finish | 0 | R1.x | 3 | `part-01-done` | **in progress** — C1, C2 done; C3 remaining |
+| **2** | Master data & shared machinery | 1 | R2.x, R3.x | 3 | `part-02-done` | not started |
+| **3** | Procurement: pre-order → PO depth | 2 | R4.x | 2 | `part-03-done` | not started |
+| **4** | Procurement: vendor intelligence + planning | 2 | R5.x | 2 | `part-04-done` | not started |
+| **5** | Inventory: locations, states, operations, health | 3 | R6.x, R7.x | 3 | `part-05-done` | not started |
+| **6** | Sales: customer depth | 4 | R8.x | 1 | `part-06-done` | not started |
+| **7** | Sales: workflow completion + speed | 4 | R9.x | 2 | `part-07-done` | not started |
+| **8** | Finance: ledgers, AR/AP, cash, margin, GST | 5 | R10.x, R11.x | 3 | `part-08-done` | not started |
+| **9** | Founder Command Center | 6 | R12.x | 2 | `part-09-done` | not started |
+| **10** | Intelligence Layer | 7 | R13.x | 2 | `part-10-done` | not started |
+| **11** | Polish & Optimization | 8 | R14.x | 3 | `part-11-done` | not started |
+| **12** | Product Challenge | X | R15.x | 1 | `part-12-done` | not started |
 
-**12 parts · 12 branches · 27 sessions, of which 2 are done — 25 remaining.** A part is a branch and a
-PR; a session is a token budget.
-The *Session protocol* section below lists the checkpoints each part is broken into — one per session,
-each ending in a commit, with the `PROGRESS.md` resume block as the handoff.
+**12 parts · 27 sessions, of which 2 are done — 25 remaining.** A session is a token budget; a part is
+a group of sessions. The *Session protocol* section below lists the checkpoints each part is broken
+into — one per session, each ending in a commit, with the `PROGRESS.md` resume block as the handoff.
+
+### Git: one branch — `main`
+
+**All work happens directly on `main`.** There are no feature branches and no PRs. This was a
+deliberate change on 2026-07-28: with one developer, a PR is a review you give yourself, and twelve of
+them is ceremony. The resume block in `PROGRESS.md` already carries the handoff a branch boundary was
+nominally providing.
+
+What replaces the PR as the "part is done" gate:
+
+1. Every P0/P1 requirement in the part's `REQUIREMENTS.md` sections passes.
+2. The verify loop is green — pytest, ruff, app boots, all nav pages 200.
+3. `PROGRESS.md` is updated and the part's resume block is moved out of `CURRENT WORK` into the log.
+4. **Tag it:** `git tag part-0N-done && git push origin part-0N-done`.
+
+Those tags are the rollback points. To inspect or revert a part: `git diff part-01-done..part-02-done`,
+or `git revert` the range. If a part ever genuinely needs isolation — a risky refactor you might
+abandon — branch off `main` for that one part and merge it back. That is the exception, not the default.
+
+**Do not create a branch just because a new part is starting.** A session that opens with
+`git checkout -b phase-N/...` has misread this file.
 
 Each part ends green (tests + lint + app boots + all nav pages 200), satisfies every P0/P1
-requirement in its `REQUIREMENTS.md` sections, updates `PROGRESS.md`, and opens a PR to `main`.
+requirement in its `REQUIREMENTS.md` sections, updates `PROGRESS.md`, and gets tagged `part-0N-done`.
 
 ### Dependencies that must not be reordered
 
@@ -81,14 +101,14 @@ requirement in its `REQUIREMENTS.md` sections, updates `PROGRESS.md`, and opens 
 
 ## Session protocol — running a part without exhausting a session
 
-**A part is a branch and a PR. A session is a token budget. They are not the same size.** Six of the
+**A session is a token budget. A part is a group of sessions. They are not the same size.** Six of the
 twelve parts are more than one session's work, so they are delivered over several sessions with a
-**checkpoint commit** between each. Roughly 20 sessions across the 12 branches.
+**checkpoint commit** between each. 27 sessions in total, all on `main`.
 
 ### Checkpoints per part
 
-Each `C<n>` is one session's target and ends in a commit on the part's branch. Only the last
-checkpoint opens the PR.
+Each `C<n>` is one session's target and ends in a commit on `main`. Only the last checkpoint of a part
+tags it done.
 
 | Part | Checkpoints |
 |---|---|
@@ -123,7 +143,7 @@ re-read the design corpus. Per session, read only:
 1. `docs/REQUIREMENTS.md` — **your part's sections only.** That is the acceptance contract.
 2. The `PROGRESS.md` CURRENT WORK block.
 3. The one `08-module-breakdown.md` § named in your prompt.
-4. `git log <branch>` if resuming mid-part.
+4. `git log --oneline -15` if resuming mid-part.
 
 Anything beyond that only when you hit something you genuinely cannot resolve. The older `docs/` files
 describe a retired stack; reaching for them mid-session usually costs more than it returns.
@@ -181,10 +201,12 @@ SOP index are cut. A session that finds itself building one of these has drifted
 ./.venv/Scripts/python.exe -m uvicorn app.main:app --port 8000
 # then: every nav page 200s and renders; a bad id (e.g. /customers/<random-uuid>) renders error.html
 ```
-Add tests for new behaviour in `apps/api/tests/`. Then update `PROGRESS.md`, commit, open a PR to `main`.
+Add tests for new behaviour in `apps/api/tests/`. Then update `PROGRESS.md` and commit to `main`.
 
 **Repo/git:** personal GitHub only — `github.com/1992tushar/apexos`, personal credentials, never org
-credentials. This machine both writes and tests the code.
+credentials. This machine both writes and tests the code. **All work is on `main` — no feature
+branches, no PRs** (see "Git: one branch"). Commit at every checkpoint; tag `part-0N-done` when a part
+completes.
 
 **Docs to read at the start of a part (skim, they're the design record):**
 `PROGRESS.md`, `docs/REQUIREMENTS.md` (**your part's sections — this is the acceptance contract**),
@@ -201,11 +223,11 @@ authoritative on features but its Phase column and several features are supersed
 
 ```
 You are finishing Part 1 of 12 (Phase 0 — Foundation & Architecture) of ApexOS at
-c:\Imp Data\Personal\apexos. Work continues on the existing branch phase-0/foundation-sweep (already
-pushed to origin, github.com/1992tushar/apexos — personal creds only). This machine both writes and
-tests the code.
+c:\Imp Data\Personal\apexos. All work happens on main — there are no feature branches and no PRs
+(see "Git: one branch" in docs/ROADMAP.md). Origin is github.com/1992tushar/apexos, personal creds
+only. This machine both writes and tests the code.
 
-FIRST: git checkout phase-0/foundation-sweep && git pull origin phase-0/foundation-sweep.
+FIRST: git checkout main && git pull origin main.
 Read docs/ROADMAP.md (standing rules + the product decisions D-A..D-D), docs/REQUIREMENTS.md §2
 (requirements R1.1–R1.10 — your acceptance contract), and the memory note apexos-phase-0-foundation.
 Baseline is green:
@@ -243,7 +265,7 @@ SESSION PROTOCOL — this is checkpoint C3 of 3 (C1 = WS1 tests, C2 = WS2 web er
 finish the part in this session. If you run low, commit what is green and update the CURRENT WORK
 resume block in PROGRESS.md (requirement IDs passed/outstanding, gotchas, where to start next) rather
 than pushing on. Read only REQUIREMENTS.md §2, the PROGRESS.md resume block, and
-`git log phase-0/foundation-sweep`. pytest -q, never verbose.
+`git log --oneline -15`. pytest -q, never verbose.
 
 EXIT CRITERIA (see REQUIREMENTS.md R1.1–R1.10): soft delete works from the UI on every entity where
 it is valid and is refused with a clear reason where it is not; require_web_permission exists and is
@@ -251,8 +273,8 @@ wired onto the web POST routes; the migration strategy is written down; pytest +
 and all nav pages 200.
 
 FINALLY: boot the app (uvicorn app.main:app --port 8000), confirm all nav pages still 200, then
-update PROGRESS.md, commit, and open a PR to main. Update the apexos-phase-0-foundation memory note
-as you complete each workstream.
+update PROGRESS.md, commit to main, and tag the part done (git tag part-01-done && git push origin
+part-01-done). Update the apexos-phase-0-foundation memory note as you complete each workstream.
 
 CAVEAT: WS2 changed GET detail handlers to let the global error handler render error.html on
 not-found. Tests cover it, but when the app is booted, click a bad URL (e.g.
@@ -270,7 +292,7 @@ docs/ROADMAP.md first — "Standing rules" and the product decisions D-A..D-D ar
 docs/REQUIREMENTS.md §3 and §4 (requirements R2.x and R3.x — your acceptance contract). Also read
 PROGRESS.md, docs/08-module-breakdown.md (§2.1 Org/Config, §2.3 Products, §2.4 Customers,
 §2.5 Suppliers), docs/12-coding-standards.md, docs/17-design-system.md.
-Branch: phase-1/master-data off main.
+Work on main — no branch, no PR. Start with: git checkout main && git pull origin main.
 
 SESSION PROTOCOL — 3 checkpoints, ONE PER SESSION, each ending in a commit:
   C1 macros + query helper + dup prevention + change history
@@ -344,7 +366,9 @@ filtering, category reparent rejects a cycle, uom conversion rejects zero/cyclic
 append preserves the prior version, soft delete then absent-from-list, blocked deletion of a
 referenced master explains why.
 
-Follow the ROADMAP verify loop, update PROGRESS.md, commit, open a PR to main, update memory.
+Follow the ROADMAP verify loop, update PROGRESS.md, and commit directly to main — no branch, no PR
+(see "Git: one branch" in docs/ROADMAP.md). When every P0/P1 requirement for the part passes, tag it
+(git tag part-0N-done && git push origin part-0N-done). Update memory.
 ```
 
 ---
@@ -356,7 +380,7 @@ You are starting Part 3 of 12 (Phase 2 — Procurement core) of ApexOS at
 c:\Imp Data\Personal\apexos. Parts 1–2 are complete and merged. Read docs/ROADMAP.md first —
 "Standing rules" and decisions D-A..D-D are binding. Then read docs/REQUIREMENTS.md §5 (R4.x — your
 acceptance contract). Also read PROGRESS.md, docs/08-module-breakdown.md (§2.5 Suppliers/Procurement,
-§2.6 Pricing). Branch: phase-2/procurement-core off main.
+§2.6 Pricing). Work on main — no branch, no PR: git checkout main && git pull origin main.
 
 SESSION PROTOCOL — 2 checkpoints, ONE PER SESSION, each ending in a commit:
   C1 requisition (request → approve → convert) + RFQ + quote capture + comparison
@@ -400,7 +424,9 @@ Add tests: requisition→PO conversion, approval writes exactly one activity_log
 comparison pick, PO revision preserves the prior version verbatim, partial receipt leaves the correct
 back-order quantity, receipt against a superseded revision is handled explicitly.
 
-Follow the ROADMAP verify loop, update PROGRESS.md, commit, open a PR to main, update memory.
+Follow the ROADMAP verify loop, update PROGRESS.md, and commit directly to main — no branch, no PR
+(see "Git: one branch" in docs/ROADMAP.md). When every P0/P1 requirement for the part passes, tag it
+(git tag part-0N-done && git push origin part-0N-done). Update memory.
 ```
 
 ---
@@ -413,7 +439,7 @@ c:\Imp Data\Personal\apexos. Parts 1–3 are complete and merged, so requisition
 revisions and partial receipts all exist with real history. Read docs/ROADMAP.md first — "Standing
 rules" and decisions D-A..D-D are binding. Then read docs/REQUIREMENTS.md §6 (R5.x — your acceptance
 contract). Also read PROGRESS.md, docs/08-module-breakdown.md (§2.5, §2.6).
-Branch: phase-2/vendor-intelligence off main.
+Work on main — no branch, no PR: git checkout main && git pull origin main.
 
 SESSION PROTOCOL — 2 checkpoints, ONE PER SESSION, each ending in a commit:
   C1 product↔supplier mapping + vendor score + measured lead time + MOQ + price history
@@ -463,7 +489,9 @@ boundary (exactly on the promised date is on time), recommendation quantity arit
 seed data, a recommendation always carries a non-empty explanation and at least one linked record,
 insufficient-history path returns "unknown" rather than a number.
 
-Follow the ROADMAP verify loop, update PROGRESS.md, commit, open a PR to main, update memory.
+Follow the ROADMAP verify loop, update PROGRESS.md, and commit directly to main — no branch, no PR
+(see "Git: one branch" in docs/ROADMAP.md). When every P0/P1 requirement for the part passes, tag it
+(git tag part-0N-done && git push origin part-0N-done). Update memory.
 ```
 
 ---
@@ -475,7 +503,7 @@ You are starting Part 5 of 12 (Phase 3 — Inventory) of ApexOS at c:\Imp Data\P
 Parts 1–4 are complete and merged. Read docs/ROADMAP.md first — "Standing rules" and decisions
 D-A..D-D are binding. Then read docs/REQUIREMENTS.md §7 and §8 (R6.x and R7.x — your acceptance
 contract). Also read PROGRESS.md, docs/08-module-breakdown.md (§2.8 Inventory/Warehouse),
-Branch: phase-3/inventory off main.
+Work on main — no branch, no PR: git checkout main && git pull origin main.
 
 SESSION PROTOCOL — 3 checkpoints, ONE PER SESSION, each ending in a commit:
   C1 locations (warehouse→rack→bin) + stock states + RESERVATION AS A LEDGER CONCEPT (R6.5/R6.6)
@@ -545,7 +573,9 @@ is still the only stock writer, variance produces exactly one adjustment, zero-v
 adjustment requires a reason, transfer sits in-transit then lands, ABC boundaries, dead-stock window
 boundary, and R7.13 (reorder suggestion identical to part 4's engine).
 
-Follow the ROADMAP verify loop, update PROGRESS.md, commit, open a PR to main, update memory.
+Follow the ROADMAP verify loop, update PROGRESS.md, and commit directly to main — no branch, no PR
+(see "Git: one branch" in docs/ROADMAP.md). When every P0/P1 requirement for the part passes, tag it
+(git tag part-0N-done && git push origin part-0N-done). Update memory.
 ```
 
 ---
@@ -557,7 +587,7 @@ You are starting Part 6 of 12 (Phase 4 — Customer depth) of ApexOS at c:\Imp D
 Parts 1–5 are complete and merged. Read docs/ROADMAP.md first — "Standing rules" and decisions
 D-A..D-D are binding. Then read docs/REQUIREMENTS.md §9 (R8.x — your acceptance contract). Also read
 PROGRESS.md, docs/08-module-breakdown.md (§2.4 Customers/CRM, §2.7 Sales), docs/12-coding-standards.md.
-Branch: phase-4/customer-depth off main.
+Work on main — no branch, no PR: git checkout main && git pull origin main.
 
 SESSION PROTOCOL — 1 checkpoint: this part is one session's work. If you find yourself running low
 before it is done, commit what is green and write the CURRENT WORK resume block in PROGRESS.md
@@ -597,7 +627,9 @@ Add tests: credit-limit boundary (exactly at the limit allowed, one minor unit o
 requires a reason and writes exactly one activity_log row, timeline ordering is strictly chronological
 and includes every source type, empty timeline renders.
 
-Follow the ROADMAP verify loop, update PROGRESS.md, commit, open a PR to main, update memory.
+Follow the ROADMAP verify loop, update PROGRESS.md, and commit directly to main — no branch, no PR
+(see "Git: one branch" in docs/ROADMAP.md). When every P0/P1 requirement for the part passes, tag it
+(git tag part-0N-done && git push origin part-0N-done). Update memory.
 ```
 
 ---
@@ -609,7 +641,7 @@ You are starting Part 7 of 12 (Phase 4 — Sales workflow & speed) of ApexOS at
 c:\Imp Data\Personal\apexos. Parts 1–6 are complete and merged. Read docs/ROADMAP.md first —
 "Standing rules" and decisions D-A..D-D are binding. Then read docs/REQUIREMENTS.md §10 (R9.x — your
 acceptance contract). Also read PROGRESS.md, docs/08-module-breakdown.md (§2.4, §2.7),
-Branch: phase-4/sales-workflow off main.
+Work on main — no branch, no PR: git checkout main && git pull origin main.
 
 SESSION PROTOCOL — 2 checkpoints, ONE PER SESSION, each ending in a commit:
   C1 quotation — create / revise / send / expire / convert-to-order
@@ -654,7 +686,9 @@ return posts stock IN and creates a credit note WITHOUT mutating the invoice, pa
 the correct returnable quantity, confirming an order creates a reservation and cancelling releases it,
 health score arithmetic against known seed data, insufficient-history returns "unknown".
 
-Follow the ROADMAP verify loop, update PROGRESS.md, commit, open a PR to main, update memory.
+Follow the ROADMAP verify loop, update PROGRESS.md, and commit directly to main — no branch, no PR
+(see "Git: one branch" in docs/ROADMAP.md). When every P0/P1 requirement for the part passes, tag it
+(git tag part-0N-done && git push origin part-0N-done). Update memory.
 ```
 
 ---
@@ -667,7 +701,7 @@ Parts 1–7 are complete and merged, so sales, purchases, receipts, returns and 
 produce real financial history. Read docs/ROADMAP.md first — "Standing rules" and decisions D-A..D-D
 are binding. Then read docs/REQUIREMENTS.md §11 and §12 (R10.x and R11.x — your acceptance contract).
 Also read PROGRESS.md, docs/08-module-breakdown.md (§2.9 Finance), docs/12-coding-standards.md.
-Branch: phase-5/finance off main.
+Work on main — no branch, no PR: git checkout main && git pull origin main.
 
 SESSION PROTOCOL — 3 checkpoints, ONE PER SESSION, each ending in a commit:
   C1 customer + vendor ledgers, AR/AP ageing, collections view, payment allocation
@@ -729,7 +763,9 @@ per entry, cash conversion cycle components each hand-verified, committed cash m
 definition, margin across all four dimensions, each leakage indicator fires on a seeded offender and
 stays silent otherwise, GST net position by period, and no float in any money path.
 
-Follow the ROADMAP verify loop, update PROGRESS.md, commit, open a PR to main, update memory.
+Follow the ROADMAP verify loop, update PROGRESS.md, and commit directly to main — no branch, no PR
+(see "Git: one branch" in docs/ROADMAP.md). When every P0/P1 requirement for the part passes, tag it
+(git tag part-0N-done && git push origin part-0N-done). Update memory.
 ```
 
 ---
@@ -742,7 +778,7 @@ c:\Imp Data\Personal\apexos. Parts 1–8 are complete and merged, so real operat
 across procurement, inventory, sales and finance. Read docs/ROADMAP.md first — "Standing rules" and
 decisions D-A..D-D are binding. Then read docs/REQUIREMENTS.md §13 (R12.x — your acceptance
 contract). Also read the PROGRESS.md resume block and docs/17-design-system.md.
-Branch: phase-6/command-center off main.
+Work on main — no branch, no PR: git checkout main && git pull origin main.
 
 SESSION PROTOCOL — 2 checkpoints, ONE PER SESSION, each ending in a commit:
   C1 tiles + alerts + recent activity + quick actions
@@ -789,7 +825,9 @@ Add tests: each tile's arithmetic against known seed data, every alert's trigger
 the threshold, silent below it), empty-state (a fresh DB renders without errors and without fake
 zeros-as-alerts), and the query-count assertion.
 
-Follow the ROADMAP verify loop, update PROGRESS.md, commit, open a PR to main, update memory.
+Follow the ROADMAP verify loop, update PROGRESS.md, and commit directly to main — no branch, no PR
+(see "Git: one branch" in docs/ROADMAP.md). When every P0/P1 requirement for the part passes, tag it
+(git tag part-0N-done && git push origin part-0N-done). Update memory.
 ```
 
 ---
@@ -801,7 +839,7 @@ You are starting Part 10 of 12 (Phase 7 — Apex Intelligence) of ApexOS at
 c:\Imp Data\Personal\apexos. Parts 1–9 are complete and merged. Read docs/ROADMAP.md first —
 "Standing rules" and decisions D-A..D-D are binding. Then read docs/REQUIREMENTS.md §14 (R13.x — your
 acceptance contract). Also read PROGRESS.md and docs/16-future-roadmap.md.
-Branch: phase-7/intelligence off main.
+Work on main — no branch, no PR: git checkout main && git pull origin main.
 
 SESSION PROTOCOL — 2 checkpoints, ONE PER SESSION, each ending in a commit:
   C1 the R13.1 audit + the unifications it finds — THIS IS THE REAL WORK OF THE PART
@@ -846,7 +884,9 @@ Add tests: each score against hand-computed seed values, each forecast against a
 insufficient-data path returns "unknown" not a number, every recommendation carries a non-empty
 explanation and at least one linked record, plus the per-unification identical-output tests.
 
-Follow the ROADMAP verify loop, update PROGRESS.md, commit, open a PR to main, update memory.
+Follow the ROADMAP verify loop, update PROGRESS.md, and commit directly to main — no branch, no PR
+(see "Git: one branch" in docs/ROADMAP.md). When every P0/P1 requirement for the part passes, tag it
+(git tag part-0N-done && git push origin part-0N-done). Update memory.
 ```
 
 ---
@@ -858,7 +898,7 @@ You are starting Part 11 of 12 (Phase 8 — Polish & Optimization) of ApexOS at
 c:\Imp Data\Personal\apexos. Parts 1–10 are complete and merged — the product is feature-complete.
 Read docs/ROADMAP.md first — "Standing rules" and decisions D-A..D-D are binding. Then read
 docs/REQUIREMENTS.md §15 (R14.x — your acceptance contract). Also read PROGRESS.md and
-docs/17-design-system.md. Branch: phase-8/polish off main.
+docs/17-design-system.md. Work on main — no branch, no PR: git checkout main && git pull origin main.
 
 SESSION PROTOCOL — 3 checkpoints, ONE PER SESSION, each ending in a commit:
   C1 MEASURE EVERYTHING and write the findings down — NO FIXES IN THIS SESSION
@@ -899,7 +939,9 @@ measurements. Deliver a short written summary of what changed and what was measu
 The full test suite must stay green throughout — this part must not change behaviour, only its
 quality. Add tests where refactors created risk, especially the de-duplication work.
 
-Follow the ROADMAP verify loop, update PROGRESS.md, commit, open a PR to main, update memory.
+Follow the ROADMAP verify loop, update PROGRESS.md, and commit directly to main — no branch, no PR
+(see "Git: one branch" in docs/ROADMAP.md). When every P0/P1 requirement for the part passes, tag it
+(git tag part-0N-done && git push origin part-0N-done). Update memory.
 ```
 
 ---
@@ -962,10 +1004,11 @@ Then STOP and wait for a decision on what to act on. Do not start deleting.
   (migration order) describe the retired Postgres + Alembic design; their domain content still stands.
   `docs/06-feature-list.md` is authoritative on features but its Phase 1/2/3 column is superseded and
   several of its features are cut — `REQUIREMENTS.md` §17 has the reconciliation.
-- **On part numbering:** parts within a phase share the phase's branch prefix, so the phase identity
-  survives the split. Requirement IDs in `REQUIREMENTS.md` keep their ORIGINAL prefixes and are never
-  renumbered, which is why part 2 holds `R2.x` + `R3.x`, part 5 holds `R6.x` + `R7.x`, and part 8
-  holds `R10.x` + `R11.x`. If a part turns out to be two sessions' worth of work, split it and
-  renumber the parts — not the requirements.
+- **On part numbering:** requirement IDs in `REQUIREMENTS.md` keep their ORIGINAL prefixes and are
+  never renumbered, which is why part 2 holds `R2.x` + `R3.x`, part 5 holds `R6.x` + `R7.x`, and part 8
+  holds `R10.x` + `R11.x`. If a part turns out to need more sessions than listed, add a checkpoint —
+  do not renumber the parts, and never renumber the requirements.
 - **History:** this plan was 9 phases, then 15 parts, now 12. The 15→12 re-cut on 2026-07-28 followed
-  decisions D-A..D-D, which removed enough work that four parts no longer justified a branch.
+  decisions D-A..D-D, which removed enough work that four parts no longer justified standing alone. The
+  same day, branch-per-part and PRs were dropped in favour of working directly on `main` with
+  `part-0N-done` tags — twelve self-reviewed PRs were ceremony for a single developer.
