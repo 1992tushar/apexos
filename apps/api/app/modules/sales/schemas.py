@@ -14,6 +14,102 @@ class SalesOrderLineCreate(BaseModel):
     unit_price_minor: int | None = None
 
 
+# --- Quotation (Part 7 C1) ------------------------------------------------
+
+
+class QuotationLineCreate(BaseModel):
+    product_id: uuid.UUID
+    qty: Decimal = Field(gt=0)
+    # None means "resolve from the price list". A quotation usually names its own price,
+    # which is the entire point of quoting.
+    unit_price_minor: int | None = None
+
+
+class QuotationCreate(BaseModel):
+    customer_id: uuid.UUID
+    business_unit_id: uuid.UUID | None = None
+    quotation_date: date | None = None
+    valid_until: date | None = None
+    note: str | None = None
+    lines: list[QuotationLineCreate] = Field(min_length=1)
+
+
+class QuotationRevise(BaseModel):
+    """A new version of a sent quotation. The reason is required — "why did the price
+    change" is the whole value of keeping the history (R9.2)."""
+
+    reason: str = Field(min_length=1)
+    valid_until: date | None = None
+    lines: list[QuotationLineCreate] = Field(min_length=1)
+
+
+class QuotationLineRead(BaseModel):
+    product_id: uuid.UUID
+    product_name: str | None = None
+    sku_code: str | None = None
+    qty: Decimal
+    unit_price_minor: int
+    tax_rate_bps: int
+    line_subtotal_minor: int
+    line_tax_minor: int
+    line_total_minor: int
+    line_no: int
+
+
+class QuotationRevisionRead(BaseModel):
+    id: uuid.UUID
+    revision_no: int
+    reason: str | None
+    subtotal_minor: int
+    tax_minor: int
+    total_minor: int
+    created_at: datetime
+    is_current: bool
+    lines: list[QuotationLineRead]
+
+
+class QuotationDetail(BaseModel):
+    id: uuid.UUID
+    quotation_no: str
+    customer_id: uuid.UUID
+    customer_name: str | None = None
+    quotation_date: date
+    valid_until: date | None
+    status: str
+    subtotal_minor: int
+    tax_minor: int
+    total_minor: int
+    sales_order_id: uuid.UUID | None
+    sales_order_no: str | None = None
+    note: str | None
+    lines: list[QuotationLineRead]
+    revisions: list[QuotationRevisionRead]
+    # Derived, not stored: whether the validity date has passed. Distinct from
+    # `status == "expired"`, which is somebody having actually retired it.
+    past_validity: bool = False
+
+    @property
+    def revision_count(self) -> int:
+        return len(self.revisions)
+
+    @property
+    def is_open(self) -> bool:
+        """Still able to become an order."""
+        return self.status in ("draft", "sent")
+
+
+class QuotationListRow(BaseModel):
+    id: uuid.UUID
+    quotation_no: str
+    customer_name: str | None
+    status: str
+    quotation_date: date
+    valid_until: date | None
+    total_minor: int
+    revision_count: int
+    past_validity: bool
+
+
 class SalesOrderCreate(BaseModel):
     customer_id: uuid.UUID
     business_unit_id: uuid.UUID | None = None

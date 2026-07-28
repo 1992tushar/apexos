@@ -1,0 +1,139 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+{% import "_preorder.html" as pre %}
+{% block title %}{{ q.quotation_no }}{% endblock %}
+{% block content %}
+{% call ui.page_header(q.quotation_no, q.customer_name) %}
+  <a class="btn" href="/quotations">← All quotations</a>
+{% endcall %}
+
+<div class="grid grid-4 mt">
+  {{ ui.stat("Status", q.status) }}
+  {{ ui.stat("Total", q.total_minor | money) }}
+  {{ ui.stat("Versions sent", q.revision_count, "each one still readable") }}
+  {{ ui.stat("Valid until",
+     (q.valid_until | fmt_date) if q.valid_until else "no expiry",
+     "the date has passed" if q.past_validity else None) }}
+</div>
+
+{% if q.sales_order_no %}
+<p class="hint">Converted to sales order
+  <a class="mono" href="/sales/{{ q.sales_order_id }}">{{ q.sales_order_no }}</a>
+  at the quoted prices.</p>
+{% endif %}
+{% if q.note %}<p class="hint">{{ q.note }}</p>{% endif %}
+
+{# The live lines — the current offer. #}
+<h2>Current lines</h2>
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr><th>#</th><th>SKU</th><th>Product</th><th class="num">Qty</th>
+        <th class="num">Unit price</th><th class="num">Tax</th><th class="num">Line total</th></tr>
+    </thead>
+    <tbody>
+      {% for ln in q.lines %}
+      <tr>
+        <td>{{ ln.line_no }}</td>
+        <td class="mono">{{ ln.sku_code or "—" }}</td>
+        <td>{{ ln.product_name or "—" }}</td>
+        <td class="num">{{ ln.qty | number }}</td>
+        <td class="num">{{ ln.unit_price_minor | money }}</td>
+        <td class="num">{{ ln.line_tax_minor | money }}</td>
+        <td class="num">{{ ln.line_total_minor | money }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{# The four verbs. Which ones apply depends on the status, and the page shows only those —
+   a disabled button the founder cannot use is noise. #}
+<div class="grid grid-3 mt">
+  {% if q.status == "draft" %}
+  <div class="card">
+    <div class="card-title">Send it</div>
+    <p class="hint">Sending records <strong>version 1</strong> — a verbatim copy of what the
+      customer was shown. A draft nobody has seen has no agreed version to preserve.</p>
+    <form method="post" action="/quotations/{{ q.id }}/send">
+      <div class="form-actions"><button class="btn btn-primary" type="submit">Mark as sent</button></div>
+    </form>
+  </div>
+  {% endif %}
+
+  {% if q.is_open %}
+  <div class="card">
+    <div class="card-title">Convert to an order</div>
+    <p class="hint">One action, carrying the <strong>quoted</strong> prices forward — not
+      today's list price.</p>
+    <form method="post" action="/quotations/{{ q.id }}/convert">
+      <div class="form-actions"><button class="btn btn-primary" type="submit">Convert</button></div>
+    </form>
+  </div>
+  <div class="card">
+    <div class="card-title">Expire it</div>
+    <p class="hint">For an offer that will not become an order.</p>
+    <form method="post" action="/quotations/{{ q.id }}/expire">
+      <div class="form-actions"><button class="btn btn-danger" type="submit">Expire</button></div>
+    </form>
+  </div>
+  {% endif %}
+</div>
+
+{% if q.status == "sent" %}
+<div class="card mt">
+  <div class="card-title">Re-quote</div>
+  <p class="hint">A revision <strong>appends</strong> a version; the one before it stays
+    readable exactly as it was sent. Nothing is edited in place.</p>
+  <form method="post" action="/quotations/{{ q.id }}/revise">
+    <div class="form-grid">
+      <div class="field full">
+        <label>Reason</label>
+        <input name="reason" required maxlength="400" placeholder="Customer asked for a volume price, …" />
+        <small class="muted">required — why the price changed is the whole value of the history</small>
+      </div>
+      <div class="field"><label>New valid-until</label><input name="valid_until" type="date" /></div>
+    </div>
+    {{ pre.line_grid(products, range(4), title="Revised lines", with_price=true) }}
+    <div class="form-actions"><button class="btn btn-primary" type="submit">Record revision</button></div>
+  </form>
+</div>
+{% endif %}
+
+{# R9.2 — every version that was sent, readable verbatim. #}
+<h2>Version history</h2>
+{% if q.revisions %}
+<p class="hint">Each version is a snapshot of the lines as they stood when it was sent.
+  Append-only: no row here is ever edited, and the next version's timestamp is what says
+  when this one stopped applying.</p>
+{% for rev in q.revisions | reverse %}
+<div class="card mt">
+  <div class="rev-head">
+    <strong>v{{ rev.revision_no }}</strong>
+    {% if rev.is_current %}{{ ui.badge("current") }}{% endif %}
+    <span class="muted">{{ rev.created_at | fmt_datetime }}</span>
+    <span class="num">{{ rev.total_minor | money }}</span>
+  </div>
+  {% if rev.reason %}<p class="hint">{{ rev.reason }}</p>
+  {% else %}<p class="hint">The version originally sent.</p>{% endif %}
+  <table>
+    <thead><tr><th>SKU</th><th class="num">Qty</th><th class="num">Unit price</th><th class="num">Line total</th></tr></thead>
+    <tbody>
+      {% for ln in rev.lines %}
+      <tr>
+        <td class="mono">{{ ln.sku_code or "—" }}</td>
+        <td class="num">{{ ln.qty | number }}</td>
+        <td class="num">{{ ln.unit_price_minor | money }}</td>
+        <td class="num">{{ ln.line_total_minor | money }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endfor %}
+{% else %}
+<p class="hint">No versions yet — this quotation has not been sent. Sending records v1.</p>
+{% endif %}
+
+<div class="mt">{{ ui.history_panel(history) }}</div>
+{% endblock %}

@@ -167,6 +167,9 @@ def status_class(status: Any) -> str:
     warning = {"draft", "pending", "partial", "partially_paid", "open", "new",
                "qualified", "proposal", "in_progress", "todo", "sent",
                "requested", "issued", "invited", "in_transit", "transit"}
+    # Part 7 C1's quotation statuses. `converted` and `expired` already sit in the sets
+    # below/above; `sent` is already a warning. Only `draft` needed nothing new — but a
+    # future status added here without a bucket renders grey and says nothing.
     negative = {"cancelled", "canceled", "overdue", "lost", "inactive",
                 "failed", "rejected", "void", "quarantine", "damaged"}
     if s in positive:

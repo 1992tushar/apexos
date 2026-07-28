@@ -86,6 +86,7 @@ from app.seed.customers import seed_customer_depth
 from app.seed.helpers import SeedContext, get_or_create, record_creation
 from app.seed.inventory import seed_locations
 from app.seed.preorder import seed_preorder
+from app.seed.quotations import seed_quotations
 from app.seed.vendor import seed_vendor
 
 
@@ -634,6 +635,14 @@ def run() -> dict:
             SeedContext(db=db, actor_id=actor_id, activity=activity)
         )
 
+        # --- Part 7 C1's quotations, its own module (G14) -------------------
+        # After customer depth, so the quotations land on customers that already have
+        # contacts and terms, and after products are priced so a quoted discount is
+        # measurably below the list price.
+        quotations_result = seed_quotations(
+            SeedContext(db=db, actor_id=actor_id, activity=activity)
+        )
+
         # --- master change history (last, so it catches every row) ---------
         # Every config master gets its `created` line (R2.10, G14, R3.1's audit column).
         # Most of these rows are written with `get_or_create` rather than through
@@ -715,6 +724,8 @@ def run() -> dict:
             summary["locations"] = locations_result
         if customer_depth_result is not None:
             summary["customer_depth"] = customer_depth_result
+        if quotations_result is not None:
+            summary["quotations"] = quotations_result
         summary["counts"] = {
             "products": db.scalar(select(func.count()).select_from(Product)) or 0,
             "customers": db.scalar(select(func.count()).select_from(Customer)) or 0,

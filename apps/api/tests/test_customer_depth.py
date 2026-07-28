@@ -314,12 +314,19 @@ def test_r8_8_an_override_with_a_reason_writes_exactly_one_activity_row(db, cust
     assert decision.overridden
     assert _activity_rows(db, customer.id) == before + 1, "exactly one row (G5)"
 
+    # Selected BY VERB, not as "the newest row". `occurred_at` defaults to func.now() and
+    # ties for rows written in the same transaction, and `uuid7()` fills its low bits from
+    # os.urandom — so two ids minted in the same millisecond sort randomly and
+    # `ORDER BY occurred_at, id` cannot break that tie. This test is about the override's
+    # CONTENT; making it depend on ordering made it flaky.
     latest = db.scalar(
-        select(ActivityLog)
-        .where(ActivityLog.entity_type == "customer", ActivityLog.entity_id == customer.id)
-        .order_by(ActivityLog.occurred_at.desc(), ActivityLog.id.desc())
+        select(ActivityLog).where(
+            ActivityLog.entity_type == "customer",
+            ActivityLog.entity_id == customer.id,
+            ActivityLog.verb == "overrode",
+        )
     )
-    assert latest.verb == "overrode"
+    assert latest is not None
     # R8.8: who, when, by how much, and why.
     assert latest.data["over_by_minor"] == 4000
     assert latest.data["reason"] == "Long-standing customer, cheque in hand"
@@ -403,12 +410,16 @@ def test_r8_8_confirming_with_an_override_reason_succeeds_and_is_logged(db, cust
     )
 
     assert detail.status == "confirmed"
-    # One row for the override, and it names the order it was for.
+    # One row for the override, and it names the order it was for. Selected by verb, not by
+    # "newest" — see the note in the test above on why ordering cannot break a same-
+    # millisecond tie.
     assert _activity_rows(db, customer.id) == before + 1
     latest = db.scalar(
-        select(ActivityLog)
-        .where(ActivityLog.entity_type == "customer", ActivityLog.entity_id == customer.id)
-        .order_by(ActivityLog.occurred_at.desc(), ActivityLog.id.desc())
+        select(ActivityLog).where(
+            ActivityLog.entity_type == "customer",
+            ActivityLog.entity_id == customer.id,
+            ActivityLog.verb == "overrode",
+        )
     )
     assert order.order_no in latest.summary
 
@@ -646,10 +657,20 @@ def test_r3_7_every_new_part_6_model_declares_its_blocking_references(db, custom
     assert blocking_references(db, note) == []
 
 
-def test_r8_12_part_6_did_not_build_part_7s_work(db):
-    """Scope fence: health score, quotations and returns belong to Part 7."""
-    from app.modules.customers.models import Customer
+def test_r8_12_the_customers_module_does_not_own_quotations_or_returns(db):
+    """Scope fence, rewritten once Part 7 legitimately built quotations.
 
-    tables = set(Customer.metadata.tables)
-    for forbidden in ("quotation", "quotation_line", "sales_return", "credit_note"):
-        assert forbidden not in tables, f"{forbidden} is Part 7's work, not Part 6's (R8.12)"
+    As first written this asserted no `quotation` table existed anywhere — a TEMPORAL fence
+    that was right while Part 6 was in flight and became wrong the moment Part 7 started.
+    What is durably true is the ownership boundary: quotations and returns live in the SALES
+    module, and the customers module must not grow a second implementation of them.
+    """
+    from pathlib import Path
+
+    module = Path(__file__).resolve().parents[1] / "app" / "modules" / "customers"
+    for path in module.glob("*.py"):
+        source = path.read_text(encoding="utf-8")
+        for forbidden in ("class Quotation", "class SalesReturn", "class CreditNote"):
+            assert forbidden not in source, (
+                f"{path.name} defines {forbidden} — that belongs to the sales module (R8.12)"
+            )

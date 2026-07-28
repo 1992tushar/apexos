@@ -174,7 +174,12 @@ def _build_map() -> dict[str, tuple[Reference, ...]]:
         SupplierQuotation,
     )
     from app.modules.products.models import Product
-    from app.modules.sales.models import SalesOrder, SalesOrderLine
+    from app.modules.sales.models import (
+        Quotation,
+        QuotationLine,
+        SalesOrder,
+        SalesOrderLine,
+    )
     from app.modules.suppliers.models import Supplier
 
     # A document is open while it can still change what it reads from a master.
@@ -188,6 +193,10 @@ def _build_map() -> dict[str, tuple[Reference, ...]]:
     via_so = Via(SalesOrder, "sales_order_id", "order_no", open_so)
     via_req = Via(PurchaseRequisition, "purchase_requisition_id", "requisition_no", open_req)
     via_rfq = Via(Rfq, "rfq_id", "rfq_no", open_rfq)
+    # A quotation is open while it can still become an order (Part 7 C1). A converted one
+    # produced the order that is now the record; an expired one is dead.
+    open_quotation = ("draft", "sent")
+    via_quotation = Via(Quotation, "quotation_id", "quotation_no", open_quotation)
 
     def on_product(column: str) -> Reference:
         return Reference(Product, column, "product", "products")
@@ -244,6 +253,11 @@ def _build_map() -> dict[str, tuple[Reference, ...]]:
             Reference(PurchaseRequisitionLine, "product_id", "open requisition",
                       "open requisitions", via=via_req),
             Reference(RfqLine, "product_id", "open RFQ", "open RFQs", via=via_rfq),
+            # Part 7 C1: an open quotation reads the product again when it converts, so
+            # retiring it underneath would break the conversion. A converted or expired
+            # quotation is history and does not block.
+            Reference(QuotationLine, "product_id", "open quotation", "open quotations",
+                      via=via_quotation),
         ),
         "customer": (
             Reference(SalesOrder, "customer_id", "open sales order", "open sales orders",
@@ -340,6 +354,17 @@ def _build_map() -> dict[str, tuple[Reference, ...]]:
         "customer_address": (),
         "customer_credit_policy": (),
         "customer_note": (),
+        # --- Part 7 C1: quotation (R9.1–R9.3) --------------------------------
+        # An OPEN quotation still reads the product it names — it will read it again when it
+        # converts — so retiring the product underneath it would break the conversion. Same
+        # reasoning as R4.1/R4.3 gave an unconverted requisition. A converted or expired
+        # quotation is history: the order it produced snapshotted what it needed (R1.7).
+        "quotation": (),
+        "quotation_line": (),
+        # A revision is history, never deleted or deactivated (G4), so there is no action
+        # for a guard to block. Declared and deliberately empty.
+        "quotation_revision": (),
+        "quotation_revision_line": (),
     }
 
 

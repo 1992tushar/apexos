@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+{% import "_preorder.html" as pre %}
+{% block title %}Quotations{% endblock %}
+{% block content %}
+{% call ui.page_header("Quotations", rows | length ~ " on record") %}{% endcall %}
+
+<div class="grid grid-3 mt">
+  {{ ui.stat("Open", open_count, "draft or sent") }}
+  {{ ui.stat("Past validity", lapsed_count, "sent, but the date has passed") }}
+  {{ ui.stat("Total on record", rows | length) }}
+</div>
+
+<div class="card mt">
+  <div class="card-title">Raise a quotation</div>
+  <form method="post" action="/quotations">
+    <div class="form-grid">
+      <div class="field">
+        <label>Customer</label>
+        <select name="customer_id" required>
+          {% for c in customers %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="field">
+        <label>Valid until</label>
+        <input name="valid_until" type="date" />
+        <small class="muted">optional — leave blank if the price does not lapse</small>
+      </div>
+      <div class="field full"><label>Note</label><input name="note" maxlength="400" /></div>
+    </div>
+
+    {# Part 3's typed SKU picker, plus a price per line — a quotation usually names its own
+       price rather than taking the list price. #}
+    {{ pre.line_grid(products, range(4), autofocus=true, title="Quoted lines", with_price=true) }}
+    <p class="hint">Leave a line's price blank to use the customer's list price. A typed SKU
+      that does not exist is named back to you rather than dropped.</p>
+    <div class="form-actions"><button class="btn btn-primary" type="submit">Raise quotation</button></div>
+  </form>
+</div>
+
+{% if rows %}
+<div class="table-wrap mt">
+  <table>
+    <thead>
+      <tr><th>Quotation</th><th>Customer</th><th>Status</th><th>Raised</th>
+        <th>Valid until</th><th class="num">Versions</th><th class="num">Total</th></tr>
+    </thead>
+    <tbody>
+      {% for r in rows %}
+      <tr>
+        <td class="mono"><a class="row-link" href="/quotations/{{ r.id }}">{{ r.quotation_no }}</a></td>
+        <td>{{ r.customer_name or "—" }}</td>
+        <td>{{ ui.badge(r.status) }}</td>
+        <td>{{ r.quotation_date | fmt_date }}</td>
+        <td>
+          {% if r.valid_until %}{{ r.valid_until | fmt_date }}{% if r.past_validity and r.status == "sent" %} {{ ui.badge("lapsed") }}{% endif %}
+          {% else %}—{% endif %}
+        </td>
+        <td class="num">{{ r.revision_count }}</td>
+        <td class="num">{{ r.total_minor | money }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+  {{ ui.empty("No quotations yet.") }}
+{% endif %}
+{% endblock %}
