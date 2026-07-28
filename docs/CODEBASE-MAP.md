@@ -200,10 +200,26 @@ live here because they exist only to address stock). `stock_movement.bin_id` is 
 state column anywhere — including the mechanism for a two-step transfer (OUT of a stock bin, IN to a
 transit bin).
 
+**`valuation.py` (Part 5 C2) is the read-only half**, beside `service.py`'s write half — the same split
+`suppliers/vendor.py` has from `suppliers/service.py`. It derives two things and stores neither:
+
+- **Weighted-average cost (R6.16)** — `SUM(qty × unit_cost) / SUM(qty)` over **purchases only**.
+  `ACQUISITION_REASONS = ("PURCHASE",)`: a transfer moves the same units and would weight one purchase
+  twice, putaway is net-zero, an adjustment or count corrects quantity without buying at a price.
+  Uncosted purchases are excluded from both sides and disclosed, never counted as zero. No purchase at
+  all ⇒ **unknown**, and the total excludes it rather than valuing stock at nothing.
+  **Margin must never read this** (R11.6/D-A) — a source-walk test enforces it.
+- **Age buckets (R6.10)** — `AGE_BUCKETS`, **upper bounds inclusive**. The balance is attributed to
+  arrivals newest-first (older stock assumed to leave first); `PUTAWAY` is excluded or every put-away
+  product looks like it landed today. Balance no arrival covers is reported as `unattributed`, not aged.
+  **Not a FIFO layer** (D-A struck those): nothing stored, nothing consumed from a layer, valuation
+  does not read it. The approximation is one string, rendered on screen and as `Explained.caveat`.
+
 The verbs other modules call:
 
 - `InventoryService.record_movement(...)` — **the only writer of `stock_movement`** (G8). A source-walk
-  test fails if anything else constructs one.
+  test fails if anything else constructs one. `bin_id` and `occurred_at` are both optional;
+  `occurred_at` is how the seed fabricates aged history at insert time instead of UPDATE-ing a ledger.
 - `ReservationService.reserve / release / consume` — **the only reservation mechanism** (R6.6). Sales
   calls `reserve` at order confirm, `consume` at fulfilment, `release` at cancellation (R9.8/R9.9).
   Adding a flag or a second path is the specific failure R6.5 exists to prevent.
@@ -324,9 +340,10 @@ app/seed/
   preorder.py    seed_preorder(ctx) — Part 3's section, the worked example
   vendor.py      seed_vendor(ctx) — Part 4's: mapping + MOQ, receipt history,
                  scorecards, price timeline, the two reorder cases, one late arrival
-  inventory.py   seed_locations(ctx) — Part 5 C1's: racks + bins in both warehouses
-                 (incl. one transit and one quarantine bin), putaway of 12 products as
-                 NET-ZERO movement pairs, and one live reservation
+  inventory.py   seed_locations(ctx) — Part 5's: racks + bins in both warehouses (incl.
+                 one transit and one quarantine bin), putaway of 12 products as NET-ZERO
+                 movement pairs, one live reservation, and (C2) four BACKDATED purchases
+                 at four prices on two products, straddling the age-bucket edges
 ```
 
 **The putaway is a net-zero pair on purpose** — out of the unaddressed pool, into a bin — because
