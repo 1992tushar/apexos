@@ -1,5 +1,10 @@
 # Parts 5 → 6 → 7 — the unattended checkpoint loop
 
+> **THIS RUN IS COMPLETE.** All seven ledger items are done and the E2E gate is clean. Parts 1–7
+> pass, 623 tests, ruff at exactly 37 (the pre-existing count, unchanged). The build continues at
+> **Part 8**, whose prompt is the `▶ NEXT SESSION PROMPT` in `PROGRESS.md` — this file is kept for
+> audit and as the pattern for a future multi-part run. **Do not re-run this loop.**
+
 You are executing **exactly ONE checkpoint**, then stopping. Do not begin a second in the same
 turn: one checkpoint per firing is what keeps each firing's context small enough to do the work
 properly, and the state lives on disk (PROGRESS.md) rather than in the conversation.
@@ -61,7 +66,7 @@ found into the resume block, commit nothing else, and **stop the loop**.
 | 6a | **P7-C2** reservation wiring + returns + credit notes | ✅ done — `27d1c49` |
 | 6b | **P7-C2** customer health score + R9.15's partial return | ✅ done — `761e9aa` |
 | 6c | **P7-C2** the SPEED work — R9.12 keyboard-first entry, R9.13 keystroke measurements | ✅ done · **Part 7 CLOSED** |
-| 7 | **E2E** the cross-part walkthrough + final PROGRESS.md and CODEBASE-MAP.md | next — **the last item of this run** |
+| 7 | **E2E** the cross-part walkthrough + final PROGRESS.md and CODEBASE-MAP.md | ✅ done — 44/44 clean · **RUN COMPLETE** |
 
 After #7, stop the loop — that is the terminal state. The per-checkpoint requirement detail is
 in `docs/REQUIREMENTS.md` and the resume block; the three things worth repeating here because

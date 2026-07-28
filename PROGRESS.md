@@ -27,8 +27,8 @@ layout in `docs/CODEBASE-MAP.md`, and `docs/ROADMAP.md` which a session does not
 
 # ▶ CURRENT WORK — read this first
 
-**Parts 1–7 are COMPLETE.** What remains of this run is **one cross-part E2E gate**, then the build
-continues at Part 8 (Finance).
+**Parts 1–7 are COMPLETE and the cross-part E2E gate is CLEAN** (44 checks; record in
+`docs/parts/e2e-gate.md`). The build continues at **Part 8 — Finance**, three checkpoints.
 
 **All work is on `main`** — no feature branches, no PRs. **Parts 5–7 were NOT tagged** (the user
 waived it), so the checkpoint SHA table below is what `part-0N-done` would otherwise be.
@@ -40,73 +40,97 @@ the **▶ NEXT SESSION PROMPT** below and follow it". **The session that closes 
 prompt** — one still naming last checkpoint's baseline counts is worse than none, because the next
 session will trust it.
 
-#### ▶ NEXT SESSION PROMPT — the cross-part E2E gate · closes the Parts 5–7 run
+#### ▶ NEXT SESSION PROMPT — Part 8, C1 (Finance: ledgers, AR/AP ageing, collections, allocation)
 
 ```
-Continue the ApexOS build. This is the E2E GATE — the last item of the Parts 5–7 run. It is
-mostly VERIFICATION, not new code. Do this in order:
+Continue the ApexOS build. Do this in order:
 
-1. git checkout main && git pull origin main. Then git status — if it is dirty, stop and
-   report. No tags this run; do not expect part-0N-done to exist.
+1. git checkout main && git pull origin main. Then git status — one writer per working tree;
+   if it is dirty, stop and report. Parts 5–7 were NOT tagged (the user waived it), so do not
+   expect part-05-done / part-06-done / part-07-done to exist. Part 8 CAN be tagged again if
+   the user wants it — ask, or leave it untagged and keep the SHA table below accurate.
 
-2. Read the "▶ CURRENT WORK" block below. Parts 1–7 are COMPLETE: every R1–R9 requirement
-   passes. Do NOT re-read the part records in docs/parts/ — everything needed is below.
+2. Read the "▶ CURRENT WORK" block below. PARTS 1–7 ARE COMPLETE and the E2E gate is clean.
+   That block lists the EIGHT invariants Part 8 must not break and carries verified signatures
+   to call without opening the source. Its "Do NOT read" list is binding.
 
-3. Verify the baseline (from apps/api, venv activated):
+3. Read docs/REQUIREMENTS.md §1 (global invariants G1–G17) and §11 (R10.x — Part 8 group A).
+   §12 (R11.x) is group B; read it when you reach C3. NOT optional: the invariants — integer
+   minor units, exactly one activity_log row per state change, derived-never-stored,
+   APPEND-ONLY LEDGERS — are not in the files you are editing, and Part 8 is the part where a
+   mutable balance would be most tempting.
+   Then docs/prompts/part-08.md (self-contained, THREE checkpoints) and
+   docs/STANDING-RULES.md (binding). Do NOT open docs/ROADMAP.md — planning only, ~17k tokens.
+   Also docs/08-module-breakdown.md § Finance.
+
+4. `git diff 2b98c4a~9..HEAD --stat` for the whole Parts 5–7 run, or `git show --stat 2b98c4a`
+   for just the last checkpoint. Not a tree walk — docs/CODEBASE-MAP.md is current.
+
+5. Verify the baseline before writing code (from apps/api, venv activated):
      python -m pytest -q                  # expect 623 passed
      python -m ruff check app/ tests/     # expect EXACTLY 37 — 38 is a regression
    If either is off, stop and report. 37 is pre-existing (32 E501, 4 F841, 1 B007, all in
-   modules this run never touched). Parts 1–7 added ZERO new findings; that is the record to
-   preserve.
+   modules Parts 5–7 never touched). SEVEN PARTS HAVE ADDED ZERO NEW FINDINGS. That is the
+   record to preserve, and it is easier to hold than to recover.
 
-4. THE GATE. Use a FRESH database. The env var is DATABASE_URL, NOT APEXOS_DATABASE_URL —
-   the wrong name silently writes the real apexos.db and you will "verify" against stale
-   data:
-     export DATABASE_URL="sqlite:///./e2e.db"
-     python -m app.seed
-     python -m uvicorn app.main:app --port 8025      # 8000 may be busy; 8015–8024 were used
-   Then walk ONE trail through the SCREENS — not through pytest, which has already passed:
+6. C1 is group A's first half: customer and vendor LEDGERS, AR/AP ageing, collections, and
+   payment allocation. The thing to get right before anything else:
 
-   BUY SIDE: /procurement shows a recommendation from R5.9's engine → raise a requisition →
-   convert to a PO → confirm → receive INTO A BIN → /inventory shows the bin total rolling
-   up to its rack and warehouse, the weighted-average cost moving, an ageing bucket
-   appearing, and the vendor score updating on /suppliers.
+   **THE RECEIVABLE ALREADY HAS ONE DEFINITION.** `CustomerRepository.outstanding_minor` is
+   `Σ invoice.total − Σ allocations − Σ credit_notes`. AR ageing, collections and any
+   statement screen must CALL it, not re-derive it. A second derivation is exactly how two
+   screens start disagreeing about what a customer owes, and it is the single most likely
+   mistake in this part. If ageing needs a per-invoice breakdown that the method does not
+   expose, EXTEND the method or add a sibling beside it — do not reimplement the arithmetic.
 
-   OPERATIONS: open a cycle count on /warehouse, enter a variance, close it → exactly one
-   adjustment posts. Close a second count with no variance → NOTHING posts. Dispatch a
-   transfer → /inventory shows it IN TRANSIT with total on-hand unchanged → receive it.
+   Everything else follows from the ledgers being append-only (G4): an allocation is a new
+   `PaymentAllocation` row, never an edit to an invoice; a write-off is a document, not a
+   mutation. Ageing buckets need their boundaries STATED and tested — `AGE_BUCKETS` in
+   `app/modules/inventory/schemas.py` is the house pattern (module constant, printed on
+   screen, every edge pinned by a test), and R6.10's inclusive-upper-bound convention should
+   be matched rather than contradicted.
 
-   SELL SIDE: raise a quotation on /quotations → send → revise → convert → the order carries
-   the QUOTED price → confirm (the credit check fires; /inventory's reserved rises and
-   available falls while ON-HAND DOES NOT) → fulfil (the reservation is consumed and the
-   stock leaves) → invoice → record a payment → raise a PARTIAL return → a credit note
-   appears, the INVOICE IS UNCHANGED, and the customer's outstanding falls by the credit.
+7. Constraints that bind:
+     - G4: invoices, bills, payments, allocations and credit notes are APPEND-ONLY.
+     - G7: every balance is DERIVED. No stored outstanding, no cached ageing bucket.
+     - G1: money is integer minor units, rounded through `app.core.money.round_minor` only.
+     - G5: exactly one activity_log row per state change.
+     - G10: every new POST carries the R1.4 authz guard; the authz walk enforces it.
+     - G11: every figure that is not a raw amount explains itself through `Explained` + the
+       `explain_panel` macro. "Unknown" is `Explained.unknown`, never a default.
+     - Every new model owes app/db/references.py an entry, even an empty tuple (R3.7),
+       EXERCISED with `blocking_references(db, row)` in a test.
+     - A new column on an EXISTING table needs an `_ADDITIVE_COLUMNS` entry in app/main.py.
+     - status_class needs a bucket for any new status, or the badge renders grey.
 
-   CUSTOMER: /customers/{id} shows contacts, ship-to branches, the versioned credit terms
-   with their reasons, notes, the timeline, and the health score with its four inputs and
-   weighting. Try an order that breaches the limit → the block STATES THE NUMBERS → override
-   with a reason → the override appears on the timeline.
+8. Work on main. No branches, no PRs. Commit at the END OF C1 and push — one checkpoint per
+   session. Part 8's checkpoints: C1 ledgers + AR/AP ageing + collections + allocation ·
+   C2 cash flow + working capital + CCC · C3 margin by four dimensions + leakage + GST.
 
-   Every nav page 200s. A bad id (/customers/<random-uuid>) renders error.html at 404.
+9. NAME EVERY NEW TEST AFTER THE REQUIREMENT IT PROVES. Evidence is a test node id, not a
+   paragraph. MUTATION-CHECK the new suite once — break the implementation and confirm the
+   tests go red. Nine checkpoints have done this and it has found real defects twice, not just
+   confirmed passing tests.
 
-5. WRITE DOWN WHICH STEPS YOU WALKED IN A BROWSER VERSUS ASSERTED ONLY IN A TEST. Report
-   failures with their output. **Do not describe a step you skipped as passing** — the value
-   of this gate is that it is the one check no test performed, so an inflated report destroys
-   the only thing it was for.
+   Four lessons this run paid for, each worth carrying:
+     - An equality assertion between two code paths only tests what the CURRENT DATA
+       distinguishes. A no-op filter passed an "identical output" test because nothing in the
+       seed could tell the difference.
+     - When a change relocates a fact, MOVE the assertion rather than deleting it.
+     - A source-walk test cannot tell a call from a comment — one failed on its own docstring.
+       Count queries with a SQLAlchemy event listener instead.
+     - A test that reads a CONVENIENCE FIELD rather than the source of truth can be
+       confidently wrong. The E2E gate's one failure was exactly this.
 
-6. Stop uvicorn BEFORE deleting the scratch .db (Windows holds the file; pkill does not exist
-   here):
-     Get-CimInstance Win32_Process | Where CommandLine -like '*8025*' | Stop-Process -Force
-
-7. If the gate finds defects: fix them, add a test named after the requirement each one
-   breaks, and re-run the loop. If it finds none, say so plainly — a clean gate after seven
-   parts is a real result, not a non-event.
-
-8. Then write docs/parts/e2e-gate.md with what was walked and what was found, update this
-   block, and rewrite the NEXT SESSION PROMPT for PART 8 C1 (Finance: customer/vendor
-   ledgers + AR/AP ageing + collections + allocation; docs/REQUIREMENTS.md §11's R10.x,
-   docs/prompts/part-08.md, THREE checkpoints). Commit and push.
-   PROGRESS.md IS CAPPED AT ~350 LINES — replace, never append.
+10. BEFORE you run low, update the "▶ CURRENT WORK" block: the checkpoint SHA table,
+    R-numbers passed and outstanding, gotchas, decisions a later checkpoint must not reverse,
+    and the four delta lines — Changed since / Read for the next checkpoint / Call, don't read
+    (copy signatures FROM SOURCE) / Do NOT read. Then rewrite this prompt for C2 with measured
+    baselines. Commit and push. If the checkpoint changed the SHAPE of anything, amend
+    docs/CODEBASE-MAP.md in the same session.
+    PROGRESS.md IS CAPPED AT ~350 LINES — replace, never append. Archive each finished
+    checkpoint to docs/parts/part-08.md progressively rather than waiting for the close; that
+    is what kept this file at 228 lines through a nine-checkpoint run.
 
 Use pytest -q, never verbose. Don't re-read files you just edited.
 ```
@@ -116,10 +140,19 @@ from `docs/prompts/part-08.md` instead. More deterministic, more typing.
 
 ---
 
-## ▶ Handoff — Parts 5, 6 and 7 are COMPLETE
+## ▶ Handoff — Parts 5, 6 and 7 are COMPLETE · the E2E gate is CLEAN
 
 **Not tagged** — waived for this run, so these SHAs are the record. Full records in
-`docs/parts/part-05.md`, `part-06.md` and `part-07.md`. **Do not read them.**
+`docs/parts/part-05.md`, `part-06.md`, `part-07.md` and `e2e-gate.md`. **Do not read them.**
+
+**The E2E gate passed 44 checks** — 28 on the cross-part trail (recommendation → requisition → PO →
+receipt into a bin → cost and ageing move → transfer in transit → quotation → revise → convert at the
+quoted price → confirm reserves → fulfil consumes → invoice → partial return leaves the invoice
+untouched and drops the receivable) and 16 driving the real POST forms. Driven over **HTTP, not
+clicked in a browser**: layout and whether the screens *feel* fast are not covered, so **R9.12's
+manual walkthrough remains a human task**. One check failed on the first run — a miswritten
+assertion in the gate script reading a convenience field instead of the ledger, not a product
+defect; `docs/parts/e2e-gate.md` records it rather than erasing it.
 
 | Part | Commits | What landed |
 |---|---|---|
