@@ -61,7 +61,7 @@ updating the resume block — a starter that still names last part's baseline co
 than none, because the next session will trust it. Keep it short: the binding lists live in the resume
 block, and the prompt's job is to point at them and name the numbers.
 
-#### ▶ NEXT SESSION PROMPT — Part 4, checkpoint C1
+#### ▶ NEXT SESSION PROMPT — Part 4, finishing C1 then C2
 
 ```
 Continue the ApexOS build. Do this in order:
@@ -88,11 +88,17 @@ Continue the ApexOS build. Do this in order:
    shape, `git show --stat 3d0162b` (C1) and `git show --stat e62f8bb` (C2). Not a tree walk.
 
 5. Verify the baseline before writing code (from apps/api, venv activated):
-     python -m pytest -q                  # expect 336 passed
+     python -m pytest -q                  # expect 361 passed
      python -m ruff check app/ tests/     # expect EXACTLY 37 findings — 38 is a regression
    If either is off, stop and report. 37 is the pre-existing count (32 E501, 4 F841, 1 B007,
    all in untouched modules). It was 38 until Move 0 split app/seed.py into the app/seed/
-   package, which removed the last E402. Parts 1–3 added ~10,000 lines with zero new findings.
+   package, which removed the last E402. Parts 1–4 have added zero new findings.
+
+   PART 4 IS ALREADY HALF DONE — the engine landed in cf552e3 and is green. Read the
+   "▶ Part 4 — IN FLIGHT" block below FIRST: it lists exactly which R-numbers pass, which
+   remain, and the signatures of the services you are about to render. Do NOT rebuild the
+   scoring, lead-time, on-time or price-history logic; it exists, it is tested, and G16
+   makes calling it mandatory. What is left is mostly TEMPLATES plus the C2 engine.
 
 6. Part 4 is INTELLIGENCE FROM PART 3's HISTORY — arithmetic and data, no ML and no runtime
    LLM call (G12). Two checkpoints; C1 is:
@@ -182,6 +188,115 @@ Part 3 (Procurement: pre-order → PO depth) is **COMPLETE**, on `main`, tagged 
 Its full record — the two defects it fixed outside scope, the pre-existing `REFERENCES["warehouse"]`
 bug, the requirement-by-requirement evidence, the C1/C2 file lists — is in **`docs/parts/part-03.md`**.
 **Do not read it.** Everything a Part 4 session needs is below.
+
+### ▶ Part 4 — IN FLIGHT · engine done, screens and C2 outstanding
+
+**Landed:** `cf552e3` — the derived half of Part 4. **361 tests passing, ruff 37.** Not tagged;
+the part is not done.
+
+| R | State | Where |
+|---|---|---|
+| R5.1 | ✅ mapping, preferred exclusive per product | `ProductSupplierService` |
+| R5.2 | ✅ score 60/40, renormalises, arithmetic exposed | `VendorIntelService.score` |
+| R5.3 | ✅ measured confirm→receipt, no editable field | `VendorIntelService.lead_time` |
+| R5.4 | ✅ boundary `received <= promised` is ON TIME | `VendorIntelService.on_time_rate` |
+| R5.5 | ⚠️ MOQ recorded + tested; **not yet in R4.5's grid** | `ProductSupplierService.moq` |
+| R5.6 | ⚠️ timeline computed + tested; **no screen yet** | `VendorIntelService.price_history` |
+| R5.10 R5.11 R5.13 R5.14 R3.7 | ✅ | tests + `app/seed/vendor.py` |
+| **R5.7 R5.8 R5.9** | ❌ **not started — all of C2** | — |
+| **R5.12** | ❌ **not started — the screens** | — |
+
+**What is left, in the order to do it:**
+
+1. **R5.12 screens.** Add an `explain_panel` macro to `_macros.html` rendering an `Explained`
+   (what / value-or-"unknown" / formula / window / inputs with weights / linked records).
+   One macro, used by every output — do not write per-screen markup. Then: supplier detail
+   gets score + lead time + on-time; product detail gets the vendor comparison
+   (`list_for_product`, preferred first) and the price timeline.
+2. **R5.5 in R4.5's grid.** `preorder.py:447-508` builds `QuoteComparisonColumn`; fill its
+   `score` from `VendorIntelService.score(...).display` and add MOQ from
+   `ProductSupplierService.moq(...)`. **Delete `SCORE_NOTE` (preorder.py:84)** — it exists
+   only to say "part 4 will do this", and it is now wrong.
+3. **C2: R5.9's ONE entry point**, then R5.8 on top of it, then R5.7's calendar.
+   Suggested shape — `app/modules/procurement/recommend.py`:
+       RecommendationService(db).recommend(*, product_id=None, limit=None) -> list[Recommendation]
+   Each `Recommendation` carries qty + an `Explained` whose formula reads like R5.8's example:
+   "reorder 40 of X — stock 12, reorder level 50, 0 on open PO, lead time 9 days over 6
+   receipts". Parts 5 and 10 CALL this; two implementations of "what should I buy" is the
+   specific failure R5.9 exists to prevent.
+   Reuse, do not rebuild: `InventoryService.on_hand(product_id)`,
+   `Product.reorder_level`, `PurchaseOrderService.open_qty(line)` (a **staticmethod**, and
+   THE definition of open — R4.9/G7), `ProductSupplierService.preferred_supplier_id`.
+   The calendar's "due to arrive" is confirmed/partially_received POs by
+   `PurchaseOrder.expected_date`; "due to order" is the recommendations.
+4. Name new tests `test_r5_7_…` / `test_r5_8_…`; `pytest -q -k r5_` is the closeout evidence.
+
+**Three decisions made in C1 that a later part must not undo:**
+
+1. **`PurchaseOrder.expected_date` is an input, not a derivation.** It is the supplier's
+   commitment for one order — the boundary R5.4 measures against and the date R5.7 reads.
+   R5.3 is NOT violated: lead time is still measured from `confirmed_at` → `received_at` and
+   there is a test asserting no lead-time field exists anywhere writable.
+2. **`confirm(confirmed_at=…)` and `GoodsReceiptCreate.received_at` are deliberate.** Goods
+   received Saturday and keyed in Monday arrived Saturday. This is also the only way the seed
+   can fabricate history without UPDATE-ing `goods_receipt`, which G4 forbids.
+3. **The vendor score renormalises over available inputs and says so.** A supplier with a
+   scorecard but no receipts scores on the scorecard alone, with a caveat on screen. Only when
+   BOTH inputs are absent is the score unknown. Inventing 0 or 50 is what R5.11 forbids; being
+   transparent about a partial basis is not.
+
+**Gotcha that cost a test:** `APX-GB-003` already carries opening stock from an earlier seed
+section, so a hard-coded reorder level of 80 was not "below reorder" once stock was 100.
+`REORDER_CASES` now sets the level relative to **measured** `on_hand`. If you add a seed
+section that moves stock, that relationship still holds.
+
+**Call, don't read** — Part 4's new signatures, copied from source:
+
+```python
+# app/db/explain.py — the ONE shape for every explained number (G11)
+Explained(what, value: str | None, formula, window, inputs=(), records=(),
+          unknown_reason=None, caveat=None)
+#   .is_known  -> value is not None      .display -> value or "unknown"
+Explained.unknown(*, what, formula, reason, window="no data", inputs=(), records=())
+Input(label, value, weight=None, missing_reason=None)   # .is_missing
+SourceRecord(label, href=None)
+
+# app/modules/suppliers/vendor.py — READS ONLY, writes nothing (G15)
+VendorIntelService(db).lead_time(supplier_id)    -> Explained   # R5.3, "7 days"
+VendorIntelService(db).on_time_rate(supplier_id) -> Explained   # R5.4, "67%"
+VendorIntelService(db).score(supplier_id)        -> Explained   # R5.2, "75"
+VendorIntelService(db).price_history(product_id) -> list[PriceHistoryRow]
+#   PriceHistoryRow(.supplier_id .supplier_name .price_minor .valid_from .valid_to
+#                   .is_current .delta_minor)  — oldest first, delta vs that supplier's
+#                   previous price, None on its first
+VendorIntelService(db).receipts(supplier_id)     -> list[Receipt]
+#   Receipt(.receipt_no .po_no .purchase_order_id .confirmed_on .received_on
+#           .expected_on) · .lead_days · .is_on_time -> bool | None (None = unpromised)
+LEAD_TIME_WINDOW = 12 · WEIGHT_SCORECARD = 60 · WEIGHT_ON_TIME = 40
+
+# app/modules/suppliers/service.py — the WRITE half
+ProductSupplierService(db).list_for_product(product_id) -> list[ProductSupplierRead]
+#   preferred first, then supplier name. Each row's .score/.lead_time/.on_time_rate are
+#   RENDERED strings and may be "unknown" — never format them as numbers.
+ProductSupplierService(db).upsert(ProductSupplierUpsert, *, actor_id) -> ProductSupplierRead
+ProductSupplierService(db).set_preferred(link_id, *, actor_id)
+ProductSupplierService(db).delete(link_id, *, actor_id)
+ProductSupplierService(db).moq(product_id, supplier_id) -> Decimal | None
+ProductSupplierService(db).preferred_supplier_id(product_id) -> uuid.UUID | None
+ProductSupplierUpsert(product_id, supplier_id, is_preferred=False, moq=None, note=None)
+#   deliberately has NO lead-time field (R5.3) — a test asserts that
+
+# app/modules/procurement/service.py — changed in C1, both optional
+PurchaseOrderService(db).confirm(order_id, *, actor_id, confirmed_at=None, expected_date=None)
+GoodsReceiptCreate(lines=None, against_revision_no=None, received_at=None)
+```
+
+**Do NOT read:** `app/seed/core.py` (707 lines — read `app/seed/__init__.py`'s docstring and
+`app/seed/vendor.py` as the pattern), `tests/test_vendor_intel.py` unless you change what it
+covers, `app/modules/procurement/preorder.py` except lines ~440–510 for item 2 above, and any
+file in `docs/parts/`.
+
+---
 
 ### ▶ Move 0 — the restructuring done between Part 3 and Part 4 (2026-07-28, no feature work)
 
