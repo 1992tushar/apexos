@@ -20,6 +20,33 @@ tags are the rollback points.
 **Every session ends by updating the block below, before it runs out of room.** A session that dies
 with an accurate resume block costs nothing; one that dies without it costs a re-derivation.
 
+### ▶ How to start the next session
+
+Open a fresh Claude Code session in `c:\Imp Data\Personal\apexos` and paste **exactly this**:
+
+```
+Continue the ApexOS build. Do this in order:
+1. git checkout main && git pull origin main
+2. Read the "CURRENT WORK" block at the top of PROGRESS.md — it names the part in flight, the
+   checkpoint to start at, which requirement IDs are outstanding, and what NOT to re-read.
+3. Open docs/ROADMAP.md, find the PROMPT for that part, and follow it from that checkpoint.
+   Its SESSION PROTOCOL block tells you what this session is expected to finish.
+4. Work on main — no branches, no PRs. Commit when the checkpoint is done.
+5. Before you run low on context, update the CURRENT WORK block in PROGRESS.md.
+```
+
+That works unchanged for every remaining session — the resume block carries the state, so the starter
+never has to. Nothing to look up, nothing to keep in your head.
+
+**If you'd rather be explicit:** open `docs/ROADMAP.md`, copy the whole ```-fenced PROMPT for the part
+you want, and paste that instead. More deterministic, more typing. Use it if a session has drifted and
+you want a hard reset on the scope.
+
+**Rules of thumb.** One checkpoint per session — don't push a session past its checkpoint to "just
+finish the part". Start each session fresh (`/clear` or a new window) rather than continuing a long
+one. And if a session ends messy, the recovery is `git log --oneline -5` plus the resume block, not
+re-reading the design docs.
+
 ## Part 1 — Foundation finish · on `main` · checkpoint 2 of 3 · tag when done: `part-01-done`
 
 - [x] **C1** WS1 — test suite → commit `edf51ea`
