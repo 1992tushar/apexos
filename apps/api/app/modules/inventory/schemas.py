@@ -212,6 +212,101 @@ class ReservationResult(BaseModel):
 LocationRollupRow.model_rebuild()
 
 
+# --- Part 5 C3b: health thresholds (R7.7–R7.10) ---------------------------
+#
+# Every one of these is stated on screen. R7.7 and R7.8 make that acceptance, and a
+# classification whose cut-off you cannot see is a number you cannot argue with. They live
+# here as constants for the same reason AGE_BUCKETS does: the screen, the explanation and
+# the test all read one source.
+
+# Cumulative share of consumption value, in order. **Upper bound INCLUSIVE** — a product
+# landing exactly on 80% is class A, matching how AGE_BUCKETS treats its edges. The last
+# entry must be 1.0 or a product at the very tail falls out of every class.
+ABC_CLASSES: tuple[tuple[str, Decimal], ...] = (
+    ("A", Decimal("0.80")),
+    ("B", Decimal("0.95")),
+    ("C", Decimal("1.00")),
+)
+
+# The window ABC and the fast/slow split measure demand over.
+MOVEMENT_WINDOW_DAYS = 365
+
+# No sale in strictly MORE than this many days, with stock still on hand, is dead stock.
+# Exactly this many days is NOT yet dead — the boundary is stated and tested.
+DEAD_STOCK_DAYS = 90
+
+# At or below this many units sold per month is a slow mover; above it is a fast mover.
+SLOW_MOVER_MAX_PER_MONTH = 5
+
+
+class AbcRow(BaseModel):
+    """One product's ABC classification (R7.7). `abc_class` is derived, never stored."""
+
+    product_id: uuid.UUID
+    sku_code: str
+    product_name: str
+    qty_consumed: Decimal
+    value_minor: int
+    cumulative_share_bps: int
+    abc_class: str
+    window_days: int
+
+
+class DeadStockRow(BaseModel):
+    """Stock on hand that has not sold inside the window (R7.8).
+
+    `days_since_sale` is None when the product has NEVER sold — the deadest case, not a
+    missing value, and it sorts first rather than being hidden.
+    """
+
+    product_id: uuid.UUID
+    sku_code: str
+    product_name: str
+    qty_on_hand: Decimal
+    value_minor: int | None
+    days_since_sale: int | None
+    window_days: int
+
+    @property
+    def never_sold(self) -> bool:
+        return self.days_since_sale is None
+
+
+class MovementRow(BaseModel):
+    """How fast a product actually moves (R7.9), with the numbers behind it."""
+
+    product_id: uuid.UUID
+    sku_code: str
+    product_name: str
+    qty_consumed: Decimal
+    movements: int
+    per_month: Decimal
+    window_days: int
+    is_fast: bool
+
+    @property
+    def label(self) -> str:
+        return "fast" if self.is_fast else "slow"
+
+
+class LowStockRow(BaseModel):
+    """Below the reorder level, on AVAILABLE rather than on-hand (R7.10)."""
+
+    product_id: uuid.UUID
+    sku_code: str
+    product_name: str
+    warehouse_id: uuid.UUID
+    warehouse_name: str
+    available: Decimal
+    on_hand: Decimal
+    reserved: Decimal
+    reorder_level: Decimal
+
+    @property
+    def shortfall(self) -> Decimal:
+        return self.reorder_level - self.available
+
+
 # --- Part 5 C3: operations (R7.1–R7.5) ------------------------------------
 
 

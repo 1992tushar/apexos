@@ -160,6 +160,11 @@ def seed_locations(ctx: SeedContext) -> dict | None:
         break
 
     aged = _seed_aged_purchases(ctx, warehouses[0])
+    # Demand history needs a warehouse that actually HOLDS stock, and `warehouses[0]` is
+    # whichever sorts first by code — Mumbai, which carries two SKUs. Picking the busiest
+    # warehouse instead of index 0 is the difference between ten products' sales history
+    # and none at all, and it stays correct if a third warehouse is ever seeded.
+    demand = _seed_demand_history(ctx, _busiest_warehouse(inventory, warehouses))
     operations = _seed_operations(ctx, warehouses)
 
     db.flush()
@@ -170,8 +175,87 @@ def seed_locations(ctx: SeedContext) -> dict | None:
         "products_put_away": put_away,
         "reserved": str(reserved.qty_delta) if reserved else None,
         "aged_purchases": aged,
+        "demand_history": demand,
         "operations": operations,
     }
+
+
+# Monthly demand per product, steeply descending. The SPREAD is the point (R7.14): with
+# flat demand every product lands in one ABC class and the classification says nothing, and
+# with no high performer there is no fast mover to show. The tail products sell so little
+# that they fall into C, and the products deliberately left OUT of this list keep stock they
+# have never sold — which is what the dead-stock radar is for.
+#
+# The first entry clears SLOW_MOVER_MAX_PER_MONTH (5/month) comfortably, so there is a
+# genuine fast mover on screen.
+_MONTHLY_DEMAND: tuple[int, ...] = (14, 9, 6, 4, 3, 2, 2, 1, 1, 1)
+
+# How far back demand is spread. Inside MOVEMENT_WINDOW_DAYS (365) so ABC and the
+# fast/slow split can see all of it, and long enough that a monthly rate means something.
+_DEMAND_MONTHS = 8
+
+
+def _busiest_warehouse(inventory: InventoryService, warehouses):
+    """The warehouse holding stock in the most products."""
+    counts: dict = {}
+    for row in inventory.stock():
+        if row.qty_on_hand > 0:
+            counts[row.warehouse_id] = counts.get(row.warehouse_id, 0) + 1
+    return max(warehouses, key=lambda w: counts.get(w.id, 0))
+
+
+def _seed_demand_history(ctx: SeedContext, warehouse) -> dict | None:
+    """Sales history, so ABC forms real classes and a fast mover exists (R7.14).
+
+    Posted as backdated `SALE` movements through `record_movement` — the single writer (G8)
+    — rather than by generating ten sales orders: what the health views need is the demand
+    SIGNAL, and fabricating the documents around it would add a lot of seed for no extra
+    information. `occurred_at` puts the history at insert time, never by UPDATE (G4).
+
+    Products are chosen from those with the most stock, so the sales never drive a balance
+    negative, and a deliberate handful is left untouched to be dead stock.
+    """
+    db = ctx.db
+    already = db.scalar(
+        select(StockMovement).where(StockMovement.ref_type == "seed_demand")
+    )
+    if already is not None:
+        return None
+
+    inventory = InventoryService(db)
+    candidates = sorted(
+        (r for r in inventory.stock() if r.warehouse_id == warehouse.id),
+        key=lambda r: r.qty_on_hand,
+        reverse=True,
+    )
+    if len(candidates) < len(_MONTHLY_DEMAND):
+        return None
+
+    now = datetime.now(UTC)
+    seeded: list[str] = []
+    for row, per_month in zip(candidates, _MONTHLY_DEMAND, strict=False):
+        # Never sell more than is on hand: a negative balance would be a seed bug that
+        # every downstream figure then inherits.
+        affordable = int(row.qty_on_hand) - 5
+        if affordable <= 0:
+            continue
+        total = min(per_month * _DEMAND_MONTHS, affordable)
+        if total <= 0:
+            continue
+        per_sale = max(total // _DEMAND_MONTHS, 1)
+        for month in range(_DEMAND_MONTHS):
+            inventory.record_movement(
+                product_id=row.product_id,
+                warehouse_id=warehouse.id,
+                qty_delta=-Decimal(per_sale),
+                reason="SALE",
+                ref_type="seed_demand",
+                occurred_at=now - timedelta(days=30 * month + 5),
+                actor_id=ctx.actor_id,
+            )
+        seeded.append(f"{row.sku_code}:{per_sale}/mo")
+
+    return {"products": len(seeded), "detail": seeded[:4]} if seeded else None
 
 
 def _seed_operations(ctx: SeedContext, warehouses) -> dict | None:

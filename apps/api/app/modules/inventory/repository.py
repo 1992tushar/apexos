@@ -297,6 +297,40 @@ class InventoryRepository:
             stmt = stmt.where(StockMovement.warehouse_id == warehouse_id)
         return list(self.db.scalars(stmt))
 
+    # What counts as CONSUMING stock, i.e. real demand. Deliberately narrower than
+    # "anything outbound": a transfer out is the same units moving to another warehouse,
+    # putaway is C1's net-zero re-addressing, and a negative adjustment or count is a
+    # correction to what was already there. Counting any of them as demand would make a
+    # product look like it sells when it has only been shuffled or written down — which
+    # would put it in the wrong ABC class and hide it from the dead-stock radar.
+    CONSUMPTION_REASONS: tuple[str, ...] = ("SALE",)
+
+    def consumption(self, since, product_id: uuid.UUID | None = None) -> list[tuple]:
+        """(product_id, qty_consumed, movements) since a cutoff — ONE query.
+
+        Returned as a POSITIVE quantity: outbound movements are negative in the ledger, and
+        a caller reasoning about "how much sells" should not have to remember the sign.
+        Feeds all three of ABC (R7.7), the dead-stock radar (R7.8) and fast/slow (R7.9),
+        so those three cannot disagree about what demand means.
+        """
+        stmt = (
+            select(
+                StockMovement.product_id,
+                func.coalesce(func.sum(-StockMovement.qty_delta), 0).label("qty"),
+                func.count().label("movements"),
+            )
+            .where(
+                StockMovement.deleted_at.is_(None),
+                StockMovement.qty_delta < 0,
+                StockMovement.reason.in_(self.CONSUMPTION_REASONS),
+                StockMovement.occurred_at >= since,
+            )
+            .group_by(StockMovement.product_id)
+        )
+        if product_id is not None:
+            stmt = stmt.where(StockMovement.product_id == product_id)
+        return list(self.db.execute(stmt).all())
+
     def last_movement_at(self, product_id: uuid.UUID) -> object | None:
         """When this product last moved at all — R7.8's dead-stock radar reads this."""
         return self.db.scalar(
@@ -305,6 +339,29 @@ class InventoryRepository:
                 StockMovement.product_id == product_id,
             )
         )
+
+    def last_consumption_at(self) -> list[tuple]:
+        """(product_id, last_sold_at) for every product — one query, for R7.8.
+
+        **Deliberately the last CONSUMPTION, not the last movement of any kind.** A product
+        nobody has bought for a year is dead stock even if it was counted last week; using
+        `last_movement_at` would let a cycle count or a putaway make dead stock look alive,
+        which is the exact failure the radar exists to catch. `last_movement_at` stays for
+        callers that genuinely want "any activity".
+        """
+        stmt = (
+            select(
+                StockMovement.product_id,
+                func.max(StockMovement.occurred_at).label("last_at"),
+            )
+            .where(
+                StockMovement.deleted_at.is_(None),
+                StockMovement.qty_delta < 0,
+                StockMovement.reason.in_(self.CONSUMPTION_REASONS),
+            )
+            .group_by(StockMovement.product_id)
+        )
+        return list(self.db.execute(stmt).all())
 
     def racks(self, warehouse_id: uuid.UUID | None = None) -> list[StorageRack]:
         stmt = select(StorageRack).where(StorageRack.deleted_at.is_(None))

@@ -136,6 +136,159 @@
   {{ ui.empty("No stock to age yet.") }}
 {% endif %}
 
+{# R7.10 — low stock. Trigger, threshold and the records, each one linked. #}
+<h2>Needs attention</h2>
+<div class="grid grid-4 mt">
+  {{ ui.stat("Below reorder level", low_stock_total, "on available, not on hand") }}
+  {{ ui.stat("Dead stock", dead_total, "no sale in " ~ dead_window ~ " days") }}
+  {{ ui.stat("Capital in dead stock", dead_value_minor | money) }}
+  {{ ui.stat("Fast movers", fast_count, "over " ~ slow_threshold ~ "/month") }}
+</div>
+
+{% if low_stock %}
+{{ ui.explain_panel(low_stock_explained, "Why this is low") }}
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr><th>SKU</th><th>Product</th><th>Warehouse</th><th class="num">Available</th>
+        <th class="num">Reserved</th><th class="num">Reorder level</th><th class="num">Short by</th></tr>
+    </thead>
+    <tbody>
+      {% for r in low_stock %}
+      <tr>
+        <td class="mono"><a class="row-link" href="/products/{{ r.product_id }}">{{ r.sku_code }}</a></td>
+        <td>{{ r.product_name }}</td>
+        <td>{{ r.warehouse_name }}</td>
+        <td class="num">{{ r.available | number }}</td>
+        <td class="num">{% if r.reserved %}{{ r.reserved | number }}{% else %}—{% endif %}</td>
+        <td class="num">{{ r.reorder_level | number }}</td>
+        <td class="num">{{ r.shortfall | number }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% if low_stock_total > low_stock | length %}
+<p class="hint">Showing the {{ low_stock | length }} shortest of {{ low_stock_total }}.</p>
+{% endif %}
+{% else %}
+  {{ ui.empty("Nothing is below its reorder level.") }}
+{% endif %}
+
+{# R7.11 — Part 4's recommendation engine, READ not reimplemented. #}
+<h3>What to buy</h3>
+{% if reorder %}
+<p class="hint">These come from the same engine the procurement calendar uses — there is one
+  answer to “what should I buy”, not one per screen.</p>
+<ul class="plain">
+  {% for r in reorder %}
+  <li><a class="mono" href="/products/{{ r.product_id }}">{{ r.sku_code }}</a> — {{ r.sentence }}</li>
+  {% endfor %}
+</ul>
+{% else %}
+  {{ ui.empty("Nothing to reorder right now.") }}
+{% endif %}
+
+{# R7.7 — ABC, with its class boundaries stated. #}
+<h2>ABC analysis</h2>
+<p class="hint">
+  Products ranked by the value they sold over the last {{ movement_window }} days, then
+  classified by cumulative share of that total:
+  {% for key, bound in abc_classes %}<strong>{{ key }}</strong> up to {{ (bound * 100) | round(0, 'floor') | int }}%{% if not loop.last %}, {% endif %}{% endfor %}.
+  Upper bounds are inclusive. Only sales count — a transfer or an adjustment moves stock
+  without it being sold. {{ abc_counts.A }} in A, {{ abc_counts.B }} in B, {{ abc_counts.C }} in C.
+</p>
+{% if abc_explained %}{{ ui.explain_panel(abc_explained, "Top product's class") }}{% endif %}
+{% if abc %}
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr><th>SKU</th><th>Product</th><th>Class</th>
+        <th class="num">Sold</th><th class="num">Value sold</th><th class="num">Cumulative</th></tr>
+    </thead>
+    <tbody>
+      {% for r in abc %}
+      <tr>
+        <td class="mono">{{ r.sku_code }}</td>
+        <td>{{ r.product_name }}</td>
+        <td>{{ ui.badge(r.abc_class) }}</td>
+        <td class="num">{{ r.qty_consumed | number }}</td>
+        <td class="num">{{ r.value_minor | money }}</td>
+        <td class="num">{{ (r.cumulative_share_bps / 100) | round(1) }}%</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{# R7.8 — dead stock, with its window stated. #}
+<h2>Dead stock</h2>
+<p class="hint">
+  Stock still on hand with <strong>no sale in the last {{ dead_window }} days</strong>. Measured
+  from the last sale, not the last movement of any kind — a cycle count or a putaway does not
+  make stock alive again. Strictly more than {{ dead_window }} days counts as dead, so something
+  sold exactly {{ dead_window }} days ago is not listed.
+</p>
+{% if dead %}
+{{ ui.explain_panel(dead_explained, "Worst case") }}
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr><th>SKU</th><th>Product</th><th class="num">On hand</th>
+        <th class="num">Value</th><th class="num">Since last sale</th></tr>
+    </thead>
+    <tbody>
+      {% for r in dead %}
+      <tr>
+        <td class="mono"><a class="row-link" href="/products/{{ r.product_id }}">{{ r.sku_code }}</a></td>
+        <td>{{ r.product_name }}</td>
+        <td class="num">{{ r.qty_on_hand | number }}</td>
+        <td class="num">{% if r.value_minor is not none %}{{ r.value_minor | money }}{% else %}{{ ui.badge("unknown") }}{% endif %}</td>
+        <td class="num">{% if r.never_sold %}{{ ui.badge("never sold") }}{% else %}{{ r.days_since_sale }} days{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% if dead_total > dead | length %}
+<p class="hint">Showing {{ dead | length }} of {{ dead_total }}, worst first.</p>
+{% endif %}
+{% else %}
+  {{ ui.empty("Nothing has gone unsold that long.") }}
+{% endif %}
+
+{# R7.9 — fast and slow, showing the window and the numbers. #}
+<h2>Fast and slow movers</h2>
+<p class="hint">
+  Units sold per month, averaged over the last {{ movement_window }} days.
+  <strong>Over {{ slow_threshold }} a month is fast</strong>; at or below it is slow. The
+  quantity and the number of sales behind each rate are shown, so the classification is
+  checkable rather than asserted.
+</p>
+{% if movers %}
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr><th>SKU</th><th>Product</th><th></th>
+        <th class="num">Sold in window</th><th class="num">Sales</th><th class="num">Per month</th></tr>
+    </thead>
+    <tbody>
+      {% for r in movers %}
+      <tr>
+        <td class="mono">{{ r.sku_code }}</td>
+        <td>{{ r.product_name }}</td>
+        <td>{{ ui.badge(r.label) }}</td>
+        <td class="num">{{ r.qty_consumed | number }}</td>
+        <td class="num">{{ r.movements }}</td>
+        <td class="num">{{ r.per_month | number }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
 {# R6.1 / R6.11 — warehouse → rack → bin, each level the sum of the one below. #}
 <h2>Stock by location</h2>
 {% if unaddressed %}
