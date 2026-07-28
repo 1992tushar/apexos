@@ -176,6 +176,47 @@ def static_options(*pairs: tuple[str, str]) -> Callable[[Session], Sequence[tupl
     return _options
 
 
+def model_options(
+    model: type[Any], *, label: str = "name", value: str = "id", order_by: str | None = None
+) -> Callable[[Session], Sequence[tuple[str, str]]]:
+    """A `Filter.options` provider over another table's live rows.
+
+    The dropdown behind `?category=<uuid>` is the same shape for every master, so
+    it is one helper rather than a hand-written query per page. Soft-deleted rows
+    are excluded, so a deleted category stops being offered.
+    """
+
+    def _options(db: Session) -> Sequence[tuple[str, str]]:
+        value_col, label_col = getattr(model, value), getattr(model, label)
+        stmt = select(value_col, label_col).order_by(getattr(model, order_by or label))
+        deleted = getattr(model, "deleted_at", None)
+        if deleted is not None:
+            stmt = stmt.where(deleted.is_(None))
+        return [(str(v), str(text)) for v, text in db.execute(stmt) if text is not None]
+
+    return _options
+
+
+def distinct_options(
+    model: type[Any], column: str
+) -> Callable[[Session], Sequence[tuple[str, str]]]:
+    """A `Filter.options` provider over the values a column actually holds.
+
+    For free-text columns that behave like a noun in practice (a customer's city).
+    Blanks are dropped rather than offered as an empty choice.
+    """
+
+    def _options(db: Session) -> Sequence[tuple[str, str]]:
+        col = getattr(model, column)
+        stmt = select(col).distinct().where(col.is_not(None), col != "").order_by(col)
+        deleted = getattr(model, "deleted_at", None)
+        if deleted is not None:
+            stmt = stmt.where(deleted.is_(None))
+        return [(v, v) for (v,) in db.execute(stmt)]
+
+    return _options
+
+
 def coerce(kind: str, raw: str) -> Any:
     """Turn a query-string value into something comparable to a column.
 

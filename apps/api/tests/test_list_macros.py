@@ -219,11 +219,13 @@ def test_page_links_preserve_the_filters(db):
 
 
 def test_a_single_page_shows_the_count_without_controls(db):
-    view = _view(db, q="Toilet Roll")
+    # A full SKU rather than a product name: the seeded catalogue is now hundreds of
+    # rows (R2.13), and any name fragment spans several pages.
+    view = _view(db, q="AUR-TIS-001")
     html = _render(PAGER, view=view)
     assert view.pages == 1
     assert "pagination-controls" not in html
-    assert "of 2" in html
+    assert "of 1" in html
 
 
 def test_an_empty_filtered_list_offers_a_way_out(db):

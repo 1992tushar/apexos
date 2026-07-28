@@ -23,6 +23,7 @@ from app.db.metadata import Base, import_all_models
 import_all_models()
 
 from app.modules.activity.models import ActivityLog  # noqa: E402
+from app.modules.activity.service import ActivityService  # noqa: E402
 from app.modules.config.models import (  # noqa: E402
     Brand,
     BusinessUnit,
@@ -46,6 +47,8 @@ from app.modules.crm.schemas import (  # noqa: E402
 )
 from app.modules.crm.service import CrmService  # noqa: E402
 from app.modules.customers.models import Customer, CustomerCreditPolicy  # noqa: E402
+from app.modules.customers.schemas import CustomerUpdate  # noqa: E402
+from app.modules.customers.service import CustomerService  # noqa: E402
 from app.modules.documents.models import Document  # noqa: E402
 from app.modules.documents.service import DocumentService  # noqa: E402
 from app.modules.finance.models import Bill, Invoice  # noqa: E402
@@ -135,6 +138,125 @@ DEMO_CUSTOMERS = [
     ("CUST-0002", "Grand Sarovar Hotel", "HOTEL", "Mumbai", "Maharashtra", 50000000, 30),
     ("CUST-0003", "CafeMocha", "CAFE", "Pune", "Maharashtra", 20000000, 30),
 ]
+
+# --- bulk catalogue + book (R2.13) ---------------------------------------
+#
+# Pagination and filtering are only real against hundreds of rows, so the demo
+# data is generated rather than typed. Generation is deterministic — index
+# arithmetic, no randomness — so a re-seed produces the same rows, `get_or_create`
+# stays idempotent, and a test can name a row it expects to find. Status, stock
+# and credit are deliberately uneven: an all-happy-row seed exercises no filter
+# and no empty state (G14).
+
+BULK_ITEMS: dict[str, list[str]] = {
+    "TIS": ["Toilet Roll", "Kitchen Towel", "Hand Towel", "Facial Tissue", "Napkin"],
+    "GB": ["Garbage Bag", "Bin Liner", "Compactor Sack", "Biohazard Bag"],
+    "FP": ["Cling Film", "Aluminium Foil", "Butter Paper", "Food Container"],
+    "FSD": ["Paper Cup", "Paper Plate", "Wooden Cutlery", "Straw", "Carry Bag"],
+    "CC": ["Floor Cleaner", "Glass Cleaner", "Toilet Cleaner", "Degreaser", "Hand Wash"],
+    "CT": ["Microfibre Cloth", "Mop Refill", "Scrub Pad", "Broom", "Squeegee"],
+    "WS": ["Soap Dispenser", "Tissue Dispenser", "Air Freshener", "Urinal Screen"],
+    "GLV": ["Nitrile Glove", "Latex Glove", "Face Mask", "Apron", "Shoe Cover"],
+    "GA": ["Shampoo Sachet", "Bath Soap", "Dental Kit", "Shower Cap", "Sewing Kit"],
+}
+BULK_GRADES = ["Economy", "Standard", "Premium", "Industrial", "Eco"]
+BULK_SIZES = ["Small", "Medium", "Large", "XL", "Jumbo", "Twin Pack", "Bulk Case"]
+BULK_UOMS = ["PACK", "ROLL", "CASE", "PIECE"]
+# Most of the catalogue is sellable; the rest exercises the status filter.
+BULK_STATUSES = ["active"] * 7 + ["draft", "discontinued"]
+
+BULK_CITIES = [
+    ("Pune", "Maharashtra"), ("Mumbai", "Maharashtra"), ("Nashik", "Maharashtra"),
+    ("Ahmedabad", "Gujarat"), ("Surat", "Gujarat"), ("Bengaluru", "Karnataka"),
+    ("Hyderabad", "Telangana"), ("Indore", "Madhya Pradesh"),
+]
+BULK_CUSTOMER_WORDS = [
+    "Green", "Royal", "Urban", "Coastal", "Golden", "Silver", "Spice", "Orchid",
+    "Maple", "Sunrise", "Lotus", "Copper", "Velvet", "Harbour", "Summit", "Aster",
+]
+BULK_CUSTOMER_SUFFIX = {
+    "RESTAURANT": ["Kitchen", "Diner", "Bistro", "Grill"],
+    "HOTEL": ["Hotel", "Residency", "Inn", "Suites"],
+    "CAFE": ["Cafe", "Coffee House", "Bakehouse"],
+    "HOSPITAL": ["Hospital", "Clinic", "Care Centre"],
+    "CORPORATE": ["Technologies", "Industries", "Solutions"],
+    "SCHOOL": ["School", "Academy", "Campus"],
+    "FACILITY_MANAGEMENT": ["Facilities", "Services", "Maintenance"],
+}
+
+
+def record_creation(
+    db: Session, activity, *, entity_type: str, entity_id, summary: str, actor_id
+) -> None:
+    """Give a seeded record the `created` history line it would have had.
+
+    The seed writes masters with `get_or_create` rather than through their service,
+    so their change-history panel would be empty on the demo rows the founder
+    actually clicks (R2.10, G14). The existence check makes it idempotent and also
+    backfills a database seeded before this existed; `occurred_at` is then the
+    backfill time rather than the original insert, which is the one thing a
+    re-seeded demo database cannot recover.
+    """
+    if not db.scalar(
+        select(func.count()).select_from(ActivityLog).where(ActivityLog.entity_id == entity_id)
+    ):
+        activity.log(
+            actor_id=actor_id,
+            verb="created",
+            entity_type=entity_type,
+            entity_id=entity_id,
+            summary=summary,
+        )
+
+
+def bulk_products() -> list[tuple]:
+    """~300 catalogue rows: (sku, name, spec, uom, sell, buy, cat, brand, status)."""
+    rows: list[tuple] = []
+    for cat_code, items in BULK_ITEMS.items():
+        brand = "AUR" if cat_code == "TIS" else "APX"
+        for item_no, item in enumerate(items):
+            for variant in range(7):
+                seq = len(rows) + 1
+                grade = BULK_GRADES[(item_no + variant) % len(BULK_GRADES)]
+                size = BULK_SIZES[variant % len(BULK_SIZES)]
+                # Integer minor units only, and a margin that never rounds (G1).
+                sell = 4000 + (seq % 37) * 500 + variant * 250
+                rows.append((
+                    f"{brand}-{cat_code}-{100 + seq:03d}",
+                    f"{grade} {item}",
+                    f"{size} · {grade}",
+                    BULK_UOMS[seq % len(BULK_UOMS)],
+                    sell,
+                    sell * 7 // 10,
+                    cat_code,
+                    brand,
+                    BULK_STATUSES[seq % len(BULK_STATUSES)],
+                ))
+    return rows
+
+
+def bulk_customers(start_seq: int, count: int = 250) -> list[tuple]:
+    """(code, name, type, city, state, credit_limit_minor, terms, status)."""
+    types = list(BULK_CUSTOMER_SUFFIX)
+    rows: list[tuple] = []
+    for i in range(count):
+        seq = start_seq + i
+        ctype = types[i % len(types)]
+        suffixes = BULK_CUSTOMER_SUFFIX[ctype]
+        word = BULK_CUSTOMER_WORDS[(i * 3) % len(BULK_CUSTOMER_WORDS)]
+        city, state = BULK_CITIES[i % len(BULK_CITIES)]
+        rows.append((
+            f"CUST-{seq:04d}",
+            f"{word} {suffixes[i % len(suffixes)]} {seq}",
+            ctype,
+            city,
+            state,
+            # Every 9th is a cash-only account: a zero limit is a real state, not a gap.
+            0 if i % 9 == 0 else (5000000 + (i % 8) * 2500000),
+            [15, 30, 45, 60][i % 4],
+            "inactive" if i % 11 == 0 else "active",
+        ))
+    return rows
 
 # (code, name, supplier_type, city, state, gstin)
 DEMO_SUPPLIERS = [
@@ -238,8 +360,14 @@ def run() -> dict:
             categories[code] = cat
 
         # --- products + prices + opening stock ---------------------------
+        # The named rows first (other seed steps order and invoice them by SKU),
+        # then the generated catalogue that makes pagination real (R2.13).
         inventory = InventoryService(db)
-        for sku, name, spec, uom_code, sell, buy, cat_code, brand_code in PRODUCTS:
+        activity = ActivityService(db)
+        catalogue = [(*row, "active") for row in PRODUCTS] + bulk_products()
+        for i, (sku, name, spec, uom_code, sell, buy, cat_code, brand_code, status) in enumerate(
+            catalogue
+        ):
             product, created = get_or_create(
                 db, Product, sku_code=sku,
                 defaults={
@@ -252,29 +380,50 @@ def run() -> dict:
                     "default_tax_rate_id": gst18.id,
                     "launch_phase": "Phase 1",
                     "reorder_level": Decimal("20"),
-                    "status": "active",
+                    "status": status,
                     "business_unit_id": bu.id,
                     "created_by": actor_id,
                 },
             )
+            # Only the named rows get a history line; the generated hundreds would be
+            # noise in the activity feed.
+            if i < len(PRODUCTS):
+                record_creation(
+                    db, activity,
+                    entity_type="product",
+                    entity_id=product.id,
+                    summary=f"Product {name} ({sku}) created",
+                    actor_id=actor_id,
+                )
             if created:
                 now = datetime.now(UTC)
                 db.add(SellingPrice(product_id=product.id, price_minor=sell, valid_from=now, created_by=actor_id))
                 db.add(PurchasePrice(product_id=product.id, price_minor=buy, valid_from=now, created_by=actor_id))
                 db.flush()
-                inventory.record_movement(
-                    product_id=product.id,
-                    warehouse_id=warehouse.id,
-                    qty_delta=Decimal("100"),
-                    reason="PURCHASE",
-                    ref_type="opening",
-                    unit_cost_minor=buy,
-                    actor_id=actor_id,
-                )
+                # The named rows are fully stocked; the generated ones vary so the
+                # low/out badges and the stock column have something to show. A
+                # zero-stock product gets no movement at all — also a real state.
+                qty = 100 if i < len(PRODUCTS) else (0, 5, 40, 75, 8, 120, 60)[i % 7]
+                if qty:
+                    inventory.record_movement(
+                        product_id=product.id,
+                        warehouse_id=warehouse.id,
+                        qty_delta=Decimal(qty),
+                        reason="PURCHASE",
+                        ref_type="opening",
+                        unit_cost_minor=buy,
+                        actor_id=actor_id,
+                    )
 
         # --- demo customers + credit policies ----------------------------
+        # Named accounts first (the demo order and invoice belong to one), then the
+        # generated book — codes continue the same CUST-#### sequence so
+        # `next_code()` keeps handing out unused ones (R2.13).
         customers = {}
-        for code, name, ctype_code, city, state, limit_minor, terms in DEMO_CUSTOMERS:
+        book = [(*row, "active") for row in DEMO_CUSTOMERS] + bulk_customers(
+            len(DEMO_CUSTOMERS) + 1
+        )
+        for i, (code, name, ctype_code, city, state, limit_minor, terms, status) in enumerate(book):
             cust, created = get_or_create(
                 db, Customer, code=code,
                 defaults={
@@ -282,13 +431,15 @@ def run() -> dict:
                     "customer_type_id": ctypes[ctype_code].id,
                     "city": city,
                     "state": state,
-                    "status": "active",
+                    "status": status,
                     "business_unit_id": bu.id,
                     "created_by": actor_id,
                 },
             )
             customers[code] = cust
-            if created:
+            # Every 13th generated account has no credit policy yet — the detail page
+            # must render a customer whose terms were never set.
+            if created and (i < len(DEMO_CUSTOMERS) or i % 13 != 0):
                 db.add(CustomerCreditPolicy(
                     customer_id=cust.id,
                     credit_limit_minor=limit_minor,
@@ -297,6 +448,30 @@ def run() -> dict:
                     created_by=actor_id,
                 ))
                 db.flush()
+            if i < len(DEMO_CUSTOMERS):
+                record_creation(
+                    db, activity,
+                    entity_type="customer",
+                    entity_id=cust.id,
+                    summary=f"Customer {name} ({code}) created",
+                    actor_id=actor_id,
+                )
+
+        # One real revision on a named account, so the change-history panel shows a
+        # before → after diff in the booted app rather than only a creation line.
+        # `CustomerService.update` writes it — the seed does not hand-author history.
+        raised = customers["CUST-0002"]
+        revised = db.scalar(
+            select(func.count()).select_from(ActivityLog).where(
+                ActivityLog.entity_id == raised.id, ActivityLog.verb == "updated"
+            )
+        )
+        if not revised:
+            CustomerService(db).update(
+                raised.id,
+                CustomerUpdate(credit_limit_minor=65000000, payment_terms_days=45),
+                actor_id=actor_id,
+            )
 
         # --- demo suppliers -------------------------------------------
         suppliers = {}

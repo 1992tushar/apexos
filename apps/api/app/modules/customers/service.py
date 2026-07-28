@@ -2,16 +2,20 @@
 from __future__ import annotations
 
 import uuid
+from collections.abc import Sequence
+from dataclasses import replace
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.errors import NotFoundError
 from app.db.duplicates import ensure_unique
+from app.db.listing import ListParams, query_page
 from app.db.soft_delete import soft_delete
 from app.modules.activity.history import CHANGES_KEY, field_changes
 from app.modules.activity.service import ActivityService
 from app.modules.config.models import BusinessUnit
+from app.modules.customers.listing import CUSTOMER_LIST
 from app.modules.customers.models import Customer, CustomerCreditPolicy
 from app.modules.customers.repository import CustomerRepository
 from app.modules.customers.schemas import CustomerCreate, CustomerRead, CustomerUpdate
@@ -52,9 +56,15 @@ class CustomerService:
             created_at=customer.created_at,
         )
 
+    def to_read_many(self, rows: Sequence[Customer]) -> list[CustomerRead]:
+        """The projector the list page passes to `view_from_request(project=...)`."""
+        return [self._to_read(c) for c in rows]
+
     def list(self, *, search: str | None, page: int, page_size: int):
-        rows, total = self.repo.search(search=search, page=page, page_size=page_size)
-        return [self._to_read(c) for c in rows], total
+        """One page of customers, through the one query helper (R2.4)."""
+        params = ListParams(q=search or "", page=page)
+        result = query_page(self.db, replace(CUSTOMER_LIST, page_size=page_size), params)
+        return self.to_read_many(result.rows), result.total
 
     def get(self, customer_id: uuid.UUID) -> CustomerRead:
         customer = self.repo.get(customer_id)

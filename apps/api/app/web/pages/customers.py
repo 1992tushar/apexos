@@ -18,26 +18,29 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.security import Actor
+from app.modules.activity.service import ActivityService
 from app.modules.config.service import ConfigService
+from app.modules.customers.listing import CUSTOMER_LIST
 from app.modules.customers.schemas import CustomerCreate
 from app.modules.customers.service import CustomerService
 from app.web.core import form_action, render
+from app.web.listing import csv_response_from_request, view_from_request, wants_csv
 from app.web.security import require_web_permission
 
 router = APIRouter()
 
 
 @router.get("/customers")
-def list_customers(request: Request, q: str | None = None, db: Session = Depends(get_db)):
-    items, total = CustomerService(db).list(search=q, page=1, page_size=200)
-    customer_types = ConfigService(db).customer_types()
+def list_customers(request: Request, db: Session = Depends(get_db)):
+    # List state is entirely in the query string (R2.3) — nothing to declare here.
+    project = CustomerService(db).to_read_many
+    if wants_csv(request):
+        return csv_response_from_request(request, db, CUSTOMER_LIST, project=project)
     return render(
         request,
         "customers/list.html",
-        customers=items,
-        total=total,
-        customer_types=customer_types,
-        q=q or "",
+        view=view_from_request(request, db, CUSTOMER_LIST, project=project),
+        customer_types=ConfigService(db).customer_types(),
     )
 
 
@@ -83,7 +86,12 @@ def create_customer(
 def customer_detail(request: Request, customer_id: uuid.UUID, db: Session = Depends(get_db)):
     # A missing customer raises NotFoundError → the web error handler renders error.html.
     customer = CustomerService(db).get(customer_id)
-    return render(request, "customers/detail.html", c=customer)
+    return render(
+        request,
+        "customers/detail.html",
+        c=customer,
+        history=ActivityService(db).history("customer", customer_id),
+    )
 
 
 @router.post("/customers/{customer_id}/delete")

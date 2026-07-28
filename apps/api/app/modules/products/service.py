@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import uuid
+from collections.abc import Sequence
+from dataclasses import replace
 from datetime import UTC, datetime
 
 from sqlalchemy import select
@@ -9,12 +11,14 @@ from sqlalchemy.orm import Session
 
 from app.core.errors import NotFoundError
 from app.db.duplicates import ensure_unique
+from app.db.listing import ListParams, query_page
 from app.db.soft_delete import soft_delete
 from app.modules.activity.service import ActivityService
 from app.modules.config.models import BusinessUnit
 from app.modules.inventory.service import InventoryService
 from app.modules.pricing.models import PurchasePrice, SellingPrice
 from app.modules.pricing.service import PricingService
+from app.modules.products.listing import PRODUCT_LIST
 from app.modules.products.models import Product
 from app.modules.products.repository import ProductRepository
 from app.modules.products.schemas import ProductCreate, ProductRead
@@ -55,13 +59,26 @@ class ProductService:
             **names,
         )
 
+    def to_read_many(self, rows: Sequence[Product]) -> list[ProductRead]:
+        """The projector the list page passes to `view_from_request(project=...)`."""
+        return [self._to_read(p) for p in rows]
+
     def list(
         self, *, search: str | None, category_id: uuid.UUID | None, page: int, page_size: int
     ):
-        rows, total = self.repo.search(
-            search=search, category_id=category_id, page=page, page_size=page_size
+        """One page of products, through the one query helper (R2.4).
+
+        `page_size` overrides the spec's so a caller that wants everything (a form's
+        product dropdown) still gets it; the filters, the sort and the soft-delete
+        scope all come from `PRODUCT_LIST`.
+        """
+        params = ListParams(
+            q=search or "",
+            filters={"category": str(category_id)} if category_id else {},
+            page=page,
         )
-        return [self._to_read(p) for p in rows], total
+        result = query_page(self.db, replace(PRODUCT_LIST, page_size=page_size), params)
+        return self.to_read_many(result.rows), result.total
 
     def get(self, product_id: uuid.UUID) -> ProductRead:
         product = self.repo.get(product_id)

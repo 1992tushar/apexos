@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import uuid
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.modules.config.models import Brand, Category, ProcurementModel, Uom
@@ -39,29 +39,8 @@ class ProductRepository:
         """
         return self.db.scalar(select(func.count()).select_from(Product)) or 0
 
-    def search(
-        self, *, search: str | None, category_id: uuid.UUID | None, page: int, page_size: int
-    ) -> tuple[list[Product], int]:
-        base = select(Product).where(Product.deleted_at.is_(None))
-        if category_id is not None:
-            base = base.where(Product.category_id == category_id)
-        if search:
-            like = f"%{search.lower()}%"
-            base = base.where(
-                or_(
-                    func.lower(Product.name).like(like),
-                    func.lower(Product.sku_code).like(like),
-                )
-            )
-        total = self.db.scalar(select(func.count()).select_from(base.subquery())) or 0
-        rows = list(
-            self.db.scalars(
-                base.order_by(Product.sku_code)
-                .offset((page - 1) * page_size)
-                .limit(page_size)
-            )
-        )
-        return rows, total
+    # No `search()` here: paginated/filtered/sorted reads go through the one query
+    # helper in `app.db.listing`, driven by `products/listing.py`'s spec (R2.4).
 
     def names(self, product: Product) -> dict[str, str | None]:
         return {

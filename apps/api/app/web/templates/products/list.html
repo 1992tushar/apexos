@@ -2,7 +2,7 @@
 {% import "_macros.html" as ui %}
 {% block title %}Products{% endblock %}
 {% block content %}
-{% call ui.page_header("Products", total ~ " total") %}
+{% call ui.page_header("Products", view.total ~ " total") %}
   <a class="btn" href="#new">+ New product</a>
 {% endcall %}
 
@@ -46,38 +46,14 @@
   </form>
 </div>
 
-{% if products %}
-<div class="table-wrap">
-  <table>
-    <thead>
-      <tr>
-        <th>SKU</th><th>Name</th><th>Category</th><th>Brand</th><th>Specification</th>
-        <th class="num">Selling price</th><th class="num">Stock</th><th>Actions</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for p in products %}
-      <tr>
-        <td class="mono">{{ p.sku_code }}</td>
-        <td>{{ p.name }}</td>
-        <td>{{ p.category_name or "—" }}</td>
-        <td>{{ p.brand_name or "—" }}</td>
-        <td>{{ p.specification or "—" }}</td>
-        <td class="num">{{ p.selling_price_minor | money }}</td>
-        <td class="num">
-          {{ p.stock_on_hand | number }}
-          {% if p.stock_on_hand <= 0 %}{{ ui.badge("out") }}{% elif p.stock_on_hand <= 10 %}{{ ui.badge("low") }}{% endif %}
-        </td>
-        <td class="row-actions">
-          {{ ui.delete_button("/products/" ~ p.id ~ "/delete", p.name,
-             "It leaves the catalogue. Existing orders, invoices and stock history keep it.") }}
-        </td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-</div>
+{{ ui.list_toolbar(view) }}
+{% if view.rows %}
+  {% call(row) ui.list_table(view) %}
+    {{ ui.delete_button("/products/" ~ row.id ~ "/delete", row.name,
+       "It leaves the catalogue. Existing orders, invoices and stock history keep it.") }}
+  {% endcall %}
 {% else %}
-  {{ ui.empty("No products yet. Add your first one above.") }}
+  {{ ui.list_empty(view, "No products yet. Add your first one above.") }}
 {% endif %}
+{{ ui.pagination(view) }}
 {% endblock %}

@@ -24,6 +24,7 @@ import uuid
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
+from decimal import Decimal
 from typing import Any
 from urllib.parse import urlencode
 
@@ -287,6 +288,10 @@ def export_text(column: Column, row: Any) -> str:
         return ""
     if column.kind == "money":
         return minor_to_text(raw)
+    if isinstance(raw, Decimal):
+        # A `Numeric(18,4)` quantity arrives as "40.0000"; the file should carry the
+        # number, not the column's scale. No grouping — this cell is parsed, not read.
+        return str(int(raw)) if raw == raw.to_integral_value() else format(raw.normalize(), "f")
     if isinstance(raw, datetime):
         return raw.isoformat(sep=" ", timespec="seconds")
     if isinstance(raw, date):

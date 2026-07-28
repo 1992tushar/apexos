@@ -2,7 +2,7 @@
 {% import "_macros.html" as ui %}
 {% block title %}Customers{% endblock %}
 {% block content %}
-{% call ui.page_header("Customers", total ~ " total") %}
+{% call ui.page_header("Customers", view.total ~ " total") %}
   <a class="btn" href="#new">+ New customer</a>
 {% endcall %}
 
@@ -30,33 +30,13 @@
   </form>
 </div>
 
-{% if customers %}
-<div class="table-wrap">
-  <table>
-    <thead>
-      <tr>
-        <th>Code</th><th>Name</th><th>Type</th><th>City</th>
-        <th class="num">Outstanding</th><th>Status</th><th>Actions</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for c in customers %}
-      <tr>
-        <td class="mono">{{ c.code }}</td>
-        <td><a class="row-link" href="/customers/{{ c.id }}">{{ c.name }}</a></td>
-        <td>{{ c.customer_type_name or "—" }}</td>
-        <td>{{ c.city or "—" }}</td>
-        <td class="num">{{ c.outstanding_minor | money }}</td>
-        <td>{{ ui.badge(c.status) }}</td>
-        <td class="row-actions">
-          {{ ui.delete_button("/customers/" ~ c.id ~ "/delete", c.name) }}
-        </td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-</div>
+{{ ui.list_toolbar(view) }}
+{% if view.rows %}
+  {% call(row) ui.list_table(view) %}
+    {{ ui.delete_button("/customers/" ~ row.id ~ "/delete", row.name) }}
+  {% endcall %}
 {% else %}
-  {{ ui.empty("No customers yet. Add your first one above.") }}
+  {{ ui.list_empty(view, "No customers yet. Add your first one above.") }}
 {% endif %}
+{{ ui.pagination(view) }}
 {% endblock %}

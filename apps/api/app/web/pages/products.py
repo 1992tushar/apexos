@@ -1,4 +1,9 @@
-"""Products pages: list + inline create. No detail route."""
+"""Products pages: list + inline create + detail.
+
+The list is the shared machinery (R2.11): one `ListSpec` in
+`app.modules.products.listing` drives the query, the table, the filters and the
+CSV export, so this module holds no query and no table markup.
+"""
 from __future__ import annotations
 
 import uuid
@@ -9,10 +14,13 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.security import Actor
+from app.modules.activity.service import ActivityService
 from app.modules.config.service import ConfigService
+from app.modules.products.listing import PRODUCT_LIST
 from app.modules.products.schemas import ProductCreate
 from app.modules.products.service import ProductService
 from app.web.core import form_action, render
+from app.web.listing import csv_response_from_request, view_from_request, wants_csv
 from app.web.security import require_web_permission
 
 router = APIRouter()
@@ -20,18 +28,30 @@ router = APIRouter()
 
 @router.get("/products")
 def list_products(request: Request, db: Session = Depends(get_db)):
-    rows, total = ProductService(db).list(
-        search=None, category_id=None, page=1, page_size=300
-    )
+    project = ProductService(db).to_read_many
+    if wants_csv(request):
+        return csv_response_from_request(request, db, PRODUCT_LIST, project=project)
+    config = ConfigService(db)
     return render(
         request,
         "products/list.html",
-        products=rows,
-        total=total,
-        categories=ConfigService(db).categories(),
-        brands=ConfigService(db).brands(),
-        uoms=ConfigService(db).uoms(),
-        pmodels=ConfigService(db).procurement_models(),
+        view=view_from_request(request, db, PRODUCT_LIST, project=project),
+        categories=config.categories(),
+        brands=config.brands(),
+        uoms=config.uoms(),
+        pmodels=config.procurement_models(),
+    )
+
+
+@router.get("/products/{product_id}")
+def product_detail(request: Request, product_id: uuid.UUID, db: Session = Depends(get_db)):
+    # A missing product raises NotFoundError → the web error handler renders error.html.
+    product = ProductService(db).get(product_id)
+    return render(
+        request,
+        "products/detail.html",
+        p=product,
+        history=ActivityService(db).history("product", product_id),
     )
 
 

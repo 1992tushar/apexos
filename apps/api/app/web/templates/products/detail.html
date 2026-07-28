@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+{% block title %}{{ p.name }}{% endblock %}
+{% block content %}
+{% call ui.page_header(p.name, p.sku_code) %}
+  <a class="btn" href="/products">← All products</a>
+  {{ ui.delete_button("/products/" ~ p.id ~ "/delete", p.name,
+     "It leaves the catalogue. Existing orders, invoices and stock history keep it.") }}
+{% endcall %}
+
+<div class="grid grid-3 mt">
+  {{ ui.stat("Stock on hand", p.stock_on_hand | number, p.uom_code) }}
+  {{ ui.stat("Selling price", p.selling_price_minor | money) }}
+  {{ ui.stat("Purchase price", p.purchase_price_minor | money) }}
+</div>
+
+<div class="detail-grid mt">
+  <div class="card">
+    <div class="section-title">Catalogue</div>
+    <dl class="kv">
+      <dt>Category</dt><dd>{{ p.category_name or "—" }}</dd>
+      <dt>Brand</dt><dd>{{ p.brand_name or "—" }}</dd>
+      <dt>Specification</dt><dd>{{ p.specification or "—" }}</dd>
+      <dt>Unit of measure</dt><dd>{{ p.uom_code or "—" }}</dd>
+    </dl>
+  </div>
+  <div class="card">
+    <div class="section-title">Sourcing</div>
+    <dl class="kv">
+      <dt>Status</dt><dd>{{ ui.badge(p.status) }}</dd>
+      <dt>Procurement model</dt><dd>{{ p.procurement_model_name or "—" }}</dd>
+      <dt>Launch phase</dt><dd>{{ p.launch_phase or "—" }}</dd>
+    </dl>
+  </div>
+</div>
+
+<div class="mt">{{ ui.history_panel(history) }}</div>
+{% endblock %}
