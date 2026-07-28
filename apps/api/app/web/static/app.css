@@ -138,6 +138,22 @@ td.indent-2 { padding-left: 50px; color: var(--muted); }
 .rack-row:last-child { border-bottom: none; }
 .rack-row .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
 
+/* --- Print (R7.12, a SHOULD under D-B) ---
+   The founder may print a count sheet to walk the shelves with. Drop the chrome, keep
+   the table, and leave the counted-quantity inputs as visible boxes to write in. No
+   separate print template: one document that prints is simpler than two that drift. */
+@media print {
+  .sidebar, .topbar, .list-toolbar, .form-actions, .btn, .flash { display: none !important; }
+  .app, .content, main { display: block; margin: 0; padding: 0; }
+  body { background: #fff; color: #000; font-size: 12px; }
+  .card, .table-wrap, table { box-shadow: none; border-color: #999; break-inside: auto; }
+  thead { display: table-header-group; }  /* repeat headers across pages */
+  tr { break-inside: avoid; }
+  input[name="counted_qty"] { border: 1px solid #666; min-width: 70px; background: #fff; }
+  .hint { color: #333; }
+  a[href]::after { content: ""; }  /* no URL footnotes on a shelf sheet */
+}
+
 /* --- Badges --- */
 .badge {
   display: inline-block; padding: 2px 9px; border-radius: 999px;

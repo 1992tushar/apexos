@@ -215,6 +215,20 @@ transit bin).
   **Not a FIFO layer** (D-A struck those): nothing stored, nothing consumed from a layer, valuation
   does not read it. The approximation is one string, rendered on screen and as `Explained.caveat`.
 
+**`health.py` (Part 5 C3b) is the other read-only half** — ABC, dead stock, fast/slow movers and
+low-stock alerts, every one of them derived per read and rendered through the one `explain_panel`
+shape (G11). It adds no model: a class, a rate and a dead-stock verdict are all computed.
+
+- **One definition of demand**, `CONSUMPTION_REASONS = ("SALE",)`, shared by ABC, the radar and the
+  fast/slow split so they cannot disagree about what "moves" means.
+- **ABC ranks by value consumed**, cumulative-share boundaries with inclusive upper bounds
+  (80/95/100) — the same edge convention as `AGE_BUCKETS`.
+- **The dead-stock radar reads the last SALE**, not the last movement: a cycle count must not make
+  year-old stock look alive. `last_consumption_at()` vs `last_movement_at()` — two different questions.
+- **Low stock triggers on AVAILABLE**, not on hand: committed stock cannot cover a new order.
+- **`reorder_suggestions` is a bare delegation** to `RecommendationService.recommend` (R7.11). Never
+  reimplement it — a source walk fails on a second `def recommend` anywhere in `app/`.
+
 The verbs other modules call:
 
 - `InventoryService.record_movement(...)` — **the only writer of `stock_movement`** (G8). A source-walk

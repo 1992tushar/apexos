@@ -1,29 +1,36 @@
 # Part 5 — Inventory: locations, states, valuation, operations, health (Phase 3)
 
-**Status: IN FLIGHT.** C1, C2 and C3's operations half are complete; C3's health half
-(R7.7–R7.13) remains. This file is the archive of what is finished — it exists so
-`PROGRESS.md` can stay under its cap while the part is still open. **The session closing
-Part 5 appends its own record here and deletes the Part 5 block from `PROGRESS.md`.**
-
-Not to be read during a session. `PROGRESS.md`'s `▶ CURRENT WORK` block carries everything
-a checkpoint needs.
+**Status: COMPLETE.** Every P0 and P1 requirement in `docs/REQUIREMENTS.md` §7 (R6.x) and §8
+(R7.x) passes. Not to be read during a session — it exists for audit.
 
 | Checkpoint | Commit | What landed |
 |---|---|---|
 | C1 | `437a185` | Locations (warehouse→rack→bin), four derived stock states, the reservation ledger |
 | C2 | `b442322` | Weighted-average cost, stock ageing, `inventory/valuation.py` |
 | C3a | `eaee67b` | Count sheets, mandatory adjustment reasons, two-step in-transit transfers |
-| C3b | — | **outstanding:** ABC, dead stock, fast/slow, low-stock alerts, reorder reading R5.9 |
+| C3b | `4667a5e` | ABC, dead stock, fast/slow, low-stock alerts, reorder reading R5.9 |
 
 **No tags.** The user waived `part-0N-done` for Parts 5–7, so the SHA table above is the
 record of where each checkpoint landed.
 
-**Verified at C3a:** 482 tests passing (402 at Part 4 close + 80 across C1/C2/C3a),
-`ruff check app/ tests/` exactly 37 — **zero new findings across all three checkpoints.**
+**Verified at close:** **505 tests passing** (402 at Part 4 close + 103 across the part),
+`ruff check app/ tests/` **exactly 37** — **zero new findings across all four checkpoints.**
+Fresh `python -m app.seed` + uvicorn: every nav page 200s, all four health sections render
+with their thresholds on screen, the count sheet walks open → record → close over HTTP, and a
+bad id renders `error.html` at 404.
 
-Requirement evidence is test node ids, not prose: `pytest -q -k r6_` (55 tests) and
-`pytest -q -k r7_` (25), across `test_inventory_locations.py`, `test_inventory_screens.py`,
-`test_inventory_valuation.py` and `test_inventory_operations.py`.
+Requirement evidence is test node ids, not prose: `pytest -q -k r6_` (**53 tests**) and
+`pytest -q -k r7_` (**47**), across `test_inventory_locations.py`, `test_inventory_screens.py`,
+`test_inventory_valuation.py`, `test_inventory_operations.py` and `test_inventory_health.py`.
+
+**Struck by decision D-A, not overlooked:** R6.7 (batch/lot), R6.8 (FIFO consumption order)
+and R6.9 (FIFO valuation). R6.16's weighted average replaced R6.9. **R6.10's stock ageing
+survived only because R7.8's dead-stock radar consumes it**, and it is approximate — stated on
+screen, not implied away.
+
+**Relaxed by decision D-B:** R6.13 (plain labels) and R7.12 (printable count sheets) are
+SHOULD, not MUST. R7.12 is met with a print stylesheet on the existing sheet rather than a
+second template or a PDF pipeline.
 
 ---
 
@@ -131,3 +138,50 @@ exist.
 
 **Mutation check:** three mutations, all caught — posting on zero variance, treating uncounted
 as zero, and dispatching straight to the shelf instead of into transit.
+
+---
+
+## C3b — health (`4667a5e`)
+
+R7.7 ABC · R7.8 dead stock · R7.9 fast/slow · R7.10 low-stock alerts · R7.11/R7.13 reorder
+reading Part 4's engine · R7.12 printable sheet (P1, print stylesheet) · R7.14's remainder.
+
+**Four decisions a later part must not reverse:**
+
+1. **ONE definition of demand, shared by three outputs.**
+   `InventoryRepository.CONSUMPTION_REASONS = ("SALE",)`, so ABC, the dead-stock radar and the
+   fast/slow split cannot disagree about what "moves" means. A transfer is the same units
+   relocating, a putaway is re-addressing, a negative adjustment is a correction — counting any
+   of them as demand puts products in the wrong class and hides dead stock.
+2. **ABC ranks by value consumed, not units**, with cumulative-share boundaries whose upper
+   bounds are **inclusive** (80/95/100) — matching `AGE_BUCKETS`, so the two never disagree
+   about what an edge means. A test asserts an expensive low-volume line outranks a cheap
+   high-volume one, which is the entire point of ABC. A product that sold nothing is class C,
+   not dropped off the report.
+3. **The dead-stock radar measures the last SALE, not the last movement.** A cycle count last
+   week must not make year-old stock look alive — that is the failure it exists to catch.
+   `last_consumption_at()` is the query; `last_movement_at()` stays for callers that genuinely
+   want "any activity". The boundary is strict: sold exactly `DEAD_STOCK_DAYS` ago is not yet
+   dead. Products with no stock are excluded — nothing on hand is not dead capital.
+4. **Low stock triggers on AVAILABLE, not on hand.** Stock already committed to an order cannot
+   cover a new one, so 100 on hand with 60 reserved is short against a level of 50.
+
+**R7.11/R7.13 — health does not implement reorder logic.** `reorder_suggestions` is a bare
+delegation to `RecommendationService.recommend`. Part 4's source walk forbids a second
+`def recommend` anywhere in `app/`, and R7.13 asserts the outputs are identical.
+
+**What the seed owed, and what finding it out revealed.** With only two products ever sold, ABC
+collapsed to 268-of-269 class C, there were no fast movers, and "dead stock" was almost the
+whole catalogue. Ten products now carry backdated sales with a steeply descending spread,
+giving **A=4, B=4, C=261** and two genuine fast movers. Getting there also surfaced that the
+seed was reaching for `warehouses[0]` — Mumbai, which holds two SKUs — where it wanted the
+warehouse that actually has stock; it now picks the busiest one.
+
+**Mutation check — four run, and the fourth found a real hole.** Making the dead-stock window
+inclusive, counting non-sales as demand, and adding a second `def recommend` were all caught
+(the last by Part 4's own source walk). But **inserting a no-op filter into the delegation was
+NOT caught**: every seeded recommendation has a positive qty, so comparing outputs could not
+see it — **R7.13's equality check can pass vacuously.**
+`test_r7_11_the_delegation_is_structurally_a_passthrough` now inspects the *shape* of the
+delegation rather than its output, and fails on that mutation. **The lesson generalises: an
+equality assertion between two code paths only tests what the current data distinguishes.**

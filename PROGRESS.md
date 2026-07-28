@@ -2,12 +2,6 @@
 
 > The source of truth for status. **This file is capped at ~350 lines and does not grow.**
 > Closed parts live in `docs/parts/`. A new part's handoff **replaces** the previous one here — never appends.
->
-> **It is ~386 today, and the overage is scheduled to clear.** Part 5 is mid-flight across four
-> checkpoints. Rather than let this file carry all of them, C1/C2/C3a's record has **already been
-> archived** to `docs/parts/part-05.md` — the archive is written progressively, not only at close.
-> C3b finishes the part, appends its own record there, and **deletes the Part 5 block from here.**
-> If you are the C3b session: that step is not optional. Do not add a Part 6 block on top of Part 5's.
 
 _Last updated: 2026-07-28_
 
@@ -23,7 +17,8 @@ _Last updated: 2026-07-28_
 file, keeping only the `Read for the next part` and `Call, don't read` blocks the next session needs.
 This is not tidiness. At Part 3 close this file was **1,212 lines / 90KB — about 22k tokens, re-read at
 the start of every remaining session**, and it was growing ~300 lines per part. It was the single
-largest avoidable cost in the build.
+largest avoidable cost in the build. Part 5 kept it near cap by **archiving progressively** — each
+finished checkpoint's record moved to `docs/parts/part-05.md` rather than waiting for the close.
 
 Where everything else lives is in `CLAUDE.md` — setup in `RUNNING.md`, closed parts in `docs/parts/`,
 per-part prompts in `docs/prompts/part-NN.md`, the binding rules in `docs/STANDING-RULES.md`, the
@@ -51,118 +46,124 @@ Type **`Start next part of development`** in a fresh session. `CLAUDE.md` binds 
 to type. **The session that closes a checkpoint owns that prompt** — one still naming last checkpoint's
 baseline counts is worse than none, because the next session will trust it.
 
-#### ▶ NEXT SESSION PROMPT — Part 5, C3b (inventory HEALTH — the operations half is done) · CLOSES PART 5
+#### ▶ NEXT SESSION PROMPT — Part 6, C1 (customer depth) · the WHOLE part is one checkpoint
 
 ```
 Continue the ApexOS build. Do this in order:
 
 1. git checkout main && git pull origin main. Then git status — one writer per working
    tree; if it is dirty, stop and report. This run does NOT tag parts (the user waived
-   tags for Parts 5–7), so the checkpoint SHA table below is the only record of where
-   each part began. Do not expect part-05-done to exist.
+   tags for Parts 5–7), so do not expect part-05-done or part-06-done to exist.
 
-2. Read the "▶ CURRENT WORK" block below, especially "▶ Part 5 — IN FLIGHT". C1
-   (437a185), C2 (b442322) and C3's OPERATIONS half (eaee67b) ARE DONE AND GREEN —
-   every R6.x passes and so do R7.1–R7.6. That block is your brief: it lists the
-   thirteen decisions those checkpoints made that you must not reverse, carries verified
-   signatures to call without opening the source, and its "Do NOT read" list is binding.
-   WHAT REMAINS IS HEALTH: R7.7–R7.13. Part 5 closes when they pass.
+2. Read the "▶ CURRENT WORK" block below, especially "▶ Handoff — Part 5 closed".
+   PART 5 IS COMPLETE: every R6.x and R7.x passes. That block names the edit set, carries
+   verified signatures to call WITHOUT opening the source, and its "Do NOT read" list is
+   binding. Part 6 is ONE checkpoint — the whole part is one session's work.
 
-3. Read docs/REQUIREMENTS.md §1 (G1–G17) and §8 (R7.x — all of C3). §7 is done; read it
-   only if you need context on what ageing gives you. The invariants you must not break
-   are NOT in the files you are editing: one activity_log row per state change,
-   derived-never-stored, append-only ledgers, record_movement as the only stock writer.
-   Then docs/prompts/part-05.md and docs/STANDING-RULES.md (binding). Do NOT open
+3. Read docs/REQUIREMENTS.md §1 (global invariants G1–G17) and §9 (R8.x — Part 6's whole
+   acceptance contract). NOT optional: the invariants you must not break — integer minor
+   units, exactly one activity_log row per state change, derived-never-stored, append-only
+   ledgers — are not in the files you are editing.
+   Then docs/prompts/part-06.md (self-contained) and docs/STANDING-RULES.md (binding:
+   decisions D-A..D-D, session protocol, reading diet, verify loop). Do NOT open
    docs/ROADMAP.md — planning only, ~17k tokens.
+   Also docs/08-module-breakdown.md §2.4 (Customers/CRM) and §2.7 (Sales).
 
-4. `git show --stat eaee67b` for what C3's operations half changed. Not a tree walk.
+4. `git diff 64ae50f..HEAD --stat` for everything Part 5 changed (that is Part 4's close).
+   Not a tree walk — docs/CODEBASE-MAP.md is the orientation document and is current.
 
 5. Verify the baseline before writing code (from apps/api, venv activated):
-     python -m pytest -q                  # expect 482 passed
+     python -m pytest -q                  # expect 505 passed
      python -m ruff check app/ tests/     # expect EXACTLY 37 — 38 is a regression
-   If either is off, stop and report. 37 is pre-existing (32 E501, 4 F841, 1 B007, all
-   in untouched modules). Parts 1–5 C3a added zero.
+   If either is off, stop and report. 37 is pre-existing (32 E501, 4 F841, 1 B007, all in
+   untouched modules). Parts 1–5 added zero new findings; hold that line.
 
-6. WHAT REMAINS IS INVENTORY HEALTH. Operations (R7.1–R7.6) are done — do NOT rework
-   the count sheet or the transfer; extend around them.
+6. GOAL: everything you need to know about a customer, on one page, without looking
+   anywhere else. EXTEND the proven spine — app/modules/{customers,crm,sales} and
+   /customers, /leads, /sales all exist and work. Do NOT rebuild them (G16).
 
-   a. R7.7–R7.10 — four health outputs, EVERY ONE through `Explained` +
-      the `explain_panel` macro (G11, one shape, already built — do not write per-screen
-      explanation markup):
-        · ABC analysis STATING its class boundaries, with a boundary test. `AGE_BUCKETS`
-          in inventory/schemas.py is the pattern to copy: the thresholds are a module
-          constant, the screen prints them, and a test asserts each edge.
-        · Dead-stock radar STATING its window, with a boundary test.
-        · Fast/slow movers showing the window and the numbers behind the classification.
-        · Low-stock alerts stating trigger + threshold + affected records AND LINKING to
-          them.
-      THE INPUTS ALREADY EXIST — reuse, do not rebuild (G16):
-        ValuationService.ageing() rows carry .stale_qty and .oldest_days
-        InventoryRepository.last_movement_at(product_id) -> datetime | None
-        ValuationService.stock_value() for the value ranking ABC needs
-        InventoryService.low_stock() / .low_stock_count()
-      "No movement in a stated window" (last_movement_at) and "old stock" (ageing) are
-      DIFFERENT measures. Say which the radar uses and why, on screen and in this block.
+   a. R8.1–R8.5 — profile depth: multiple contacts, multiple branches / ship-to addresses,
+      credit limit + payment terms + delivery preferences that are VERSIONED so prior
+      versions stay readable, documents through the EXISTING document module (R8.4 — there
+      must be no second upload path), and notes. Contact/branch/document lists use Part 2's
+      macros and Part 1's soft delete (R8.13).
 
-   b. R7.11/R7.13 — THE TRAP, and the reason Part 10 exists. Reorder suggestions CALL
-      RecommendationService(db).recommend(...). Part 4 left
-      test_r5_9_no_second_implementation_of_what_to_buy_exists_in_the_app, a source walk
-      that FAILS if a second `def recommend` appears anywhere in app/ — including one you
-      add. R7.13 requires a test proving the suggestion here and Part 4's engine return
-      IDENTICAL output for the same product. If they genuinely must differ, parameterise
-      the ONE engine and record the unification here. Do not copy the engine.
+   b. R8.6–R8.9 — credit limit enforced at sales-order confirm via CreditPolicyService.check.
+      THE BLOCK MUST STATE THE NUMBERS: limit, current outstanding, this order's value, and
+      the shortfall. A refusal the founder cannot act on is a bug, not a guard.
+      The boundary is EXACT and needs its own test: AT the limit is allowed, ONE MINOR UNIT
+      over is not. Money is integer minor units (G1), so this is an integer comparison —
+      no float anywhere near it.
 
-   c. R7.12 is P1 and RELAXED by D-B — a readable/printable count sheet is a SHOULD. The
-      sheet at /warehouse/counts/{id} already renders plainly; a print stylesheet is
-      enough. Do not build a PDF pipeline.
+   c. R8.8 — an override is possible, REQUIRES a reason, is rejected without one, and writes
+      EXACTLY ONE activity_log row recording who, when and by how much. Part 5's R7.4 did
+      the same thing for stock adjustments; follow that shape — the schema requires a
+      non-empty string AND the service refuses whitespace, because "   " passes a length
+      check and tells a later reader nothing.
 
-   d. R7.14's remainder: the seed still owes DEAD STOCK, a FAST MOVER, and enough history
-      for non-trivial ABC classes. C2's backdated purchases already give you aged stock to
-      build dead stock from — extend app/seed/inventory.py, never core.py's run().
+   d. R8.10/R8.11 — a unified customer timeline: orders, invoices, payments, tasks, notes
+      and activity in ONE chronological view, assembled from activity_log + entity events as
+      a READ-ONLY PROJECTION. **Do NOT add an events table to make this easier** — that is
+      called out in the requirement itself. A customer with no history renders an empty
+      timeline without erroring, and that needs a test.
+      NOTE a hard-won detail from Part 5: a column defaulting to func.now() TIES for rows
+      written in one transaction, so a timeline ordered on timestamp alone is
+      non-deterministic. Add id as the tiebreaker — keys are UUID v7 and time-ordered.
 
-7. Constraints that still bind:
-     - G8: record_movement is the ONLY writer of stock_movement — a source-walk test
-       enforces it. Every operation goes through it.
-     - G7: derived, never stored. ABC class, dead-stock status and movement rates are
-       computed per read, not columns.
-     - G5: exactly one activity_log row per state change.
+   e. R8.12 SCOPE FENCE: health score, quotations and returns are PART 7's. If you find
+      yourself designing the quotation screen, you have drifted — stop (G17).
+
+7. Constraints that bind:
+     - G5: exactly one activity_log row per state change, in the same transaction.
+     - G7: derived, never stored. Outstanding balance and the timeline are projections.
+     - G4: ledgers are append-only. A credit policy VERSION is a new row, never an edit.
+     - G10: every new POST carries the R1.4 authz guard. tests/test_web_authz.py walks the
+       whole POST surface and fails on an unguarded route, so this is enforced, not trusted.
      - Any new model owes app/db/references.py an entry, even an empty tuple (R3.7), and
-       EXERCISE it with blocking_references(db, row) in a test. **Health should add NO
-       new model at all** — an ABC class, a movement rate and a dead-stock flag are all
-       DERIVED. If you find yourself adding a table, re-read G7.
-     - A new column on an EXISTING table needs an _ADDITIVE_COLUMNS entry in
-       app/main.py (~line 45), or it is silently missing on every DB seeded earlier.
-     - G12: arithmetic only. No ML, no runtime LLM call.
+       EXERCISE it with blocking_references(db, row) in a test. A Reference names its column
+       by STRING, so a wrong one raises AttributeError at check time, not import time.
+     - A new column on an EXISTING table needs an _ADDITIVE_COLUMNS entry in app/main.py
+       (~line 45), or it is silently missing on every DB seeded earlier. Part 6 adds credit
+       fields to `customer`, so this WILL apply.
+     - status_class in web/core.py picks badge colour from a status STRING; one not in its
+       positive/warning/negative sets renders GREY, silently. A new status needs a bucket.
+   Seed (G14/R8.14): a customer with multiple contacts and ship-to branches, a credit limit,
+   enough order/invoice/payment history for the timeline to be worth reading, ONE order that
+   breaches the limit, and ONE recorded override. Add a NEW app/seed/<domain>.py plus one
+   call in run() — never by appending logic into run() itself.
 
-8. Work on main. No branches, no PRs, no tags. Commit at the end of C3b and push.
-   C3 CLOSES PART 5: when every P0/P1 in §7 and §8 passes, MOVE Part 5's record from
-   PROGRESS.md to docs/parts/part-05.md and DELETE it from PROGRESS.md, keeping only the
-   "Read for the next part" + "Call, don't read" blocks Part 6 needs. Then rewrite the
-   NEXT SESSION PROMPT above for PART 6 C1 (customer depth — contacts, branches, credit
-   limit + override, timeline; §9's R8.x) with its measured baseline counts.
-   PROGRESS.md IS CAPPED AT ~350 LINES AND DOES NOT GROW — replace, never append.
+8. Work on main. No branches, no PRs, no tags. Commit at the end and push. Part 6 is ONE
+   checkpoint: if you run low before it is done, commit what is GREEN, write the resume
+   block, and stop rather than pushing on.
 
 9. NAME EVERY NEW TEST AFTER THE REQUIREMENT IT PROVES —
-   `def test_r7_2_a_count_with_no_variance_writes_no_adjustment(...)`. A requirement's
-   evidence is a test node id (`pytest -q -k r7_2`), NOT a paragraph. No per-requirement
+   `def test_r8_9_one_minor_unit_over_the_credit_limit_is_blocked(...)`. A requirement's
+   evidence is a test node id (`pytest -q -k r8_9`), NOT a paragraph. No per-requirement
    prose tables.
 
    MUTATION-CHECK the new suite once — break the implementation and confirm the tests go
-   red. Every checkpoint so far has done this and it has paid each time: C1 found its
-   release test could not catch a broken `available`; C2 and C3a each ran three mutations
-   and every one was caught by the test written for it. A suite that passes first try is
-   not yet evidence. Good mutations for health: shift an ABC boundary by one, make the
-   dead-stock window exclusive, and copy the recommendation engine instead of calling it
-   (that last one should fail Part 4's source walk).
+   red. Every checkpoint in Parts 4 and 5 did this and it paid every time. Part 5 C3b's
+   fourth mutation found something worth remembering: **an equality assertion between two
+   code paths only tests what the current data distinguishes.** A no-op filter inserted into
+   a delegation passed an "outputs are identical" test because the seeded data could not
+   tell the difference. If a test compares two paths, ask what data would make them differ —
+   and if none does, assert the structure instead. Good mutations here: shift the credit
+   boundary by one minor unit, accept a blank override reason, and drop a source type from
+   the timeline.
 
-   If the checkpoint changed the SHAPE of anything, amend docs/CODEBASE-MAP.md in the
-   same session. A stale map is worse than none.
+   If the checkpoint changed the SHAPE of anything, amend docs/CODEBASE-MAP.md in the same
+   session. A stale map is worse than none.
+
+10. CLOSING PART 6: write docs/parts/part-06.md, delete the Part 6 block from PROGRESS.md,
+    and rewrite the NEXT SESSION PROMPT for PART 7 C1 (quotation — create/revise/send/
+    expire/convert; §10's R9.x) with measured baseline counts. PROGRESS.md IS CAPPED AT
+    ~350 LINES AND DOES NOT GROW — replace, never append.
 
 Use pytest -q, never verbose. Don't re-read files you just edited.
 ```
 
 **If a session has drifted** and you want a hard reset on scope, ignore the above and paste the whole
-```-fenced PROMPT from `docs/prompts/part-05.md` instead. More deterministic, more typing.
+```-fenced PROMPT from `docs/prompts/part-06.md` instead. More deterministic, more typing.
 
 **Rules of thumb.** One checkpoint per session — don't push a session past its checkpoint to "just
 finish the part". Start each session fresh (`/clear` or a new window) rather than continuing a long
@@ -171,287 +172,155 @@ re-reading the design docs.
 
 ---
 
-## ▶ Part 5 — IN FLIGHT · C1 done, C2 and C3 outstanding
+## ▶ Handoff — Part 5 closed · Part 6 starts here
 
-Part 4 is closed; its record is in **`docs/parts/part-04.md`** — **do not read it.** Everything Part 5
-needs is below.
-
-**This run does not create tags** (the user waived them for Parts 5–7). The table below is therefore
-the only record of where each checkpoint landed — the thing `part-0N-done` would normally be.
+Part 5 (Inventory: locations, states, valuation, operations, health) is **COMPLETE** on `main`.
+**Not tagged** — the user waived tags for Parts 5–7, so these SHAs are the record.
 
 | Checkpoint | Commit | What landed |
 |---|---|---|
-| Part 4 C1 engine | `cf552e3` | Vendor score, measured lead time, on-time rate, price history, `explain.py` |
-| Part 4 C1 screens | `c98548a` | The `explain_panel` macro, R5.12's pages, score + MOQ in R4.5's grid |
-| Part 4 C2 | `6381ecd` | `procurement/recommend.py` — R5.9's entry point, R5.8, R5.7's calendar |
-| Part 4 close | `64ae50f` | Archived to `docs/parts/part-04.md`; tagged `part-04-done` |
-| Part 5 C1 | `437a185` | Locations, four derived states, the reservation ledger |
-| Part 5 C2 | `b442322` | Weighted-average cost, stock ageing, `inventory/valuation.py` |
-| **Part 5 C3a** | **`eaee67b`** | **Count sheets, mandatory reasons, two-step in-transit transfers** |
+| C1 | `437a185` | Locations (warehouse→rack→bin), four derived states, the reservation ledger |
+| C2 | `b442322` | Weighted-average cost, stock ageing |
+| C3a | `eaee67b` | Count sheets, mandatory reasons, two-step in-transit transfers |
+| C3b | `4667a5e` | ABC, dead stock, fast/slow, low-stock alerts, reorder reading R5.9 |
 
-**Verified at C2:** **457 tests passing** (402 at Part 4 close + 55 across C1 and C2),
-`ruff check app/ tests/` **exactly 37** — zero new findings across both checkpoints. Fresh
-`python -m app.seed` + uvicorn on 8016: `/inventory` renders the four states, the location rollup, the
-unaddressed-stock note, the value table and the age buckets; `/warehouse` renders the rack/bin tree,
-both maintenance forms and per-warehouse ageing; the product page renders the cost-basis panel; every
-nav page 200s; a bad id renders `error.html` at 404.
+**Verified at close:** **505 tests passing**, `ruff check app/ tests/` **exactly 37** — zero new
+findings across the whole part. Fresh seed + uvicorn: every nav page 200s, all four health sections
+render with their thresholds stated, the count sheet walks open → record → close over HTTP, a bad id
+renders `error.html` at 404.
 
-**Also verified once, by hand, and worth not repeating:** the `_ADDITIVE_COLUMNS` shim upgrades a
-database that predates Part 5. A copy of the dev `apexos.db` carried since Part 1 **crashed on the
-missing `bin_id`** when read without the app lifespan, and served `/inventory` and `/warehouse`
-after booting through it. `test_r6_2_every_additive_column_exists_on_its_model` now guards the
-entries; the upgrade path itself is not unit-testable and does not need re-checking unless a new
-column lands on an existing table.
+**Every R6.x and R7.x passes.** The requirement-by-requirement evidence, the seventeen decisions the
+part made, and the four mutation rounds are in **`docs/parts/part-05.md`**. **Do not read it.**
+Everything Part 6 needs is below.
 
-| R | State | Where |
-|---|---|---|
-| R6.1 | ✅ warehouse → rack → bin, codes unique within parent, kinds validated | `StorageRack` / `StorageBin`, `LocationService` |
-| R6.2 | ✅ `stock_movement.bin_id` | `record_movement(bin_id=…)` |
-| R6.3 | ✅ **nullable, not backfilled** — decision below | `_ADDITIVE_COLUMNS["stock_movement"]` |
-| R6.4 | ✅ four states, all derived | `InventoryService.states()` |
-| R6.5 R6.6 | ✅ append-only ledger + one verb trio | `StockReservation`, `ReservationService` |
-| R6.11 | ✅ bin → rack → warehouse | `InventoryService.location_rollup()` |
-| R6.10 | ✅ inclusive-bound buckets, newest-first attribution, approximation on screen | `ValuationService.ageing` |
-| R6.16 | ✅ weighted average over purchases only, `Explained`; unknown never zero | `ValuationService.cost_basis` |
-| R6.12 | ✅ stock-by-location **and** ageing on both pages | `/inventory`, `/warehouse` |
-| R6.14 R7.14 | ✅ racks/bins/putaway/reservation/aged purchases/in-transit transfer/both counts · ⚠️ **dead stock + fast mover + ABC history still owed** | `app/seed/inventory.py` |
-| R6.15 R3.7 | ✅ incl. the G8 source walk and exercised references | `tests/test_inventory_*.py` |
-| R7.1 R7.2 R7.3 R7.4 R7.5 R7.6 | ✅ count sheet, no-variance writes nothing, mandatory reasons, in-transit | `CycleCountService`, `StockTransferService` |
-| **R7.7 R7.8 R7.9 R7.10** | ❌ **not started — health: ABC, dead stock, fast/slow, low-stock alerts** | — |
-| **R7.11 R7.12 R7.13** | ❌ **not started — reorder reading R5.9, printable sheet (P1)** | — |
+### Three things Part 6 inherits and must not break
 
-**Every R6.x passes**, and R7.1–R7.6 pass. Evidence is `pytest -q -k r6_` (55) and
-`pytest -q -k r7_` (25), across `test_inventory_locations.py`, `test_inventory_screens.py`,
-`test_inventory_valuation.py` and `test_inventory_operations.py`.
+1. **The reservation verb is Part 7's, and it already exists.** `ReservationService.reserve /
+   release / consume` (R6.6). Part 7's R9.8 calls it at sales-order confirm — **Part 6 must not add
+   a stock flag or a second mechanism** while working on that same confirm path, and should leave the
+   method easy for Part 7 to hook.
+2. **G11 has exactly one implementation.** Build an `Explained` (`app/db/explain.py`) and render it
+   with the `explain_panel` macro. Part 7's health score is a new *output*, not a new shape. If Part 6
+   shows a computed number (an outstanding total, a credit position), it renders through that panel.
+3. **An equality test between two code paths only tests what the data distinguishes.** Part 5 C3b
+   proved it: a no-op filter inserted into a delegation passed an "identical output" assertion.
+   Where two paths must agree, ask what data would separate them — and if nothing would, assert the
+   structure.
 
-**C3 was split across two firings** because it is the largest checkpoint in the part.
-`eaee67b` is the operations half; **health (R7.7–R7.13) is what remains, and Part 5 does not
-close until it lands.**
+### Read for Part 6 — these and nothing else
 
-### The thirteen decisions C1–C3a made are in `docs/parts/part-05.md`
+- `docs/REQUIREMENTS.md` §9 (R8.x) — the whole acceptance contract. §1 for the invariants.
+- `docs/prompts/part-06.md` — the brief, self-contained. Binding rules: `docs/STANDING-RULES.md`.
+- `docs/08-module-breakdown.md` §2.4 (Customers/CRM) and §2.7 (Sales).
+- **The edit set:** `app/modules/customers/{models,repository,service,schemas}.py` · a credit policy
+  service (`CreditPolicyService.check` is what R8.6 names) · `app/modules/sales/service.py` for the
+  confirm-time check · `app/web/pages/customers.py` + its templates · `app/main.py`'s
+  `_ADDITIVE_COLUMNS` for the new `customer` columns · `app/db/references.py` for every new model ·
+  a NEW `app/seed/customers.py` plus one call in `run()` · `tests/` — a new file per flow, following
+  `tests/test_inventory_operations.py`.
+- **Documents attach through the existing module** (R8.4). There is one upload path already; find it
+  before writing anything that stores a file.
 
-That file is **the archive of the finished checkpoints**, written progressively so this file
-stays near its cap while Part 5 is still open. You do **not** need to read it — the four that
-bear on the health half are repeated here, and the rest are settled:
-
-1. **`AGE_BUCKETS`' upper bounds are INCLUSIVE, stated on screen, and asserted at every
-   edge.** Copy that pattern for ABC's class boundaries and the dead-stock window: the
-   thresholds are a module constant, the screen prints them, a test pins each edge.
-2. **Ageing is an attribution, not a FIFO layer** — newest-first, `PUTAWAY` excluded, the
-   approximation carried in one string used by both the screen and `Explained.caveat`.
-   Health consumes `.stale_qty` / `.oldest_days`; do not re-derive age.
-3. **Margin must never read the cost basis** (R11.6/D-A). A source-walk test enforces it.
-   Health must not route margin or value through anything new either.
-4. **Three helpers have moved to escape circular imports** — `qty_text` (C1), `round_minor`
-   (C2), `default_business_unit` (C3a), all now in `app/core/money.py` or
-   `app/modules/config/service.py`. **A fourth move is a sign the layering needs a proper
-   look rather than another move.** Health should need none.
-
-**When C3b closes Part 5:** append its own record to `docs/parts/part-05.md`, flip that file's
-status line to COMPLETE, and **delete the whole Part 5 block from this file**, leaving only the
-"Read for the next part" and "Call, don't read" blocks Part 6 needs.
-
-**One pre-existing bug, deliberately left alone:** `InventoryRepository.movements()` orders by
-`occurred_at` alone, which ties for rows written in one transaction (the trap that cost C1 two tests).
-`reservation_entries` and `arrivals` both add `id` as the tiebreaker; `movements()` was not changed, to
-avoid altering Part 1–4 behaviour mid-part. **Fix it if C3b touches that method.**
-
-### Read for the next checkpoint (Part 5 C3b — health) — these and nothing else
-
-- `docs/REQUIREMENTS.md` §8 (R7.x — **all of C3**) and §1 for the invariants. §7 is done.
-- `docs/prompts/part-05.md` — the whole brief, self-contained. Binding rules: `docs/STANDING-RULES.md`.
-- **The edit set for C3b (health):** a new `app/modules/inventory/health.py` (ABC / dead stock /
-  fast-slow / low-stock, all derived reads — `valuation.py` is the precedent for a read-only module
-  beside the write half) · `app/web/pages/inventory.py` + its template · `app/seed/inventory.py` for
-  R7.14's remainder · `tests/test_inventory_health.py`, following `test_inventory_valuation.py`.
-  **Operations are done — `service.py` should need little or nothing.**
-
-The four things that will bite C3b — G11 on every output, ABC/dead-stock boundaries stated and tested,
-R7.8's two different measures, and the R7.11 source-walk trap — are in the starter prompt's step 6.
-Not repeated here; a second copy is a second thing to keep in step.
-
-### Call, don't read — verified signatures, copied from source (Part 4 close + Part 5 C1/C2)
+### Call, don't read — verified signatures, copied from source at Part 5 close
 
 ```python
-# app/modules/inventory/valuation.py — Part 5 C2. Reads only, writes nothing (G15).
-ValuationService(db).cost_basis(product_id)        -> Explained   # R6.16, "110.00"
-ValuationService(db).cost_basis_minor(product_id)  -> int | None  # None = never bought
-ValuationService(db).stock_value()                 -> list[StockValueRow]
-#   StockValueRow(.product_id .sku_code .product_name .qty_on_hand .cost_basis_minor
-#                 .value_minor) · .is_known. Sorted by value, highest first.
-ValuationService(db).total_value_minor(rows=None) · .unknown_basis_count(rows=None)
-#   PASS `rows` if you already have them, or the page recomputes stock_value() per call.
-ValuationService(db).ageing(warehouse_id=None, *, as_of=None) -> list[AgeingRow]
-#   AgeingRow(.product_id .sku_code .product_name .qty_on_hand .buckets .oldest_days
-#             .unattributed) · .stale_qty = the over-90 bucket, R7.8's input.
-#   `as_of` is injectable so a boundary test can sit exactly on a bucket edge.
-ValuationService(db).ageing_note()            # the one approximation sentence, for screens
-ValuationService(db).ageing_explained(row)    -> Explained   # same sentence as .caveat
-bucket_for(days) -> (key, label)              # UPPER BOUNDS INCLUSIVE
-AGE_BUCKETS  # (("fresh","0–30 days",30), ("thirty",…,60), ("sixty",…,90), ("stale",…,None))
-
-InventoryRepository(db).acquisition_totals(product_id=None)
-#   -> [(product_id, qty, cost_total_minor, purchases, first_at, last_at)] grouped
-InventoryRepository(db).acquisitions_without_cost(product_id) -> Decimal
-InventoryRepository(db).arrivals(product_id, warehouse_id=None) -> [StockMovement]
-#   inbound, NEWEST FIRST, PUTAWAY excluded (it is re-addressing, not an arrival)
-InventoryRepository(db).last_movement_at(product_id) -> datetime | None   # R7.8 reads this
-InventoryRepository.ACQUISITION_REASONS = ("PURCHASE",)   # ONLY a purchase sets cost
-
-# app/modules/inventory/service.py — C3a's operations. Health does not call these; they
-# are listed so you know they exist and must not be rebuilt. Read the source if you touch
-# them. CycleCountService(.open/.record/.close/.sheets/.detail) ·
-# StockTransferService(.dispatch/.receive/.transfer/.in_transit) ·
-# StockAdjustmentService(.adjust — note now MANDATORY / .count — a match posts NOTHING)
-InventoryRepository(db).bin_of_kind(warehouse_id, kind) -> StorageBin | None
-default_business_unit(db) -> uuid.UUID    # app.modules.config.service (moved in C3a)
-
-# app/modules/inventory/service.py — Part 5 C1/C2's additions
+# app/modules/inventory/service.py — the ONLY writer of stock_movement (G8), enforced by a
+# source-walk test that fails if anything else constructs one.
 InventoryService(db).record_movement(*, product_id, warehouse_id, qty_delta, reason,
     ref_type=None, ref_id=None, unit_cost_minor=None, bin_id=None, occurred_at=None,
-    actor_id=None)
-#   `bin_id` (C1, R6.3) and `occurred_at` (C2) are both OPTIONAL. Still the only writer
-#   (G8). `occurred_at` is how the seed fabricates history at INSERT time — never UPDATE.
+    actor_id=None) -> StockMovement
 #   Reasons in use: PURCHASE · SALE · TRANSFER · ADJUSTMENT · COUNT · PUTAWAY.
-InventoryService(db).reserved(product_id, warehouse_id=None)  -> Decimal
+#   `occurred_at` is how the seed fabricates history at INSERT time — never by UPDATE (G4).
+InventoryService(db).on_hand(product_id, warehouse_id=None) -> Decimal
 InventoryService(db).available(product_id, warehouse_id=None) -> Decimal
-#   sellable on-hand (stock-kind bins only) − outstanding reservations. NOT clamped at 0:
-#   an over-reserved product is a real condition and is shown, not floored.
-InventoryService(db).states(warehouse_id=None)   -> list[StockStateRow]
-#   StockStateRow(.product_id .sku_code .product_name .warehouse_id .warehouse_name
-#                 .on_hand .reserved .in_transit .quarantined .available)
-#   Two grouped queries for the whole page + one for names. No per-row query.
-InventoryService(db).bin_stock(warehouse_id=None) -> list[BinStockRow]
-#   .location -> "A / A-01", or "no bin recorded" when bin_id is None (R6.3). INCLUDES
-#   the NULL-bin row — dropping it makes the view disagree with on-hand.
-InventoryService(db).location_rollup(warehouse_id=None) -> list[LocationRollupRow]
-#   (.level .id .code .name .kind .qty_on_hand .children); each level sums its children.
-LocationService(db).racks(warehouse_id=None) · .bins(rack_id=None) · .create_rack(RackCreate,
-    *, actor_id) · .create_bin(BinCreate, *, actor_id) · .require_rack/.require_bin
-BIN_KINDS = ("stock", "transit", "quarantine")   # app/modules/inventory/models.py
+#   sellable on-hand − outstanding reservations. NOT clamped at 0.
+InventoryService(db).states(warehouse_id=None) -> list[StockStateRow]
+#   (.on_hand .reserved .in_transit .quarantined .available) — all derived (G7).
 
-# THE VERB PART 7's R9.8/R9.9 CALLS — do not add a second mechanism
+# THE VERB PART 7's R9.8/R9.9 CALLS. Part 6 must not add a second mechanism.
 ReservationService(db).reserve(ReservationCreate, *, actor_id)  -> ReservationResult
 ReservationService(db).release(ReservationCreate, *, actor_id)  -> ReservationResult
 ReservationService(db).consume(ReservationCreate, *, actor_id)  -> ReservationResult
-#   reserve at SO confirm · consume at fulfilment · release at cancellation.
-#   Each appends ONE signed row and writes ONE activity_log row (G5). Never edits.
-#   reserve refuses over-committing and NAMES the numbers; release/consume refuse
-#   unwinding more than is outstanding.
-ReservationService(db).reserved(...) / .available(...) / .entries(product_id=None)
-ReservationCreate(product_id, warehouse_id, qty>0, bin_id=None, ref_type=None,
-                  ref_id=None, note=None)
-ReservationResult(product_id, warehouse_id, qty_delta, reason, on_hand, reserved, available)
-#   reason is "RESERVE" | "RELEASE" | "CONSUME"
+#   reserve at SO confirm · consume at fulfilment · release at cancellation. Each appends
+#   ONE signed ledger row and writes ONE activity_log row (G5). Never edits a row.
+ReservationCreate(product_id, warehouse_id, qty>0, bin_id=None, ref_type=None, ref_id=None,
+                  note=None)
 
-InventoryRepository(db).qty_by_bin_kind(warehouse_id=None) -> [(pid, wid, kind, qty)]
-InventoryRepository(db).reserved_totals(warehouse_id=None) -> [(pid, wid, qty)]
-InventoryRepository(db).bin_rows(warehouse_id=None)        # the outer-joined page query
-#   Unaddressed stock counts as `stock` kind — no bin recorded is not a fourth state.
+# app/modules/inventory/{valuation,health}.py — reads only, write nothing (G15)
+ValuationService(db).cost_basis(product_id) -> Explained · .stock_value() · .ageing()
+InventoryHealthService(db).abc() · .dead_stock() · .movement_rates() · .low_stock()
+InventoryHealthService(db).reorder_suggestions(*, product_id=None, limit=None)
+#   A BARE DELEGATION to RecommendationService.recommend — never reimplement it (R7.11).
 
-# app/core/money.py — moved here in C1/C2 so inventory can use them (were
-# procurement-private, and inventory cannot import procurement — it would be circular)
-qty_text(value: Decimal) -> str    # "40", not "40.0000". Service messages only.
-round_minor(value: Decimal) -> int # THE one money rounding step (G1). No second one.
-minor_to_text(minor: int | None) -> str   # 123456 -> "1234.56"
-
-# app/modules/inventory/service.py — what existed before C1 (record_movement is ABOVE,
-# with its new bin_id; the signature without it is stale, do not use it)
-InventoryService(db).on_hand(product_id, warehouse_id=None) -> Decimal   # summed from the ledger
-InventoryService(db).stock() -> list[StockRow] · .warehouse_stock(warehouse_id=None)
-InventoryService(db).low_stock() · .low_stock_count() · .movements(product_id=None)
-StockTransferService(db).transfer(payload, *, actor_id) -> StockTransferResult
-StockAdjustmentService(db).adjust(payload, *, actor_id) -> StockAdjustmentResult
-StockAdjustmentService(db).count(payload, *, actor_id) -> StockAdjustmentResult
-#   These three EXIST and each writes one activity row. R7.1–R7.5 EXTEND them (in-transit state,
-#   mandatory reason, count sheet → variance) — they do not replace them.
-InventoryRepository(db).balances() -> list[(product_id, warehouse_id, qty)]   # grouped, one query
-InventoryRepository(db).stock_rows() -> list[tuple]   # + sku/name/warehouse/reorder_level
-
-# app/modules/procurement/recommend.py — R5.9's ONE entry point. R7.11 CALLS this.
+# app/modules/procurement/recommend.py — R5.9's ONE entry point
 RecommendationService(db).recommend(*, product_id=None, limit=None) -> list[Recommendation]
-#   Recommendation(.product_id .sku_code .product_name .qty .on_hand .reorder_level .on_order
-#                  .shortfall .supplier_id .supplier_name .moq .lead_time .explained)
-#   .sentence -> R5.8's plain-language line. Worst shortfall first. [] means nothing to buy.
-#   qty = reorder_level − on_hand − on_order, raised to the preferred supplier's MOQ if one is agreed.
-OPEN_PO_STATUSES = ("confirmed", "partially_received")   # NOT references.open_po — that includes draft
-#   ProcurementCalendarService also lives here (Part 4 C2's /procurement calendar); Part 5
-#   does not call it. Signature is in docs/parts/part-04.md if C3 ever needs it.
+#   .sentence is the plain-language line. Worst shortfall first. [] means nothing to buy.
+#   A source walk FAILS if a second `def recommend|recommendations|suggest_reorder` appears
+#   anywhere in app/.
 
 # app/db/explain.py — the ONE shape for every explained number (G11)
 Explained(what, value: str | None, formula, window, inputs=(), records=(),
-          unknown_reason=None, caveat=None)
-#   .is_known -> value is not None      .display -> value or "unknown"
+          unknown_reason=None, caveat=None)   # .is_known · .display -> value or "unknown"
 Explained.unknown(*, what, formula, reason, window="no data", inputs=(), records=())
 Input(label, value, weight=None, missing_reason=None)   # .is_missing
 SourceRecord(label, href=None)
 # Rendered by ONE macro:  {{ ui.explain_panel(explained, "Optional title") }}
 
-# app/modules/procurement/service.py — Part 5 needs only these
-PurchaseOrderService.open_qty(line) -> Decimal   # STATICMETHOD. THE definition of open (R4.9/G7).
-default_business_unit(db) · tax_bps_for(db, product) · _round_minor(value)
-#   _round_minor is the ONE money rounding step (G1) — do not add a second.
-#   VendorIntelService and ProductSupplierService (suppliers module) are NOT called by
-#   Part 5 — RecommendationService already reads them internally. Signatures for those,
-#   and for the full PO chain, are in docs/parts/part-04.md if C3 turns out to need them.
+# app/core/money.py — money and quantity as text. G1: integer minor units end to end.
+qty_text(value: Decimal) -> str      # "40", not "40.0000". Service messages only.
+round_minor(value: Decimal) -> int   # THE one money rounding step. No second one.
+minor_to_text(minor: int | None) -> str        # 123456 -> "1234.56"
 
 # app/modules/config/service.py
-allocate_document_number(db, *, doc_type, business_unit_id, on_date) -> "GRN-202607-00001"
-#   Row-locked per (BU, doc_type, period). C3's count sheets may want a new doc type.
+default_business_unit(db) -> uuid.UUID
+allocate_document_number(db, *, doc_type, business_unit_id, on_date) -> "SO-202607-00001"
+#   Row-locked per (BU, doc_type, period). In use: PO GRN BILL REQ RFQ QUO SO INV TRF CNT.
 ```
 
 Part 2's machinery still holds unchanged: `ListSpec` + `view_from_request` (list pages),
 `ensure_unreferenced` / `soft_delete` / `ensure_unique`, `ActivityService.history`, and the
 `page_header` / `stat` / `badge` / `list_*` / `history_panel` / `explain_panel` macros.
 
-### Gotchas that will bite Part 5
+### Gotchas that will bite Part 6
 
-- **`create_all` builds new TABLES but never ALTERs an existing one.** A new column on
-  `stock_movement`, `warehouse`, `product` … needs an `_ADDITIVE_COLUMNS` entry in `app/main.py`
-  (~line 45) or it is silently missing on every DB seeded earlier, including the dev `apexos.db`
-  carried since Part 1. Get the DDL from what `create_all` emits
-  (`CreateTable(...).compile(sqlite)`), don't guess: `DateTime(timezone=True)` → `DATETIME`,
-  `Uuid()` → `CHAR(32)`, `Numeric(18,4)` → `NUMERIC(18, 4)`.
-- **`Decimal` from `Numeric(18, 4)` reads back at full scale.** `40.0000` is right for arithmetic and
-  wrong in a sentence. Screens have the `number` filter; a service message uses
-  **`app.core.money.qty_text`** (moved there in C1). Plain `.normalize()` is a trap — it turns 40
-  into `4E+1`.
-- **A column default of `func.now()` ties.** Rows written in one transaction share a timestamp, so
-  `ORDER BY occurred_at` alone is not deterministic and a test that reads "the newest entry" fails
-  intermittently. Add `id` as the tiebreaker — keys are UUID v7 and therefore time-ordered. This cost
-  C1 two intermittently-failing tests before the cause was found.
+- **`create_all` builds new TABLES but never ALTERs an existing one.** A new column on `customer`,
+  `sales_order` … needs an `_ADDITIVE_COLUMNS` entry in `app/main.py` (~line 45) or it is silently
+  missing on every DB seeded earlier, including the dev `apexos.db` carried since Part 1. Get the DDL
+  from what `create_all` emits (`CreateTable(...).compile(sqlite)`), don't guess:
+  `DateTime(timezone=True)` → `DATETIME`, `Uuid()` → `CHAR(32)`, `Numeric(18,4)` → `NUMERIC(18, 4)`.
+  Part 5 verified this path against a pre-Part-5 copy of the dev database; the shim works.
+- **A column default of `func.now()` TIES.** Rows written in one transaction share a timestamp, so
+  `ORDER BY occurred_at` alone is non-deterministic and a test reading "the newest row" fails
+  intermittently. Add `id` as the tiebreaker — UUID v7 keys are time-ordered. **This matters directly
+  for R8.10's chronological timeline.** (`InventoryRepository.movements()` still has this latent tie —
+  pre-existing, left alone.)
 - **A test can pass without testing anything.** Assert a **floor** on anything you enumerate
-  (`assert len(found) > 40`) and mutation-check a new suite once.
-- **A `select()` per row in a projector is the thing to avoid**; `db.get(Product, id)` in a loop is
-  free (identity map). Part 4's engine covers all 311 products in two queries.
-- **`status_class` in `web/core.py` picks badge colour from a status *string*** — one not in its
-  positive/warning/negative sets renders grey, silently. A new status needs a bucket.
+  (`assert len(found) > 40`), and mutation-check once. See "Three things Part 6 inherits" #3.
+- **Assert on HTML phrases that do NOT straddle a template line break** — cost two runs in Part 5.
 - **A page with an entry form has TWO `<tbody>`s**, so `html.count("<tbody>") == 1` is wrong there.
-  Assert markers the shared macros emit, and read totals from the paginator, not by counting `<tr>`.
-  Also assert on phrases that do **not** straddle a template line break — C2 lost a run to that.
+  Assert markers the shared macros emit; read totals from the paginator, not by counting `<tr>`.
+- **A `select()` per row in a projector is the thing to avoid**; `db.get(Model, id)` in a loop is free
+  (identity map). A timeline over six source types should be a handful of queries, not one per event.
 - **The env var is `DATABASE_URL`, not `APEXOS_DATABASE_URL`.** The wrong name silently writes the real
   `apexos.db` and you "verify" against stale data. A scratch `.db` cannot be deleted while uvicorn holds
   it — stop it first (`Get-CimInstance Win32_Process | Where CommandLine -like '*<port>*' |
-  Stop-Process -Force`; `pkill` does not exist here). 8000 may be occupied; C1 used 8015, C2 8016.
+  Stop-Process -Force`; `pkill` does not exist here). 8000 may be busy; Part 5 used 8015–8018.
 - **PowerShell has no heredocs and `$pid` is read-only** — a multi-line commit message needs the Bash
-  tool (`git commit -F - <<'EOF'`). Shell variables do **not** persist between tool calls, so a script
-  that needs `DATABASE_URL` must set it in the same invocation.
-- **A self-referencing Pydantic model needs `Model.model_rebuild()`** after its class body.
+  tool (`git commit -F - <<'EOF'`). Shell variables do **not** persist between tool calls.
 - **A script that reads the DB without booting the app skips `_ensure_new_columns`** and will crash on
   any additively-added column. Use a `TestClient(app)` context if you need the shim to have run.
+- **A self-referencing Pydantic model needs `Model.model_rebuild()`** after its class body.
 
 ### Do NOT read
 
-`app/seed/core.py` (707 lines — read `app/seed/__init__.py`'s docstring, and `app/seed/vendor.py` as
-the pattern for a new section) · `app/modules/procurement/preorder.py` (814 lines — Part 3 and 4
-finished it; the two functions Part 5 might want are in "Call, don't read") ·
-`app/modules/suppliers/vendor.py` (465 lines — same) · `tests/test_preorder.py`,
-`tests/test_po_revisions.py`, `tests/test_vendor_intel.py`, `tests/test_vendor_screens.py`,
-`tests/test_procurement_planning.py` (they pass; read one only if you change what it covers) ·
-anything in `docs/parts/` · `docs/ROADMAP.md` (~17k tokens, planning only) · the older `docs/` design
-files, `docs/DELETION-POLICY.md` and `docs/MIGRATION-STRATEGY.md` — Part 1 resolved those.
+`app/seed/core.py` (720 lines — read `app/seed/__init__.py`'s docstring, and `app/seed/inventory.py`
+as the pattern for a new section) · `app/modules/procurement/preorder.py` (814 lines) ·
+`app/modules/suppliers/vendor.py` · `app/modules/inventory/{valuation,health}.py` (Part 5 finished
+them; their signatures are above) · `tests/test_preorder.py`, `test_po_revisions.py`,
+`test_vendor_intel.py`, `test_vendor_screens.py`, `test_procurement_planning.py`,
+`tests/test_inventory_*.py` (they pass; read one only if you change what it covers) · anything in
+`docs/parts/` · `docs/ROADMAP.md` (~17k tokens, planning only) · the older `docs/` design files,
+`docs/DELETION-POLICY.md` and `docs/MIGRATION-STRATEGY.md` — Part 1 resolved those.
 
 Note `docs/REQUIREMENTS.md` is at v1.2: the stock writer is `InventoryService.record_movement`, and any
 older doc naming `post_movement` is wrong.
-
----
