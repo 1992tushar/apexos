@@ -184,6 +184,32 @@ Rendered by exactly one macro, `explain_panel`. G11 is P0 on every score, alert,
 forecast in the product, so **a new one builds an `Explained` and passes it to that macro** — inventing
 per-screen markup for the arithmetic is the duplication R13.1 was scheduled to clean up.
 
+### `app/modules/inventory/` — two append-only ledgers and the location tree (Part 5 C1)
+
+Inventory owns **two** ledgers, both append-only, and stores no balance of any kind:
+
+| Table | What it records | Read as |
+|---|---|---|
+| `stock_movement` | physical movement, signed | on-hand = `SUM(qty_delta)` |
+| `stock_reservation` | commitment, signed (`RESERVE` + / `RELEASE` − / `CONSUME` −) | reserved = `SUM(qty_delta)` |
+
+`StorageRack` → `StorageBin` hang under `Warehouse` (which stays in `config/models.py` — racks and bins
+live here because they exist only to address stock). `stock_movement.bin_id` is **nullable and means
+"bin not recorded"**: backfilling it would UPDATE an append-only ledger (G4). `StorageBin.kind` is
+`stock | transit | quarantine`, and that column is what makes R6.4's four states derivable without a
+state column anywhere — including the mechanism for a two-step transfer (OUT of a stock bin, IN to a
+transit bin).
+
+The verbs other modules call:
+
+- `InventoryService.record_movement(...)` — **the only writer of `stock_movement`** (G8). A source-walk
+  test fails if anything else constructs one.
+- `ReservationService.reserve / release / consume` — **the only reservation mechanism** (R6.6). Sales
+  calls `reserve` at order confirm, `consume` at fulfilment, `release` at cancellation (R9.8/R9.9).
+  Adding a flag or a second path is the specific failure R6.5 exists to prevent.
+- `InventoryService.states()` / `.bin_stock()` / `.location_rollup()` / `.available()` — derived reads
+  for the screens; each is one or two grouped queries for a whole page, never a query per row.
+
 ### `app/web/security.py` — web authz (R1.4)
 
 `require_web_permission(permission)` — a FastAPI dependency that renders 403 `error.html` on GET and
@@ -298,7 +324,14 @@ app/seed/
   preorder.py    seed_preorder(ctx) — Part 3's section, the worked example
   vendor.py      seed_vendor(ctx) — Part 4's: mapping + MOQ, receipt history,
                  scorecards, price timeline, the two reorder cases, one late arrival
+  inventory.py   seed_locations(ctx) — Part 5 C1's: racks + bins in both warehouses
+                 (incl. one transit and one quarantine bin), putaway of 12 products as
+                 NET-ZERO movement pairs, and one live reservation
 ```
+
+**The putaway is a net-zero pair on purpose** — out of the unaddressed pool, into a bin — because
+addressing existing stock must change its location without changing on-hand, and rewriting the
+original movement would break G4. A test asserts `SUM(qty_delta) WHERE reason='PUTAWAY'` is 0.
 
 **Adding a section:** write `app/seed/<domain>.py` exposing
 `def seed_<domain>(ctx: SeedContext) -> dict | None`, guard it on its own emptiness check, and add one
@@ -312,7 +345,8 @@ reference data → founder user → org/config → categories → products + pri
 demo customers + credit policies → demo suppliers → one complete buy loop (PO → confirm → receive →
 bill → partial payment) → **the pre-order flow (3 requisitions + 1 RFQ with 2 quotes)** → one complete
 sell loop (order → confirm → fulfill → invoice → partial payment) → second warehouse + transfer,
-tasks, a document → pipeline stages, leads, opportunity, competitors.
+tasks, a document → pipeline stages, leads, opportunity, competitors → **vendor history (Part 4)** →
+**locations + putaway + one reservation (Part 5 C1)** → master change history (always last).
 
 Two passes run **last**, after every section: the master change-history backfill
 (`record_creation` over the ten master tables) and the tax-slab window repair. Later sections create
