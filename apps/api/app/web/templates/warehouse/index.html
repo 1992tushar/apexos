@@ -90,6 +90,31 @@
   </div>
 </div>
 
+{# R6.10 / R6.12 — ageing per warehouse. The per-product breakdown is on /inventory. #}
+<h2>Stock age by warehouse</h2>
+<p class="hint">{{ ageing_note }} Upper bounds are inclusive.</p>
+<div class="grid grid-2 mt">
+  {% for w in summary %}
+  <div class="card">
+    <div class="card-title">
+      {{ w.name }}
+      {% if w.oldest_days is not none %}<span class="muted">— oldest {{ w.oldest_days }} days</span>{% endif %}
+    </div>
+    {% if w.ageing %}
+    <table>
+      <tbody>
+        {% for label, qty in w.ageing.items() %}
+        <tr><td>{{ label }}</td><td class="num">{% if qty %}{{ qty | number }}{% else %}—{% endif %}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+      <p class="hint">No stock to age here yet.</p>
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+
 {# R6.1 — the location tree, plus the two verbs that maintain it. #}
 <h2>Locations</h2>
 <div class="grid grid-3 mt">

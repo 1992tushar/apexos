@@ -51,6 +51,91 @@
   {{ ui.empty("No stock recorded yet.") }}
 {% endif %}
 
+{# R6.16 — weighted-average cost and what the stock is worth. #}
+<h2>What it is worth</h2>
+<div class="grid grid-3 mt">
+  {{ ui.stat("On-hand value", total_value_minor | money, "at weighted-average cost") }}
+  {{ ui.stat("Products valued", values | length ~ " shown") }}
+  {{ ui.stat("Cost basis unknown", unknown_basis,
+     "never bought at a recorded price" if unknown_basis else "every product has one") }}
+</div>
+
+<p class="hint">
+  Cost basis is the weighted average of what was actually <em>purchased</em>: total purchase
+  cost ÷ total quantity purchased. Transfers, putaway, adjustments and counts move or
+  correct quantity without buying at a price, so they do not change it. Where nothing was
+  ever bought at a recorded price the basis is <strong>unknown</strong> — not zero.
+</p>
+
+{% if values %}
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>SKU</th><th>Product</th><th class="num">On hand</th>
+        <th class="num">Cost basis</th><th class="num">Value</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for v in values %}
+      <tr>
+        <td class="mono">{{ v.sku_code }}</td>
+        <td>{{ v.product_name }}</td>
+        <td class="num">{{ v.qty_on_hand | number }}</td>
+        <td class="num">
+          {% if v.is_known %}{{ v.cost_basis_minor | money }}{% else %}{{ ui.badge("unknown") }}{% endif %}
+        </td>
+        <td class="num">
+          {% if v.is_known %}{{ v.value_minor | money }}{% else %}—{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{# R6.10 — age buckets. The approximation is stated, not implied. #}
+<h2>How old it is</h2>
+<p class="hint">{{ ageing_note }} Each bucket's upper bound is inclusive, so stock exactly
+  30 days old is counted in “0–30 days”.</p>
+
+{% if ageing %}
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>SKU</th><th>Product</th><th class="num">On hand</th>
+        {% for key, label, upper in age_buckets %}<th class="num">{{ label }}</th>{% endfor %}
+        <th class="num">Oldest</th><th class="num">Not attributed</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for a in ageing %}
+      <tr>
+        <td class="mono">{{ a.sku_code }}</td>
+        <td>{{ a.product_name }}</td>
+        <td class="num">{{ a.qty_on_hand | number }}</td>
+        {% for b in a.buckets %}
+        <td class="num">{% if b.qty %}{{ b.qty | number }}{% else %}—{% endif %}</td>
+        {% endfor %}
+        <td class="num">
+          {% if a.oldest_days is not none %}{{ a.oldest_days }} days{% else %}{{ ui.badge("unknown") }}{% endif %}
+        </td>
+        <td class="num">{% if a.unattributed %}{{ a.unattributed | number }}{% else %}—{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% if ageing_hidden %}
+<p class="hint">Showing the {{ ageing | length }} products with the most stock over 90 days.
+  {{ ageing_hidden }} more are not shown.</p>
+{% endif %}
+{% else %}
+  {{ ui.empty("No stock to age yet.") }}
+{% endif %}
+
 {# R6.1 / R6.11 — warehouse → rack → bin, each level the sum of the one below. #}
 <h2>Stock by location</h2>
 {% if unaddressed %}

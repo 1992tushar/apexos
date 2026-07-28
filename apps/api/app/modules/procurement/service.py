@@ -15,7 +15,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.errors import ConflictError, NotFoundError, ValidationError
-from app.core.money import qty_text
+from app.core.money import qty_text, round_minor
 from app.modules.activity.service import ActivityService
 from app.modules.config.models import BusinessUnit, TaxRate, Warehouse
 from app.modules.config.service import allocate_document_number
@@ -47,9 +47,10 @@ from app.modules.procurement.schemas import (
 from app.modules.products.models import Product
 from app.modules.suppliers.models import Supplier
 
-
-def _round_minor(value: Decimal) -> int:
-    return int(value.quantize(Decimal("1")))
+# Moved to `app.core.money` in Part 5 C2, same reason as `_qty_text` below: inventory
+# valuation needs it and cannot import this module. Re-exported under the original name,
+# so this module's call sites are unchanged and there is still ONE rounding step (G1).
+_round_minor = round_minor
 
 
 # Moved to `app.core.money` in Part 5 C1 so the inventory module can use it too —

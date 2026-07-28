@@ -23,6 +23,7 @@ from app.modules.inventory.service import (
     StockAdjustmentService,
     StockTransferService,
 )
+from app.modules.inventory.valuation import ValuationService
 from app.modules.products.service import ProductService
 from app.web.core import form_action, render
 from app.web.security import require_web_permission
@@ -37,6 +38,7 @@ def warehouse_index(request: Request, db: Session = Depends(get_db)):
     products, _ = ProductService(db).list(
         search=None, category_id=None, page=1, page_size=300
     )
+    valuation = ValuationService(db)
     locations = LocationService(db)
     racks = locations.racks()
     bins_by_rack: dict[uuid.UUID, list] = {}
@@ -47,6 +49,16 @@ def warehouse_index(request: Request, db: Session = Depends(get_db)):
     for wh in warehouses:
         wh_rows = [s for s in stock if s.warehouse_id == wh.id]
         wh_racks = [r for r in racks if r.warehouse_id == wh.id]
+        # R6.12's ageing view, scoped to this warehouse. Bucket totals rather than a
+        # per-product table: the per-product breakdown is on /inventory, and repeating it
+        # per warehouse would be the same table three times.
+        ageing = valuation.ageing(wh.id)
+        bucket_totals: dict[str, Decimal] = {}
+        for row in ageing:
+            for bucket in row.buckets:
+                bucket_totals[bucket.label] = (
+                    bucket_totals.get(bucket.label, Decimal(0)) + bucket.qty
+                )
         summary.append(
             {
                 "id": wh.id,
@@ -55,6 +67,11 @@ def warehouse_index(request: Request, db: Session = Depends(get_db)):
                 "city": wh.city,
                 "units": sum((r.qty_on_hand for r in wh_rows), Decimal(0)),
                 "sku_count": len(wh_rows),
+                "ageing": bucket_totals,
+                "oldest_days": max(
+                    (r.oldest_days for r in ageing if r.oldest_days is not None),
+                    default=None,
+                ),
                 # R6.1's tree, for the location panel below the stock table.
                 "racks": [
                     {"row": rack, "bins": bins_by_rack.get(rack.id, [])}
@@ -70,6 +87,7 @@ def warehouse_index(request: Request, db: Session = Depends(get_db)):
         products=products,
         summary=summary,
         racks=racks,
+        ageing_note=valuation.ageing_note(),
     )
 
 

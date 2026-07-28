@@ -206,3 +206,70 @@ class ReservationResult(BaseModel):
 # `LocationRollupRow.children` is the same model, so the annotation cannot resolve while
 # the class body is still executing. Rebuilding here is the Pydantic v2 fix.
 LocationRollupRow.model_rebuild()
+
+
+# --- Part 5 C2: valuation (R6.16) and ageing (R6.10) ----------------------
+
+# Age buckets, in reading order. Each entry is (key, label, upper_bound_days) and the
+# UPPER BOUND IS INCLUSIVE — stock exactly 30 days old is "0–30 days", not "31–60".
+# The last bucket's bound is None, meaning "everything older". R6.10 requires the
+# boundary behaviour to be defined; this tuple IS the definition, and a test asserts it.
+AGE_BUCKETS: tuple[tuple[str, str, int | None], ...] = (
+    ("fresh", "0–30 days", 30),
+    ("thirty", "31–60 days", 60),
+    ("sixty", "61–90 days", 90),
+    ("stale", "over 90 days", None),
+)
+
+
+class StockValueRow(BaseModel):
+    """One product's on-hand quantity and what it is worth (R6.16).
+
+    `cost_basis_minor` is None when no purchase with a recorded cost exists — the figure
+    is then genuinely unknown and the screen says so rather than showing zero (G11).
+    """
+
+    product_id: uuid.UUID
+    sku_code: str
+    product_name: str
+    qty_on_hand: Decimal
+    cost_basis_minor: int | None
+    value_minor: int | None
+
+    @property
+    def is_known(self) -> bool:
+        return self.cost_basis_minor is not None
+
+
+class AgeBucketRow(BaseModel):
+    """How much of a product's balance falls in one age bucket."""
+
+    key: str
+    label: str
+    qty: Decimal
+
+
+class AgeingRow(BaseModel):
+    """A product's on-hand balance split across the age buckets (R6.10).
+
+    APPROXIMATE, and the approximation is named on screen: without lot tracking the
+    balance cannot be tied to specific receipts, so it is attributed to the most recent
+    arrivals first — the assumption that older stock leaves first. `unattributed` is the
+    balance that no arrival covers (it predates the ledger, or arrived without a
+    recorded movement); it is reported, not folded into the oldest bucket.
+    """
+
+    product_id: uuid.UUID
+    sku_code: str
+    product_name: str
+    qty_on_hand: Decimal
+    buckets: list[AgeBucketRow]
+    oldest_days: int | None
+    unattributed: Decimal
+
+    @property
+    def stale_qty(self) -> Decimal:
+        """Everything in the last bucket — what R7.8's dead-stock radar will consume."""
+        return next(
+            (b.qty for b in self.buckets if b.key == AGE_BUCKETS[-1][0]), Decimal(0)
+        )

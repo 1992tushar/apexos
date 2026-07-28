@@ -16,6 +16,7 @@ from app.core.database import get_db
 from app.core.security import Actor
 from app.modules.activity.service import ActivityService
 from app.modules.config.service import ConfigService
+from app.modules.inventory.valuation import ValuationService
 from app.modules.procurement.preorder import RfqService
 from app.modules.products.listing import PRODUCT_LIST, PRODUCT_STATUS_CHOICES
 from app.modules.products.schemas import ProductCreate
@@ -65,6 +66,10 @@ def product_detail(request: Request, product_id: uuid.UUID, db: Session = Depend
         vendors=ProductSupplierService(db).list_for_product(product_id),
         price_history=VendorIntelService(db).price_history(product_id),
         suppliers=SupplierService(db).list(search=None, page=1, page_size=200)[0],
+        # R6.16 — this SKU's weighted-average cost, with its arithmetic. One product is
+        # where an explanation has room to be read, so the panel lives here rather than
+        # repeated down /inventory's 269-row table.
+        cost_basis=ValuationService(db).cost_basis(product_id),
     )
 
 

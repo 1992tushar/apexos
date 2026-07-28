@@ -217,6 +217,95 @@ class InventoryRepository:
         ).limit(limit)
         return list(self.db.scalars(stmt))
 
+    # --- Part 5 C2: valuation (R6.16) and ageing (R6.10) --------------------
+
+    # What counts as ACQUIRING stock at a cost. Only a purchase establishes a cost basis:
+    #   TRANSFER  — the same units moving between warehouses. Both halves carry a cost
+    #               hint, so counting them would weight the same purchase twice.
+    #   PUTAWAY   — net-zero re-addressing inside one warehouse (C1). No cost at all.
+    #   ADJUSTMENT/COUNT — a correction to quantity, not a purchase at a price. Counting
+    #               an upward correction at today's purchase price would drag the average
+    #               toward the latest price for units that were never bought.
+    #   SALE      — outbound.
+    ACQUISITION_REASONS: tuple[str, ...] = ("PURCHASE",)
+
+    # An arrival for AGEING purposes: any inbound movement except the putaway pair, whose
+    # inbound half is the same stock being re-addressed and would read as a fresh arrival
+    # and reset the age of everything the seed put away.
+    _NOT_AN_ARRIVAL: tuple[str, ...] = ("PUTAWAY",)
+
+    def acquisition_totals(self, product_id: uuid.UUID | None = None) -> list[tuple]:
+        """(product_id, qty_acquired, cost_total_minor, purchases, first_at, last_at).
+
+        `cost_total_minor` is SUM(qty * unit_cost_minor) as a Decimal — the weighted
+        numerator. Movements with no recorded unit cost are excluded from BOTH sides, so
+        they cannot silently drag the average towards zero; the count of what was excluded
+        is available via `acquisitions_without_cost`.
+        """
+        stmt = (
+            select(
+                StockMovement.product_id,
+                func.coalesce(func.sum(StockMovement.qty_delta), 0).label("qty"),
+                func.coalesce(
+                    func.sum(StockMovement.qty_delta * StockMovement.unit_cost_minor), 0
+                ).label("cost_total"),
+                func.count().label("purchases"),
+                func.min(StockMovement.occurred_at).label("first_at"),
+                func.max(StockMovement.occurred_at).label("last_at"),
+            )
+            .where(
+                StockMovement.deleted_at.is_(None),
+                StockMovement.qty_delta > 0,
+                StockMovement.reason.in_(self.ACQUISITION_REASONS),
+                StockMovement.unit_cost_minor.isnot(None),
+            )
+            .group_by(StockMovement.product_id)
+        )
+        if product_id is not None:
+            stmt = stmt.where(StockMovement.product_id == product_id)
+        return list(self.db.execute(stmt).all())
+
+    def acquisitions_without_cost(self, product_id: uuid.UUID) -> Decimal:
+        """Quantity acquired with no unit cost recorded — what the average cannot see."""
+        stmt = select(func.coalesce(func.sum(StockMovement.qty_delta), 0)).where(
+            StockMovement.deleted_at.is_(None),
+            StockMovement.product_id == product_id,
+            StockMovement.qty_delta > 0,
+            StockMovement.reason.in_(self.ACQUISITION_REASONS),
+            StockMovement.unit_cost_minor.is_(None),
+        )
+        return Decimal(self.db.scalar(stmt) or 0)
+
+    def arrivals(self, product_id: uuid.UUID, warehouse_id: uuid.UUID | None = None):
+        """Inbound movements newest first — the receipt dates R6.10 ages stock from.
+
+        Ordered by `id` as well as `occurred_at`: the timestamp defaults to `func.now()`
+        and ties within a transaction (the same trap C1 hit), and UUID v7 keys are
+        time-ordered so `id` breaks it by real write order.
+        """
+        stmt = (
+            select(StockMovement)
+            .where(
+                StockMovement.deleted_at.is_(None),
+                StockMovement.product_id == product_id,
+                StockMovement.qty_delta > 0,
+                StockMovement.reason.notin_(self._NOT_AN_ARRIVAL),
+            )
+            .order_by(StockMovement.occurred_at.desc(), StockMovement.id.desc())
+        )
+        if warehouse_id is not None:
+            stmt = stmt.where(StockMovement.warehouse_id == warehouse_id)
+        return list(self.db.scalars(stmt))
+
+    def last_movement_at(self, product_id: uuid.UUID) -> object | None:
+        """When this product last moved at all — R7.8's dead-stock radar reads this."""
+        return self.db.scalar(
+            select(func.max(StockMovement.occurred_at)).where(
+                StockMovement.deleted_at.is_(None),
+                StockMovement.product_id == product_id,
+            )
+        )
+
     def racks(self, warehouse_id: uuid.UUID | None = None) -> list[StorageRack]:
         stmt = select(StorageRack).where(StorageRack.deleted_at.is_(None))
         if warehouse_id is not None:

@@ -21,11 +21,12 @@ made real.
 """
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 from sqlalchemy import select
 
-from app.modules.inventory.models import StorageRack
+from app.modules.inventory.models import StockMovement, StorageRack
 from app.modules.inventory.schemas import BinCreate, RackCreate, ReservationCreate
 from app.modules.inventory.service import (
     InventoryService,
@@ -147,6 +148,8 @@ def seed_locations(ctx: SeedContext) -> dict | None:
         )
         break
 
+    aged = _seed_aged_purchases(ctx, warehouses[0])
+
     db.flush()
     return {
         "warehouses": len(warehouses),
@@ -154,4 +157,64 @@ def seed_locations(ctx: SeedContext) -> dict | None:
         "bins": sum(len(b) for b in bins_by_warehouse.values()),
         "products_put_away": put_away,
         "reserved": str(reserved.qty_delta) if reserved else None,
+        "aged_purchases": aged,
     }
+
+
+# Backdated purchases: (days ago, quantity, unit cost in minor units). Three arrivals at
+# three different prices and three different ages, which is what makes BOTH C2 figures
+# non-trivial (R6.14) — a weighted average that differs from every individual price, and
+# a balance that spans more than one age bucket.
+#
+# The ages straddle the bucket edges deliberately: 200 and 120 days are "over 90", 75 is
+# "61–90", 10 is "0–30". A seed where everything arrived today makes ageing untestable and
+# leaves R7.8's dead-stock radar with nothing to find in C3.
+_AGED_PURCHASES: tuple[tuple[int, str, int], ...] = (
+    (200, "40", 9000),
+    (120, "30", 10500),
+    (75, "20", 11000),
+    (10, "10", 12500),
+)
+
+
+def _seed_aged_purchases(ctx: SeedContext, warehouse) -> dict | None:
+    """Give two products a real purchase history, backdated (R6.14, R6.10, R6.16).
+
+    Written through `record_movement(occurred_at=…)`, which stamps history **at insert
+    time**. The seed never UPDATEs a movement to change its date — `stock_movement` is an
+    append-only ledger and G4 forbids it.
+    """
+    db = ctx.db
+    inventory = InventoryService(db)
+
+    # Two products that already carry stock, so the aged arrivals add to a real balance
+    # rather than creating an orphan one.
+    candidates = [r for r in inventory.stock() if r.qty_on_hand > 0][:2]
+    if not candidates:
+        return None
+
+    now = datetime.now(UTC)
+    seeded: list[str] = []
+    for row in candidates:
+        already = db.scalar(
+            select(StockMovement).where(
+                StockMovement.product_id == row.product_id,
+                StockMovement.ref_type == "seed_aged_purchase",
+            )
+        )
+        if already is not None:
+            continue
+        for days_ago, qty, unit_cost_minor in _AGED_PURCHASES:
+            inventory.record_movement(
+                product_id=row.product_id,
+                warehouse_id=warehouse.id,
+                qty_delta=Decimal(qty),
+                reason="PURCHASE",
+                ref_type="seed_aged_purchase",
+                unit_cost_minor=unit_cost_minor,
+                occurred_at=now - timedelta(days=days_ago),
+                actor_id=ctx.actor_id,
+            )
+        seeded.append(row.sku_code)
+
+    return {"products": seeded, "arrivals_each": len(_AGED_PURCHASES)} if seeded else None

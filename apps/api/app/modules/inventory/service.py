@@ -8,6 +8,7 @@ that each emit one `activity_log` row (D10); balances stay derived from the ledg
 from __future__ import annotations
 
 import uuid
+from datetime import datetime
 from decimal import Decimal
 
 from sqlalchemy import func, select
@@ -54,6 +55,7 @@ class InventoryService:
         ref_id: uuid.UUID | None = None,
         unit_cost_minor: int | None = None,
         bin_id: uuid.UUID | None = None,
+        occurred_at: datetime | None = None,
         actor_id: uuid.UUID | None = None,
     ) -> StockMovement:
         """Append one entry to the stock ledger. Still the ONLY writer (G8).
@@ -61,6 +63,12 @@ class InventoryService:
         `bin_id` is optional on purpose (R6.3): a caller that does not address a bin
         writes NULL, which reads as "at this warehouse, bin not recorded". Every
         pre-Part-5 caller therefore keeps working unchanged.
+
+        `occurred_at` defaults to now and exists for the same reason Part 3 gave
+        `confirm(confirmed_at=…)` and `GoodsReceiptCreate.received_at`: stock received on
+        Saturday and keyed in on Monday arrived on Saturday, and it is the only way the
+        seed can fabricate the aged history R6.10's buckets and R7.8's dead-stock radar
+        need — **at INSERT time**, without ever UPDATE-ing a ledger row, which G4 forbids.
         """
         movement = StockMovement(
             product_id=product_id,
@@ -73,6 +81,8 @@ class InventoryService:
             unit_cost_minor=unit_cost_minor,
             created_by=actor_id,
         )
+        if occurred_at is not None:
+            movement.occurred_at = occurred_at
         return self.repo.add(movement)
 
     def on_hand(self, product_id: uuid.UUID, warehouse_id: uuid.UUID | None = None) -> Decimal:

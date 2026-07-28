@@ -462,6 +462,28 @@ def test_r6_5_storage_models_are_soft_deletable_like_every_other_master(db):
 # --- R6.14: the demo data C1 owes the screens --------------------------------
 
 
+def test_r6_2_every_additive_column_exists_on_its_model(db):
+    """`_ADDITIVE_COLUMNS` patches columns onto databases created before they existed.
+
+    Its own docstring requires every entry to also exist on the model — an entry naming a
+    column the model dropped would ALTER a real database to add a column nothing reads,
+    and a model column with no entry is silently missing on every DB seeded earlier
+    (which is how `bin_id` would have broken the dev database carried since Part 1).
+    This checks the first direction, which is the one a test can check cheaply.
+    """
+    from app.main import _ADDITIVE_COLUMNS
+
+    assert "stock_movement" in _ADDITIVE_COLUMNS, "R6.2's bin_id needs an entry"
+    tables = StockMovement.metadata.tables
+    for table_name, columns in _ADDITIVE_COLUMNS.items():
+        assert table_name in tables, f"_ADDITIVE_COLUMNS names unknown table {table_name}"
+        model_columns = {c.name for c in tables[table_name].columns}
+        for column in columns:
+            assert column in model_columns, (
+                f"_ADDITIVE_COLUMNS['{table_name}']['{column}'] is not on the model"
+            )
+
+
 def test_r6_14_the_seed_gives_every_warehouse_racks_and_bins(db):
     from sqlalchemy import select
 

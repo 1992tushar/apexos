@@ -118,6 +118,59 @@ def test_r6_1_adding_a_rack_then_a_bin_works_through_the_forms(client, db):
     assert "WEB-B" in client.get("/warehouse").text
 
 
+def test_r6_16_the_inventory_page_shows_value_and_explains_the_basis(client):
+    html = client.get("/inventory").text
+
+    assert "What it is worth" in html
+    assert "On-hand value" in html
+    assert "Cost basis" in html
+    # The page must say what the basis IS, not just print it — and must say which
+    # movements do not affect it, which is C2's load-bearing decision. Asserted on
+    # phrases that do not straddle a source line break, since the template wraps.
+    assert "weighted average of what was actually" in html
+    assert "total quantity purchased" in html
+    assert "Transfers, putaway, adjustments and counts" in html
+    # And it must promise "unknown" rather than zero where nothing was bought.
+    assert "not zero" in html
+
+
+def test_r6_10_the_inventory_page_shows_age_buckets_and_states_the_approximation(client):
+    html = client.get("/inventory").text
+
+    assert "How old it is" in html
+    for _key, label, _upper in [("fresh", "0–30 days", 30), ("stale", "over 90 days", None)]:
+        assert label in html
+    # R6.10's acceptance: the approximation is on screen, and so is the boundary rule.
+    assert "Approximate" in html
+    assert "lot tracking" in html
+    assert "upper bound is inclusive" in html
+
+
+def test_r6_12_the_warehouse_page_gains_an_ageing_view(client):
+    html = client.get("/warehouse").text
+
+    assert "Stock age by warehouse" in html
+    assert "Approximate" in html
+    assert "0–30 days" in html
+
+
+def test_r6_16_the_product_page_renders_the_cost_basis_through_the_one_panel(client, db):
+    """G11 via the shared macro — not a second explanation shape (G16)."""
+    from app.modules.inventory.service import InventoryService
+    from app.modules.inventory.valuation import ValuationService
+
+    stocked = next(r for r in InventoryService(db).stock() if r.qty_on_hand > 0)
+    html = client.get(f"/products/{stocked.product_id}").text
+
+    assert "Cost basis" in html
+    explained = ValuationService(db).cost_basis(stocked.product_id)
+    if explained.is_known:
+        assert explained.value in html
+        assert "total purchase cost" in html
+    else:
+        assert "unknown" in html
+
+
 def test_r6_1_a_duplicate_rack_code_is_refused_with_a_flash(client, db):
     from sqlalchemy import select
 

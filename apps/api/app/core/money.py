@@ -33,6 +33,18 @@ def qty_text(value: Decimal) -> str:
     return format(tidy, "f")
 
 
+def round_minor(value: Decimal) -> int:
+    """The ONE rounding step from a computed Decimal to integer minor units (G1).
+
+    Lived in `procurement/service.py` until Part 5 C2, when inventory valuation needed it
+    as well — and inventory cannot import procurement (procurement imports
+    `InventoryService`, so it would be circular). Two copies would be two rounding
+    policies, which is precisely the drift G1 exists to prevent: the same figure computed
+    on a purchase screen and on a valuation screen has to round identically.
+    """
+    return int(value.quantize(Decimal("1")))
+
+
 def minor_to_text(minor: int | None) -> str:
     """Integer minor units as an exact decimal string.
 

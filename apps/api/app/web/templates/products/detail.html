@@ -117,6 +117,13 @@
   </form>
 </div>
 
+{# R6.16 — what the stock on hand actually cost, through the ONE explanation panel
+   (G11). Not a second explanation shape; the same macro every other derived number
+   on this page uses. #}
+<div class="card mt">
+  {{ ui.explain_panel(cost_basis, "Cost basis") }}
+</div>
+
 {# Price timeline per product+supplier (R5.6, R5.12). Oldest first, so the trend
    reads top to bottom, and each row shows the change from that supplier's own
    previous price rather than from whoever happened to be listed above it. #}
