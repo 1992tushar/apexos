@@ -330,6 +330,16 @@ def _build_map() -> dict[str, tuple[Reference, ...]]:
         # refusing a non-in_transit transfer, not by a reference guard. Declared and
         # deliberately empty.
         "stock_transfer": (),
+        # --- Part 6: customer profile depth (R8.1, R8.2, R8.3, R8.5) ---------
+        # All four are children OF a customer, not masters other work reads, so nothing
+        # points at them and retiring one blocks nothing. A contact or branch soft-deletes
+        # with the one helper and simply stops being offered; a credit policy VERSION is
+        # history and is never deleted at all. Declared rather than omitted, because R3.7
+        # reads a missing entry as "not yet considered".
+        "customer_contact": (),
+        "customer_address": (),
+        "customer_credit_policy": (),
+        "customer_note": (),
     }
 
 

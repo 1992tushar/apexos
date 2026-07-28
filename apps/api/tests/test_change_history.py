@@ -114,13 +114,21 @@ def test_history_carries_field_level_before_and_after(db):
         actor_id=None,
     )
 
-    latest = ActivityService(db).history("customer", customer.id)[0]
-    changed = {c.field: (c.before, c.after) for c in latest.changes}
+    # R2.10 is about the field-level diff being IN the change history, not about it all
+    # landing on one row. Part 6 made credit terms versioned (R8.3), so a limit change is
+    # its own entry — one that also records why the terms changed — while the customer's
+    # own fields stay on the update row. Both are the same entity's history, which is what
+    # the panel renders, so this reads across the recent entries rather than only the newest.
+    entries = ActivityService(db).history("customer", customer.id)
+    changed = {
+        c.field: (c.before, c.after) for entry in entries for c in entry.changes
+    }
+    labels = {c.field: c.label for entry in entries for c in entry.changes}
+
     assert changed["name"] == ("Detail Co", "Detail Renamed")
     assert changed["city"] == ("Pune", "Mumbai")
     # A `*_minor` field reads as rupees, not paise, and never via a float (G1).
     assert changed["credit_limit_minor"] == ("0.00", "5000.00")
-    labels = {c.field: c.label for c in latest.changes}
     assert labels["credit_limit_minor"] == "Credit limit (₹)"
     assert labels["city"] == "City"
 

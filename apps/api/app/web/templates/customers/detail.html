@@ -36,5 +36,181 @@
   </div>
 </div>
 
+{# R8.7 — the credit position, through the one explanation panel (G11). #}
+<div class="card mt">{{ ui.explain_panel(credit_explained, "Credit position") }}</div>
+
+{# R8.1 / R8.2 — contacts and ship-to branches, with the verbs that maintain them. #}
+<div class="detail-grid mt">
+  <div class="card">
+    <div class="section-title">Contacts</div>
+    {% if contacts %}
+    <table>
+      <tbody>
+        {% for p in contacts %}
+        <tr>
+          <td>
+            <strong>{{ p.name }}</strong>{% if p.is_primary %} {{ ui.badge("primary") }}{% endif %}
+            <div class="muted">{{ p.designation or "—" }}{% if p.phone %} · {{ p.phone }}{% endif %}{% if p.email %} · {{ p.email }}{% endif %}</div>
+          </td>
+          <td class="num">
+            <form method="post" action="/customer-contacts/{{ p.id }}/delete">
+              <input type="hidden" name="customer_id" value="{{ c.id }}" />
+              <button class="btn btn-danger" type="submit">Remove</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}<p class="hint">No contacts recorded yet.</p>{% endif %}
+
+    <form method="post" action="/customers/{{ c.id }}/contacts" class="mt">
+      <div class="form-grid one">
+        <div class="field"><label>Name</label><input name="name" required maxlength="160" /></div>
+        <div class="field"><label>Designation</label><input name="designation" maxlength="80" /></div>
+        <div class="field"><label>Phone</label><input name="phone" maxlength="20" /></div>
+        <div class="field"><label>Email</label><input name="email" maxlength="200" /></div>
+        <div class="field"><label><input type="checkbox" name="is_primary" value="1" /> Primary contact</label></div>
+      </div>
+      <div class="form-actions"><button class="btn btn-primary" type="submit">Add contact</button></div>
+    </form>
+  </div>
+
+  <div class="card">
+    <div class="section-title">Ship-to branches</div>
+    {% if branches %}
+    <table>
+      <tbody>
+        {% for b in branches %}
+        <tr>
+          <td>
+            <strong>{{ b.city }}</strong>{% if b.is_default %} {{ ui.badge("default") }}{% endif %}
+            <div class="muted">{{ b.line1 }}{% if b.line2 %}, {{ b.line2 }}{% endif %}{% if b.pincode %} — {{ b.pincode }}{% endif %}</div>
+          </td>
+          <td class="num">
+            <form method="post" action="/customer-branches/{{ b.id }}/delete">
+              <input type="hidden" name="customer_id" value="{{ c.id }}" />
+              <button class="btn btn-danger" type="submit">Remove</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}<p class="hint">No ship-to branches yet — deliveries go to the billing address.</p>{% endif %}
+
+    <form method="post" action="/customers/{{ c.id }}/branches" class="mt">
+      <div class="form-grid one">
+        <div class="field"><label>Address line 1</label><input name="line1" required maxlength="200" /></div>
+        <div class="field"><label>Line 2</label><input name="line2" maxlength="200" /></div>
+        <div class="field"><label>City</label><input name="city" required maxlength="80" /></div>
+        <div class="field"><label>PIN</label><input name="pincode" maxlength="6" /></div>
+        <div class="field"><label><input type="checkbox" name="is_default" value="1" /> Default ship-to</label></div>
+      </div>
+      <div class="form-actions"><button class="btn btn-primary" type="submit">Add branch</button></div>
+    </form>
+  </div>
+</div>
+
+{# R8.3 — the versioned terms. A prior limit stays readable, with the reason it changed. #}
+<div class="card mt">
+  <div class="section-title">Credit terms</div>
+  <p class="hint">Terms are <strong>versioned</strong>: a change records a new version and
+    closes the previous one, so the limit that applied when an old order was approved is
+    still readable. Nothing is edited in place.</p>
+  {% if credit_history %}
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>From</th><th>To</th><th class="num">Limit</th><th class="num">Terms</th>
+          <th>Why it changed</th></tr>
+      </thead>
+      <tbody>
+        {% for v in credit_history %}
+        <tr>
+          <td>{{ v.valid_from | fmt_date }}{% if v.is_current %} {{ ui.badge("current") }}{% endif %}</td>
+          <td>{% if v.valid_to %}{{ v.valid_to | fmt_date }}{% else %}—{% endif %}</td>
+          <td class="num">{{ v.credit_limit_minor | money }}</td>
+          <td class="num">{{ v.payment_terms_days }} days</td>
+          <td>{{ v.reason or "—" }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+
+  <form method="post" action="/customers/{{ c.id }}/credit" class="mt">
+    <div class="form-grid">
+      <div class="field"><label>Credit limit (₹)</label><input name="credit_limit_rupees" type="number" step="0.01" min="0" /></div>
+      <div class="field"><label>Payment terms (days)</label><input name="payment_terms_days" type="number" min="0" /></div>
+      <div class="field"><label>Delivery preference</label><input name="delivery_preference" maxlength="200" /></div>
+      <div class="field full">
+        <label>Reason</label>
+        <input name="reason" required maxlength="300" placeholder="Raised after six clean months, …" />
+        <small class="muted">required — a version nobody can explain later is as good as no history</small>
+      </div>
+    </div>
+    <div class="form-actions"><button class="btn btn-primary" type="submit">Record new terms</button></div>
+  </form>
+</div>
+
+{# R8.5 — notes. #}
+<div class="card mt">
+  <div class="section-title">Notes</div>
+  {% if notes %}
+  <ul class="plain">
+    {% for n in notes %}
+    <li>{{ n.body }} <span class="muted">— {{ n.created_at | fmt_date }}</span></li>
+    {% endfor %}
+  </ul>
+  {% else %}<p class="hint">No notes yet.</p>{% endif %}
+  <form method="post" action="/customers/{{ c.id }}/notes" class="mt">
+    <div class="form-grid one">
+      <div class="field"><label>Note</label><input name="body" required maxlength="1000" /></div>
+    </div>
+    <div class="form-actions"><button class="btn btn-primary" type="submit">Add note</button></div>
+  </form>
+</div>
+
+{# R8.4 — documents, through the EXISTING document module. No second upload path. #}
+<div class="card mt">
+  <div class="section-title">Documents</div>
+  {% if documents %}
+  <ul class="plain">
+    {% for d in documents %}
+    <li><span class="mono">{{ d.filename }}</span> <span class="muted">{{ d.category }} · {{ d.size_bytes | filesize }}</span></li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="hint">No documents attached. Upload from <a href="/documents">Documents</a> — one
+    upload path for the whole product, not a second one here.</p>
+  {% endif %}
+</div>
+
+{# R8.10 — one chronological view, assembled per request. NOT a stored event log. #}
+<h2>Timeline</h2>
+<p class="hint">Orders, invoices, payments, tasks, notes and every recorded state change —
+  newest first, assembled from the records themselves rather than a separate event table.</p>
+{% if timeline %}
+<div class="table-wrap">
+  <table>
+    <thead><tr><th>When</th><th>What</th><th></th><th class="num">Amount</th></tr></thead>
+    <tbody>
+      {% for e in timeline %}
+      <tr>
+        <td>{{ e.at | fmt_datetime }}</td>
+        <td>{{ ui.badge(e.kind) }}</td>
+        <td>{% if e.href %}<a class="row-link" href="{{ e.href }}">{{ e.summary }}</a>{% else %}{{ e.summary }}{% endif %}</td>
+        <td class="num">{% if e.amount_minor is not none %}{{ e.amount_minor | money }}{% else %}—{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+  {{ ui.empty("Nothing has happened with this customer yet.") }}
+{% endif %}
+
 <div class="mt">{{ ui.history_panel(history) }}</div>
 {% endblock %}

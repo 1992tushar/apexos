@@ -8,7 +8,7 @@ from dataclasses import replace
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.core.errors import NotFoundError
+from app.core.errors import NotFoundError, ValidationError
 from app.db.duplicates import ensure_unique
 from app.db.listing import ListParams, query_page
 from app.db.references import ensure_unreferenced
@@ -17,7 +17,13 @@ from app.modules.activity.history import CHANGES_KEY, field_changes
 from app.modules.activity.service import ActivityService
 from app.modules.config.models import BusinessUnit
 from app.modules.customers.listing import CUSTOMER_LIST
-from app.modules.customers.models import Customer, CustomerCreditPolicy
+from app.modules.customers.models import (
+    Customer,
+    CustomerAddress,
+    CustomerContact,
+    CustomerCreditPolicy,
+    CustomerNote,
+)
 from app.modules.customers.repository import CustomerRepository
 from app.modules.customers.schemas import CustomerCreate, CustomerRead, CustomerUpdate
 
@@ -129,6 +135,117 @@ class CustomerService:
         )
         return self._to_read(customer)
 
+    # --- Part 6: profile depth (R8.1, R8.2, R8.5, R8.13) -----------------
+    # Contacts, branches and notes are ordinary child records: created here, listed by the
+    # repository, and retired with the ONE soft-delete helper (R8.13) rather than a second
+    # delete path. Each verb writes one activity row against the CUSTOMER, because that is
+    # the entity whose history a founder reads.
+
+    def contacts(self, customer_id: uuid.UUID):
+        return self.repo.contacts(customer_id)
+
+    def branches(self, customer_id: uuid.UUID):
+        return self.repo.branches(customer_id)
+
+    def notes(self, customer_id: uuid.UUID):
+        return self.repo.notes(customer_id)
+
+    def documents(self, customer_id: uuid.UUID):
+        return self.repo.documents(customer_id)
+
+    def _require(self, customer_id: uuid.UUID) -> Customer:
+        customer = self.repo.get(customer_id)
+        if customer is None:
+            raise NotFoundError(f"Customer {customer_id} not found")
+        return customer
+
+    def add_contact(self, customer_id: uuid.UUID, payload, *, actor_id) -> CustomerContact:
+        customer = self._require(customer_id)
+        if payload.is_primary:
+            # Exactly one primary contact, the same exclusivity R5.1 gave the preferred
+            # supplier: two "primary" contacts is not a state anyone can act on.
+            for existing in self.repo.contacts(customer.id):
+                existing.is_primary = False
+        contact = CustomerContact(
+            customer_id=customer.id,
+            name=payload.name.strip(),
+            email=payload.email or None,
+            phone=payload.phone or None,
+            designation=payload.designation or None,
+            is_primary=payload.is_primary,
+            created_by=actor_id,
+        )
+        self.db.add(contact)
+        self.db.flush()
+        self.activity.log(
+            actor_id=actor_id, verb="updated", entity_type="customer",
+            entity_id=customer.id,
+            summary=f"Contact {contact.name} added to {customer.name}",
+        )
+        return contact
+
+    def delete_contact(self, contact_id: uuid.UUID, *, actor_id) -> CustomerContact:
+        contact = self.db.scalar(
+            select(CustomerContact).where(
+                CustomerContact.id == contact_id, CustomerContact.deleted_at.is_(None)
+            )
+        )
+        if contact is None:
+            raise NotFoundError(f"Contact {contact_id} not found")
+        soft_delete(self.db, contact, actor_id=actor_id, label="Contact")
+        return contact
+
+    def add_branch(self, customer_id: uuid.UUID, payload, *, actor_id) -> CustomerAddress:
+        customer = self._require(customer_id)
+        if payload.is_default:
+            for existing in self.repo.branches(customer.id):
+                existing.is_default = False
+        branch = CustomerAddress(
+            customer_id=customer.id,
+            address_type=payload.address_type or "shipping",
+            line1=payload.line1.strip(),
+            line2=payload.line2 or None,
+            city=payload.city.strip(),
+            state_code=payload.state_code or None,
+            pincode=payload.pincode or None,
+            is_default=payload.is_default,
+            created_by=actor_id,
+        )
+        self.db.add(branch)
+        self.db.flush()
+        self.activity.log(
+            actor_id=actor_id, verb="updated", entity_type="customer",
+            entity_id=customer.id,
+            summary=f"Ship-to branch in {branch.city} added to {customer.name}",
+        )
+        return branch
+
+    def delete_branch(self, branch_id: uuid.UUID, *, actor_id) -> CustomerAddress:
+        branch = self.db.scalar(
+            select(CustomerAddress).where(
+                CustomerAddress.id == branch_id, CustomerAddress.deleted_at.is_(None)
+            )
+        )
+        if branch is None:
+            raise NotFoundError(f"Branch {branch_id} not found")
+        soft_delete(self.db, branch, actor_id=actor_id, label="Branch")
+        return branch
+
+    def add_note(self, customer_id: uuid.UUID, payload, *, actor_id) -> CustomerNote:
+        customer = self._require(customer_id)
+        body = payload.body.strip()
+        if not body:
+            raise ValidationError("A note needs something in it")
+        note = CustomerNote(customer_id=customer.id, body=body, created_by=actor_id)
+        self.db.add(note)
+        self.db.flush()
+        self.activity.log(
+            actor_id=actor_id, verb="updated", entity_type="customer",
+            entity_id=customer.id,
+            summary=f"Note added to {customer.name}",
+        )
+        return note
+
     def update(
         self, customer_id: uuid.UUID, payload: CustomerUpdate, *, actor_id: uuid.UUID | None
     ) -> CustomerRead:
@@ -161,15 +278,23 @@ class CustomerService:
                 setattr(customer, field, data[field])
         customer.updated_by = actor_id
 
-        if "credit_limit_minor" in data or "payment_terms_days" in data:
-            policy = self.repo.current_credit_policy(customer.id)
-            if policy is None:
-                policy = CustomerCreditPolicy(customer_id=customer.id, created_by=actor_id)
-                self.repo.add_credit_policy(policy)
-            for field in ("credit_limit_minor", "payment_terms_days"):
-                if data.get(field) is not None:
-                    changes.update(field_changes(policy, {field: data[field]}))
-                    setattr(policy, field, data[field])
+        # R8.3: credit terms are VERSIONED, so a change here APPENDS a version through
+        # CreditPolicyService rather than editing the current row. This used to mutate the
+        # policy in place, which quietly destroyed the answer to "what limit were they on
+        # when we approved that order?" — the only reason to keep history at all.
+        if data.get("credit_limit_minor") is not None or data.get("payment_terms_days") is not None:
+            from app.modules.customers.credit import CreditPolicyService
+            from app.modules.customers.schemas import CreditPolicySet
+
+            CreditPolicyService(self.db).set_policy(
+                customer.id,
+                CreditPolicySet(
+                    credit_limit_minor=data.get("credit_limit_minor"),
+                    payment_terms_days=data.get("payment_terms_days"),
+                    reason=(data.get("credit_reason") or "Updated with the customer record"),
+                ),
+                actor_id=actor_id,
+            )
 
         self.db.flush()
         self.activity.log(

@@ -7,7 +7,13 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.modules.config.models import CustomerType
-from app.modules.customers.models import Customer, CustomerCreditPolicy
+from app.modules.customers.models import (
+    Customer,
+    CustomerAddress,
+    CustomerContact,
+    CustomerCreditPolicy,
+    CustomerNote,
+)
 
 
 class CustomerRepository:
@@ -87,3 +93,62 @@ class CustomerRepository:
     def next_code(self) -> str:
         n = self.count_ever() + 1
         return f"CUST-{n:04d}"
+
+    # --- Part 6: profile depth (R8.1, R8.2, R8.5) ------------------------
+
+    def contacts(self, customer_id: uuid.UUID) -> list[CustomerContact]:
+        """Primary first, then by name — the order the screen wants."""
+        return list(
+            self.db.scalars(
+                select(CustomerContact)
+                .where(
+                    CustomerContact.customer_id == customer_id,
+                    CustomerContact.deleted_at.is_(None),
+                )
+                .order_by(CustomerContact.is_primary.desc(), CustomerContact.name)
+            )
+        )
+
+    def branches(self, customer_id: uuid.UUID) -> list[CustomerAddress]:
+        """Default first, then by city."""
+        return list(
+            self.db.scalars(
+                select(CustomerAddress)
+                .where(
+                    CustomerAddress.customer_id == customer_id,
+                    CustomerAddress.deleted_at.is_(None),
+                )
+                .order_by(CustomerAddress.is_default.desc(), CustomerAddress.city)
+            )
+        )
+
+    def notes(self, customer_id: uuid.UUID) -> list[CustomerNote]:
+        """Newest first, with `id` as the tiebreaker — `created_at` defaults to
+        `func.now()` and ties for rows written in one transaction."""
+        return list(
+            self.db.scalars(
+                select(CustomerNote)
+                .where(
+                    CustomerNote.customer_id == customer_id,
+                    CustomerNote.deleted_at.is_(None),
+                )
+                .order_by(CustomerNote.created_at.desc(), CustomerNote.id.desc())
+            )
+        )
+
+    def documents(self, customer_id: uuid.UUID):
+        """Documents already attach to any entity by (entity_type, entity_id), so R8.4
+        needs no second upload path — this is a read against the existing table."""
+        from app.modules.documents.models import Document
+
+        return list(
+            self.db.scalars(
+                select(Document)
+                .where(
+                    Document.entity_type == "customer",
+                    Document.entity_id == customer_id,
+                    Document.deleted_at.is_(None),
+                )
+                .order_by(Document.created_at.desc(), Document.id.desc())
+            )
+        )

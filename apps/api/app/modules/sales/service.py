@@ -242,10 +242,38 @@ class SalesOrderService:
         return self._to_detail(order)
 
     # -- confirm ---------------------------------------------------------
-    def confirm(self, order_id: uuid.UUID, *, actor_id: uuid.UUID | None) -> SalesOrderDetail:
+    def confirm(
+        self,
+        order_id: uuid.UUID,
+        *,
+        actor_id: uuid.UUID | None,
+        credit_override_reason: str | None = None,
+    ) -> SalesOrderDetail:
+        """Draft -> confirmed, subject to the customer's credit limit (R8.6).
+
+        `CreditPolicyService.enforce` either passes, refuses with the numbers (R8.7), or
+        records an override against the customer (R8.8). It raises `ConflictError` on a
+        breach with no reason given, so the order stays in draft and nothing is logged —
+        a refused confirm must not leave a half-changed order behind.
+
+        **Part 7 (R9.8) reserves stock here.** Do that AFTER this check passes: reserving
+        against an order the credit check is about to refuse would leave a reservation
+        holding stock for an order that never confirmed.
+        """
         order = self._require(order_id)
         if order.status != "draft":
             raise ConflictError(f"Cannot confirm order in status '{order.status}'")
+
+        from app.modules.customers.credit import CreditPolicyService
+
+        CreditPolicyService(self.db).enforce(
+            order.customer_id,
+            order.total_minor,
+            override_reason=credit_override_reason,
+            actor_id=actor_id,
+            ref_label=order.order_no,
+        )
+
         order.status = "confirmed"
         order.updated_by = actor_id
         self.db.flush()

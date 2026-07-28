@@ -55,6 +55,13 @@ _ADDITIVE_COLUMNS: dict[str, dict[str, str]] = {
     # StockMovement.bin_id: NULL means "at this warehouse, bin not recorded", and
     # backfilling it would UPDATE an append-only ledger (G4).
     "stock_movement": {"bin_id": "CHAR(32)"},
+    # Part 6 (R8.3). `customer_note` is a whole new table so `create_all` builds it, but
+    # these two land on the existing `customer_credit_policy` and would be missing on any
+    # DB seeded earlier.
+    "customer_credit_policy": {
+        "delivery_preference": "VARCHAR(200)",
+        "reason": "VARCHAR(300)",
+    },
 }
 
 

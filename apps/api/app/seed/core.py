@@ -82,6 +82,7 @@ from app.seed.catalogue import (
     bulk_customers,
     bulk_products,
 )
+from app.seed.customers import seed_customer_depth
 from app.seed.helpers import SeedContext, get_or_create, record_creation
 from app.seed.inventory import seed_locations
 from app.seed.preorder import seed_preorder
@@ -626,6 +627,13 @@ def run() -> dict:
             )
         )
 
+        # --- Part 6's customer depth, its own module (G14) ------------------
+        # After the sell loop, so the timeline has orders and payments to gather, and after
+        # products have prices so the breaching order can be sized off a real total.
+        customer_depth_result = seed_customer_depth(
+            SeedContext(db=db, actor_id=actor_id, activity=activity)
+        )
+
         # --- master change history (last, so it catches every row) ---------
         # Every config master gets its `created` line (R2.10, G14, R3.1's audit column).
         # Most of these rows are written with `get_or_create` rather than through
@@ -705,6 +713,8 @@ def run() -> dict:
             summary["vendor"] = vendor_result
         if locations_result is not None:
             summary["locations"] = locations_result
+        if customer_depth_result is not None:
+            summary["customer_depth"] = customer_depth_result
         summary["counts"] = {
             "products": db.scalar(select(func.count()).select_from(Product)) or 0,
             "customers": db.scalar(select(func.count()).select_from(Customer)) or 0,
