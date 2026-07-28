@@ -4,24 +4,44 @@
 {% block content %}
 {% call ui.page_header("Inventory", low_count ~ " low") %}{% endcall %}
 
-{% if rows %}
+{# R6.4 — the four states, each one derived from the ledgers (G7). On hand is the total
+   of the four, not a fifth state, so it belongs in the table rather than up here. #}
+<div class="grid grid-4 mt">
+  {{ ui.stat("Available", totals.available | number, "sellable, less committed") }}
+  {{ ui.stat("Reserved", totals.reserved | number, "committed to orders") }}
+  {{ ui.stat("In transit", totals.in_transit | number, "between warehouses") }}
+  {{ ui.stat("Damaged / quarantined", totals.quarantined | number, "on hand, not sellable") }}
+</div>
+
+<p class="hint">
+  {{ totals.on_hand | number }} units on hand in total. Available is sellable stock minus
+  what is already committed: stock sitting in a transit or quarantine bin is on hand but
+  cannot be promised. Reserved is summed from the reservation ledger — committing stock
+  does not move it.
+</p>
+
+<h2>Stock by state</h2>
+{% if states %}
 <div class="table-wrap">
   <table>
     <thead>
       <tr>
         <th>SKU</th><th>Product</th><th>Warehouse</th>
-        <th class="num">On hand</th><th class="num">Reorder level</th><th>State</th>
+        <th class="num">On hand</th><th class="num">Available</th><th class="num">Reserved</th>
+        <th class="num">In transit</th><th class="num">Quarantined</th>
       </tr>
     </thead>
     <tbody>
-      {% for r in rows %}
+      {% for s in states %}
       <tr>
-        <td class="mono">{{ r.sku_code }}</td>
-        <td>{{ r.product_name }}</td>
-        <td>{{ r.warehouse_name }}</td>
-        <td class="num">{{ r.qty_on_hand | number }}</td>
-        <td class="num">{{ r.reorder_level | number }}</td>
-        <td>{% if r.is_low %}{{ ui.badge("low stock") }}{% else %}{{ ui.badge("in stock") }}{% endif %}</td>
+        <td class="mono">{{ s.sku_code }}</td>
+        <td>{{ s.product_name }}</td>
+        <td>{{ s.warehouse_name }}</td>
+        <td class="num">{{ s.on_hand | number }}</td>
+        <td class="num">{{ s.available | number }}</td>
+        <td class="num">{% if s.reserved %}{{ s.reserved | number }}{% else %}—{% endif %}</td>
+        <td class="num">{% if s.in_transit %}{{ s.in_transit | number }}{% else %}—{% endif %}</td>
+        <td class="num">{% if s.quarantined %}{{ s.quarantined | number }}{% else %}—{% endif %}</td>
       </tr>
       {% endfor %}
     </tbody>
@@ -29,5 +49,51 @@
 </div>
 {% else %}
   {{ ui.empty("No stock recorded yet.") }}
+{% endif %}
+
+{# R6.1 / R6.11 — warehouse → rack → bin, each level the sum of the one below. #}
+<h2>Stock by location</h2>
+{% if unaddressed %}
+<p class="hint">
+  {{ unaddressed | number }} units have no recorded bin. Stock movements only started
+  carrying a location in this part, so everything received earlier sits at its warehouse
+  without an address — it is counted, and shown below as “no bin recorded”, rather than
+  being assigned a bin nobody actually put it in.
+</p>
+{% endif %}
+
+{% if locations %}
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr><th>Location</th><th>Kind</th><th class="num">On hand</th></tr>
+    </thead>
+    <tbody>
+      {% for wh in locations %}
+      <tr class="row-group">
+        <td><strong>{{ wh.code }}</strong></td>
+        <td></td>
+        <td class="num"><strong>{{ wh.qty_on_hand | number }}</strong></td>
+      </tr>
+        {% for rack in wh.children %}
+        <tr>
+          <td class="indent-1">{{ rack.code }}</td>
+          <td></td>
+          <td class="num">{{ rack.qty_on_hand | number }}</td>
+        </tr>
+          {% for b in rack.children %}
+          <tr>
+            <td class="indent-2 mono">{{ b.code }}</td>
+            <td>{% if b.kind and b.kind != "stock" %}{{ ui.badge(b.kind) }}{% endif %}</td>
+            <td class="num">{{ b.qty_on_hand | number }}</td>
+          </tr>
+          {% endfor %}
+        {% endfor %}
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+  {{ ui.empty("No locations recorded yet.") }}
 {% endif %}
 {% endblock %}

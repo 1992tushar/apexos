@@ -49,6 +49,12 @@ _ADDITIVE_COLUMNS: dict[str, dict[str, str]] = {
     # `apexos.db` that has been carried since Part 1.
     "purchase_order": {"confirmed_at": "DATETIME", "expected_date": "DATE"},
     "goods_receipt": {"purchase_order_revision_id": "CHAR(32)"},
+    # Part 5 C1 (R6.2/R6.3). `storage_rack`, `storage_bin` and `stock_reservation` are
+    # whole new tables so `create_all` builds them, but `bin_id` lands on the existing
+    # `stock_movement` and needs patching in. Nullable by decision — see the note on
+    # StockMovement.bin_id: NULL means "at this warehouse, bin not recorded", and
+    # backfilling it would UPDATE an append-only ledger (G4).
+    "stock_movement": {"bin_id": "CHAR(32)"},
 }
 
 

@@ -130,6 +130,14 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 td.mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; }
 a.row-link { color: var(--accent); font-weight: 500; }
 
+/* --- Location tree (R6.11): warehouse → rack → bin in one table --- */
+tbody tr.row-group td { background: var(--panel-2); }
+td.indent-1 { padding-left: 30px; }
+td.indent-2 { padding-left: 50px; color: var(--muted); }
+.rack-row { padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+.rack-row:last-child { border-bottom: none; }
+.rack-row .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+
 /* --- Badges --- */
 .badge {
   display: inline-block; padding: 2px 9px; border-radius: 999px;

@@ -83,6 +83,7 @@ from app.seed.catalogue import (
     bulk_products,
 )
 from app.seed.helpers import SeedContext, get_or_create, record_creation
+from app.seed.inventory import seed_locations
 from app.seed.preorder import seed_preorder
 from app.seed.vendor import seed_vendor
 
@@ -616,6 +617,13 @@ def run() -> dict:
             )
         )
 
+        # --- Part 5 C1's locations + one reservation, its own module (G14) --
+        # Runs after every section that posts stock, so the putaway addresses the
+        # balances they left rather than racing them.
+        locations_result = seed_locations(
+            SeedContext(db=db, actor_id=actor_id, activity=activity)
+        )
+
         # --- master change history (last, so it catches every row) ---------
         # Every config master gets its `created` line (R2.10, G14, R3.1's audit column).
         # Most of these rows are written with `get_or_create` rather than through
@@ -693,6 +701,8 @@ def run() -> dict:
             summary["preorder"] = preorder_result
         if vendor_result is not None:
             summary["vendor"] = vendor_result
+        if locations_result is not None:
+            summary["locations"] = locations_result
         summary["counts"] = {
             "products": db.scalar(select(func.count()).select_from(Product)) or 0,
             "customers": db.scalar(select(func.count()).select_from(Customer)) or 0,

@@ -90,6 +90,77 @@
   </div>
 </div>
 
+{# R6.1 — the location tree, plus the two verbs that maintain it. #}
+<h2>Locations</h2>
+<div class="grid grid-3 mt">
+  {% for w in summary %}
+  <div class="card">
+    <div class="card-title">{{ w.name }}</div>
+    {% if w.racks %}
+      {% for r in w.racks %}
+      <div class="rack-row">
+        <strong>{{ r.row.code }}</strong>
+        <span class="muted">{{ r.row.name or "" }}</span>
+        <div>
+          {% for b in r.bins %}
+            <span class="mono">{{ b.code }}</span>{% if b.kind != "stock" %} {{ ui.badge(b.kind) }}{% endif %}{% if not loop.last %} · {% endif %}
+          {% endfor %}
+          {% if not r.bins %}<span class="muted">no bins yet</span>{% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    {% else %}
+      <p class="hint">No racks yet — stock here is recorded against the warehouse only.</p>
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+
+<div class="grid grid-2 mt">
+  <div class="card">
+    <div class="card-title">Add a rack</div>
+    <form method="post" action="/warehouse/racks">
+      <div class="form-grid one">
+        <div class="field">
+          <label>Warehouse</label>
+          <select name="warehouse_id" required>
+            {% for w in warehouses %}<option value="{{ w.id }}">{{ w.name }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="field"><label>Code</label><input name="code" maxlength="24" required /></div>
+        <div class="field"><label>Name</label><input name="name" maxlength="120" /></div>
+      </div>
+      <div class="form-actions"><button class="btn btn-primary" type="submit">Add rack</button></div>
+    </form>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Add a bin</div>
+    <form method="post" action="/warehouse/bins">
+      <div class="form-grid one">
+        <div class="field">
+          <label>Rack</label>
+          <select name="storage_rack_id" required>
+            {% for r in racks %}<option value="{{ r.id }}">{{ r.code }}{% if r.name %} — {{ r.name }}{% endif %}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="field"><label>Code</label><input name="code" maxlength="24" required /></div>
+        <div class="field"><label>Name</label><input name="name" maxlength="120" /></div>
+        <div class="field">
+          <label>Kind</label>
+          <select name="kind">
+            <option value="stock">stock — sellable</option>
+            <option value="transit">transit — in flight between warehouses</option>
+            <option value="quarantine">quarantine — damaged or on hold</option>
+          </select>
+          <small class="muted">stock in a transit or quarantine bin is on hand but not available</small>
+        </div>
+      </div>
+      <div class="form-actions"><button class="btn btn-primary" type="submit">Add bin</button></div>
+    </form>
+  </div>
+</div>
+
 {% if stock %}
 <div class="table-wrap mt">
   <table>

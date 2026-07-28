@@ -155,7 +155,11 @@ def _build_map() -> dict[str, tuple[Reference, ...]]:
     from app.modules.config.models import Category, UomConversion
     from app.modules.crm.models import Lead
     from app.modules.customers.models import Customer
-    from app.modules.inventory.models import StockMovement
+    from app.modules.inventory.models import (
+        StockMovement,
+        StockReservation,
+        StorageBin,
+    )
     from app.modules.procurement.models import (
         GoodsReceipt,
         PurchaseOrder,
@@ -287,6 +291,27 @@ def _build_map() -> dict[str, tuple[Reference, ...]]:
         # for a guard to block. Present, and deliberately empty.
         "purchase_order_revision": (),
         "purchase_order_revision_line": (),
+        # --- Part 5 C1: locations (R6.1) and the reservation ledger (R6.5) ----
+        # A bin holding stock, or carrying an outstanding reservation, is in use: it
+        # cannot be retired without first moving what is in it, or the ledger would
+        # address a location the screens no longer offer. Both are counted by id —
+        # a movement and a reservation have no name of their own.
+        "storage_bin": (
+            Reference(StockMovement, "bin_id", "stock movement", "stock movements",
+                      label="id"),
+            Reference(StockReservation, "bin_id", "reservation", "reservations",
+                      label="id"),
+        ),
+        # A rack is live while it still has bins. Retiring the rack under them would
+        # orphan every address built on it, so the bins go first.
+        "storage_rack": (
+            Reference(StorageBin, "storage_rack_id", "bin", "bins", label="code"),
+        ),
+        # Nothing points AT a reservation entry — it is an append-only ledger row, and
+        # it is released or consumed by a LATER entry rather than by editing this one
+        # (R6.5/G4). Declared rather than omitted: R3.7 reads a missing entry as
+        # "not yet considered".
+        "stock_reservation": (),
     }
 
 

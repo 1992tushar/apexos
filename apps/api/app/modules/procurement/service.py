@@ -15,6 +15,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.errors import ConflictError, NotFoundError, ValidationError
+from app.core.money import qty_text
 from app.modules.activity.service import ActivityService
 from app.modules.config.models import BusinessUnit, TaxRate, Warehouse
 from app.modules.config.service import allocate_document_number
@@ -51,18 +52,11 @@ def _round_minor(value: Decimal) -> int:
     return int(value.quantize(Decimal("1")))
 
 
-def _qty_text(value: Decimal) -> str:
-    """A quantity as a person would write it: 40, not 40.0000.
-
-    `Numeric(18, 4)` reads back at full scale, which is right for arithmetic and
-    wrong in a sentence. The web layer's `number` filter does this for screens, but
-    a service message cannot import `app.web` (it would invert the layering — Part 2
-    decision 10), so the rule lives here for the refusals below. Plain `.normalize()`
-    is not enough: it turns 40 into 4E+1.
-    """
-    value = Decimal(value)
-    tidy = value.quantize(Decimal(1)) if value == value.to_integral_value() else value.normalize()
-    return format(tidy, "f")
+# Moved to `app.core.money` in Part 5 C1 so the inventory module can use it too —
+# inventory cannot import this module (it would be circular). Re-exported under the
+# original name: this module's own call sites, and `recommend.py`'s import of it, are
+# unchanged, and there is still exactly one implementation.
+_qty_text = qty_text
 
 
 def default_business_unit(db: Session) -> uuid.UUID:

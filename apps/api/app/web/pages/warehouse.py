@@ -11,12 +11,15 @@ from app.core.database import get_db
 from app.core.security import Actor
 from app.modules.config.service import ConfigService
 from app.modules.inventory.schemas import (
+    BinCreate,
+    RackCreate,
     StockAdjustmentCreate,
     StockCountCreate,
     StockTransferCreate,
 )
 from app.modules.inventory.service import (
     InventoryService,
+    LocationService,
     StockAdjustmentService,
     StockTransferService,
 )
@@ -34,9 +37,16 @@ def warehouse_index(request: Request, db: Session = Depends(get_db)):
     products, _ = ProductService(db).list(
         search=None, category_id=None, page=1, page_size=300
     )
+    locations = LocationService(db)
+    racks = locations.racks()
+    bins_by_rack: dict[uuid.UUID, list] = {}
+    for rack in racks:
+        bins_by_rack[rack.id] = locations.bins(rack.id)
+
     summary = []
     for wh in warehouses:
         wh_rows = [s for s in stock if s.warehouse_id == wh.id]
+        wh_racks = [r for r in racks if r.warehouse_id == wh.id]
         summary.append(
             {
                 "id": wh.id,
@@ -45,6 +55,11 @@ def warehouse_index(request: Request, db: Session = Depends(get_db)):
                 "city": wh.city,
                 "units": sum((r.qty_on_hand for r in wh_rows), Decimal(0)),
                 "sku_count": len(wh_rows),
+                # R6.1's tree, for the location panel below the stock table.
+                "racks": [
+                    {"row": rack, "bins": bins_by_rack.get(rack.id, [])}
+                    for rack in wh_racks
+                ],
             }
         )
     return render(
@@ -54,6 +69,61 @@ def warehouse_index(request: Request, db: Session = Depends(get_db)):
         stock=stock,
         products=products,
         summary=summary,
+        racks=racks,
+    )
+
+
+@router.post("/warehouse/racks")
+def create_rack(
+    request: Request,
+    warehouse_id: str = Form(...),
+    code: str = Form(...),
+    name: str = Form(""),
+    db: Session = Depends(get_db),
+    actor: Actor = Depends(require_web_permission("storage_rack.create")),
+):
+    """Add a rack to a warehouse (R6.1)."""
+
+    def work():
+        payload = RackCreate(
+            warehouse_id=uuid.UUID(warehouse_id), code=code, name=name or None
+        )
+        return LocationService(db).create_rack(payload, actor_id=actor.id)
+
+    return form_action(
+        db, work, back="/warehouse", success=("/warehouse", "Rack added"),
+        err="Could not add the rack",
+    )
+
+
+@router.post("/warehouse/bins")
+def create_bin(
+    request: Request,
+    storage_rack_id: str = Form(...),
+    code: str = Form(...),
+    name: str = Form(""),
+    kind: str = Form("stock"),
+    db: Session = Depends(get_db),
+    actor: Actor = Depends(require_web_permission("storage_bin.create")),
+):
+    """Add an addressable bin to a rack (R6.1).
+
+    `kind` is what makes R6.4's in-transit and quarantine states addressable; the
+    service refuses anything outside the known set rather than storing it.
+    """
+
+    def work():
+        payload = BinCreate(
+            storage_rack_id=uuid.UUID(storage_rack_id),
+            code=code,
+            name=name or None,
+            kind=kind,
+        )
+        return LocationService(db).create_bin(payload, actor_id=actor.id)
+
+    return form_action(
+        db, work, back="/warehouse", success=("/warehouse", "Bin added"),
+        err="Could not add the bin",
     )
 
 
