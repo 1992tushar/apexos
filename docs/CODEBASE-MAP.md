@@ -240,6 +240,22 @@ The verbs other modules call:
 - `InventoryService.states()` / `.bin_stock()` / `.location_rollup()` / `.available()` — derived reads
   for the screens; each is one or two grouped queries for a whole page, never a query per row.
 
+### `app/modules/sales/quotation.py` — the gap before the order (Part 7 C1)
+
+create → send → (revise…) → convert, or → expire. Sits beside `service.py`'s order spine.
+
+- **Revisions mirror Part 3's append-only shape** (`QuotationRevision`, current =
+  `max(revision_no)`, **no `superseded_at`**), not Part 6's `valid_from`/`valid_to`. A credit policy
+  is a *period*; a quotation is a *sequence of offers*. **Two versioning idioms is the limit — do
+  not add a third.** A test asserts neither `superseded_at` nor `valid_to` is on the table.
+- **`revision_no` 1 is written by `send`**, not `create`, and `revise` requires a *sent* quotation:
+  a draft nobody has seen has no agreement to preserve (R4.7's reasoning).
+- **Conversion calls `SalesOrderService.create`** and passes each quoted `unit_price_minor`
+  explicitly (R9.3). Re-resolving would honour today's list price instead of what was agreed — a
+  source walk asserts the conversion does not build order lines itself.
+- **Its document type is `SQT`.** `QUO` already numbers Part 3's *supplier* quotations, and sharing
+  it would interleave two unrelated sequences in `number_sequence`.
+
 ### `app/modules/customers/` — versioned terms, the credit gate, the timeline (Part 6)
 
 `credit.py` and `timeline.py` sit beside `service.py` for the same reason `valuation.py` and
@@ -381,6 +397,8 @@ app/seed/
   customers.py   seed_customer_depth(ctx) — Part 6's: contacts, ship-to branches, notes,
                  two credit-policy VERSIONS, and a breaching order overridden on a
                  DIFFERENT customer (see the note below)
+  quotations.py  seed_quotations(ctx) — Part 7 C1's: one sent, one revised twice, one
+                 converted at the quoted price (on a third customer, same note)
 ```
 
 **The putaway is a net-zero pair on purpose** — out of the unaddressed pool, into a bin — because
@@ -389,9 +407,10 @@ original movement would break G4. A test asserts `SUM(qty_delta) WHERE reason='P
 
 **Seeding a document in an OPEN status can break unrelated tests.** Part 6's breaching order left a
 *confirmed* order on the first customer, which made it undeletable (`references.py` treats confirmed
-as open) and broke two Part 1/3 tests that encode "that customer's work is closed". The breach now
-goes on a second customer. **Before seeding an open document, ask which tests treat that party as
-quiet.**
+as open) and broke two Part 1/3 tests that encode "that customer's work is closed". Part 7 C1 then
+hit the identical edge with a *draft* order from a quotation conversion — **draft counts as open
+too**. Both now target a different customer. **Before seeding an open document, ask which tests treat
+that party as quiet.** Twice is a pattern, not a coincidence.
 
 **Adding a section:** write `app/seed/<domain>.py` exposing
 `def seed_<domain>(ctx: SeedContext) -> dict | None`, guard it on its own emptiness check, and add one
