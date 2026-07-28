@@ -240,6 +240,25 @@ The verbs other modules call:
 - `InventoryService.states()` / `.bin_stock()` / `.location_rollup()` / `.available()` — derived reads
   for the screens; each is one or two grouped queries for a whole page, never a query per row.
 
+### `app/modules/customers/` — versioned terms, the credit gate, the timeline (Part 6)
+
+`credit.py` and `timeline.py` sit beside `service.py` for the same reason `valuation.py` and
+`health.py` sit beside the inventory service: derivation and enforcement, kept out of the CRUD half.
+
+- **`CustomerCreditPolicy` is VERSIONED** (`valid_from` / `valid_to`; current is `valid_to IS NULL`).
+  `CreditPolicyService.set_policy` **appends** a version and closes the previous one, with a mandatory
+  reason. `CustomerService.update` delegates to it — it used to edit the row in place, which made
+  "prior version readable" untrue despite the columns looking right.
+- **`CreditPolicyService.check` is integer arithmetic on minor units** (G1): at the limit is allowed,
+  one minor unit over is not. **A limit of zero means none recorded, not "refuse everything".**
+  `enforce` passes, refuses with all four numbers, or records an override as ONE activity row against
+  the customer — which is how the override reaches the timeline.
+- **`SalesOrderService.confirm` runs the gate first** and leaves a refused order in `draft`. R9.8 must
+  reserve stock **after** it passes.
+- **`CustomerTimelineService.events` is a projection**, six sources and six queries, with **no events
+  table** — the requirement forbids one. Its sort key carries a per-kind causal rank because several
+  sources default to `func.now()` and tie.
+
 ### `app/web/security.py` — web authz (R1.4)
 
 `require_web_permission(permission)` — a FastAPI dependency that renders 403 `error.html` on GET and
@@ -356,13 +375,23 @@ app/seed/
                  scorecards, price timeline, the two reorder cases, one late arrival
   inventory.py   seed_locations(ctx) — Part 5's: racks + bins in both warehouses (incl.
                  one transit and one quarantine bin), putaway of 12 products as NET-ZERO
-                 movement pairs, one live reservation, and (C2) four BACKDATED purchases
-                 at four prices on two products, straddling the age-bucket edges
+                 movement pairs, one live reservation, four BACKDATED purchases at four
+                 prices, sales demand across 10 products (so ABC forms real classes), an
+                 in-transit transfer awaiting receipt, a variance count and a clean one
+  customers.py   seed_customer_depth(ctx) — Part 6's: contacts, ship-to branches, notes,
+                 two credit-policy VERSIONS, and a breaching order overridden on a
+                 DIFFERENT customer (see the note below)
 ```
 
 **The putaway is a net-zero pair on purpose** — out of the unaddressed pool, into a bin — because
 addressing existing stock must change its location without changing on-hand, and rewriting the
 original movement would break G4. A test asserts `SUM(qty_delta) WHERE reason='PUTAWAY'` is 0.
+
+**Seeding a document in an OPEN status can break unrelated tests.** Part 6's breaching order left a
+*confirmed* order on the first customer, which made it undeletable (`references.py` treats confirmed
+as open) and broke two Part 1/3 tests that encode "that customer's work is closed". The breach now
+goes on a second customer. **Before seeding an open document, ask which tests treat that party as
+quiet.**
 
 **Adding a section:** write `app/seed/<domain>.py` exposing
 `def seed_<domain>(ctx: SeedContext) -> dict | None`, guard it on its own emptiness check, and add one

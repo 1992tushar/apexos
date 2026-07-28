@@ -56,8 +56,8 @@ found into the resume block, commit nothing else, and **stop the loop**.
 | 2 | **P5-C2** weighted-average cost + stock ageing | ✅ done — `b442322` |
 | 3a | **P5-C3** operations — count sheet, mandatory reasons, in-transit transfer | ✅ done — `eaee67b` |
 | 3b | **P5-C3** health — ABC, dead stock, fast/slow, low-stock, reorder reading R5.9 | ✅ done — `4667a5e` · **Part 5 CLOSED** |
-| 4 | **P6-C1** customer depth — contacts, branches, credit limit + override, timeline | next |
-| 5 | **P7-C1** quotation — create / revise / send / expire / convert | |
+| 4 | **P6-C1** customer depth — contacts, branches, credit limit + override, timeline | ✅ done — `a8c9bde` · **Part 6 CLOSED** |
+| 5 | **P7-C1** quotation — create / revise / send / expire / convert | next |
 | 6 | **P7-C2** returns + credit note + reservation wiring + health score + speed | |
 | 7 | **E2E** the cross-part walkthrough + final PROGRESS.md and CODEBASE-MAP.md | |
 

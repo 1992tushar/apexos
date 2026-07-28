@@ -46,7 +46,7 @@ Type **`Start next part of development`** in a fresh session. `CLAUDE.md` binds 
 to type. **The session that closes a checkpoint owns that prompt** — one still naming last checkpoint's
 baseline counts is worse than none, because the next session will trust it.
 
-#### ▶ NEXT SESSION PROMPT — Part 6, C1 (customer depth) · the WHOLE part is one checkpoint
+#### ▶ NEXT SESSION PROMPT — Part 7, C1 (quotation) · Part 7 has TWO checkpoints
 
 ```
 Continue the ApexOS build. Do this in order:
@@ -55,115 +55,102 @@ Continue the ApexOS build. Do this in order:
    tree; if it is dirty, stop and report. This run does NOT tag parts (the user waived
    tags for Parts 5–7), so do not expect part-05-done or part-06-done to exist.
 
-2. Read the "▶ CURRENT WORK" block below, especially "▶ Handoff — Part 5 closed".
-   PART 5 IS COMPLETE: every R6.x and R7.x passes. That block names the edit set, carries
-   verified signatures to call WITHOUT opening the source, and its "Do NOT read" list is
-   binding. Part 6 is ONE checkpoint — the whole part is one session's work.
+2. Read the "▶ CURRENT WORK" block below, especially "▶ Handoff — Part 6 closed".
+   PARTS 5 AND 6 ARE COMPLETE: every R6.x, R7.x and R8.x passes. That block names the edit
+   set, carries verified signatures to call WITHOUT opening the source, and its "Do NOT
+   read" list is binding.
 
-3. Read docs/REQUIREMENTS.md §1 (global invariants G1–G17) and §9 (R8.x — Part 6's whole
+3. Read docs/REQUIREMENTS.md §1 (global invariants G1–G17) and §10 (R9.x — Part 7's whole
    acceptance contract). NOT optional: the invariants you must not break — integer minor
-   units, exactly one activity_log row per state change, derived-never-stored, append-only
-   ledgers — are not in the files you are editing.
-   Then docs/prompts/part-06.md (self-contained) and docs/STANDING-RULES.md (binding:
+   units, exactly one activity_log row per state change, derived-never-stored, APPEND-ONLY
+   LEDGERS — are not in the files you are editing, and R9.5 is a direct test of the last one.
+   Then docs/prompts/part-07.md (self-contained) and docs/STANDING-RULES.md (binding:
    decisions D-A..D-D, session protocol, reading diet, verify loop). Do NOT open
    docs/ROADMAP.md — planning only, ~17k tokens.
-   Also docs/08-module-breakdown.md §2.4 (Customers/CRM) and §2.7 (Sales).
+   Also docs/08-module-breakdown.md §2.4 and §2.7.
 
-4. `git diff 64ae50f..HEAD --stat` for everything Part 5 changed (that is Part 4's close).
-   Not a tree walk — docs/CODEBASE-MAP.md is the orientation document and is current.
+4. `git show --stat a8c9bde` for what Part 6 changed. Not a tree walk —
+   docs/CODEBASE-MAP.md is the orientation document and is current.
 
 5. Verify the baseline before writing code (from apps/api, venv activated):
-     python -m pytest -q                  # expect 505 passed
+     python -m pytest -q                  # expect 541 passed
      python -m ruff check app/ tests/     # expect EXACTLY 37 — 38 is a regression
    If either is off, stop and report. 37 is pre-existing (32 E501, 4 F841, 1 B007, all in
-   untouched modules). Parts 1–5 added zero new findings; hold that line.
+   untouched modules). Parts 1–6 added zero new findings; hold that line.
 
-6. GOAL: everything you need to know about a customer, on one page, without looking
-   anywhere else. EXTEND the proven spine — app/modules/{customers,crm,sales} and
-   /customers, /leads, /sales all exist and work. Do NOT rebuild them (G16).
+6. GOAL: close the two gaps at the ENDS of the sales workflow. The middle —
+   order → fulfilment → invoice → payment — already works and is E2E-verified. Do not
+   touch it beyond what R9.8/R9.9 require (G16).
 
-   a. R8.1–R8.5 — profile depth: multiple contacts, multiple branches / ship-to addresses,
-      credit limit + payment terms + delivery preferences that are VERSIONED so prior
-      versions stay readable, documents through the EXISTING document module (R8.4 — there
-      must be no second upload path), and notes. Contact/branch/document lists use Part 2's
-      macros and Part 1's soft delete (R8.13).
+   C1 IS QUOTATION ONLY. Do not start returns; that is C2, and cramming both is how the
+   append-only invoice rule gets rushed.
 
-   b. R8.6–R8.9 — credit limit enforced at sales-order confirm via CreditPolicyService.check.
-      THE BLOCK MUST STATE THE NUMBERS: limit, current outstanding, this order's value, and
-      the shortfall. A refusal the founder cannot act on is a bug, not a guard.
-      The boundary is EXACT and needs its own test: AT the limit is allowed, ONE MINOR UNIT
-      over is not. Money is integer minor units (G1), so this is an integer comparison —
-      no float anywhere near it.
-
-   c. R8.8 — an override is possible, REQUIRES a reason, is rejected without one, and writes
-      EXACTLY ONE activity_log row recording who, when and by how much. Part 5's R7.4 did
-      the same thing for stock adjustments; follow that shape — the schema requires a
-      non-empty string AND the service refuses whitespace, because "   " passes a length
-      check and tells a later reader nothing.
-
-   d. R8.10/R8.11 — a unified customer timeline: orders, invoices, payments, tasks, notes
-      and activity in ONE chronological view, assembled from activity_log + entity events as
-      a READ-ONLY PROJECTION. **Do NOT add an events table to make this easier** — that is
-      called out in the requirement itself. A customer with no history renders an empty
-      timeline without erroring, and that needs a test.
-      NOTE a hard-won detail from Part 5: a column defaulting to func.now() TIES for rows
-      written in one transaction, so a timeline ordered on timestamp alone is
-      non-deterministic. Add id as the tiebreaker — keys are UUID v7 and time-ordered.
-
-   e. R8.12 SCOPE FENCE: health score, quotations and returns are PART 7's. If you find
-      yourself designing the quotation screen, you have drifted — stop (G17).
+   a. R9.1 — quotation: create, revise, send, expire. A quotation is a new document with
+      its own number (allocate_document_number, doc_type "QUO" is ALREADY in use by Part 3's
+      supplier quotations — use a DIFFERENT type such as "SQT" for a customer quotation, or
+      you will interleave two unrelated sequences).
+   b. R9.2 — revisions are VERSIONED and APPEND-ONLY, prior versions readable VERBATIM.
+      Part 3 built exactly this shape for purchase orders: PurchaseOrderRevision +
+      PurchaseOrderRevisionLine, append-only, current = max(revision_no), NO superseded_at.
+      Read that and mirror it rather than inventing a second versioning idiom.
+      Part 6 built a second one for credit terms (valid_from/valid_to). Pick whichever fits
+      and say WHY in the resume block — do not invent a third.
+   c. R9.3 — quotation → sales order is ONE action carrying the QUOTED prices forward, with
+      a test asserting the prices match. Part 3's decision 2 is the pattern: a conversion
+      CALLS the target's service (SalesOrderService.create) rather than rebuilding it, and
+      passes the quoted unit price explicitly — which is the entire point of having quoted.
+   d. NOTE R8.12's fence is now yours to cross: quotations ARE Part 7's work.
 
 7. Constraints that bind:
-     - G5: exactly one activity_log row per state change, in the same transaction.
-     - G7: derived, never stored. Outstanding balance and the timeline are projections.
-     - G4: ledgers are append-only. A credit policy VERSION is a new row, never an edit.
+     - G4: append-only. A revision is a new row; nothing is edited in place.
+     - G5: exactly one activity_log row per state change (create, revise, send, expire,
+       convert — one each).
+     - G7: totals derive from lines. Do not store a status that can be computed.
      - G10: every new POST carries the R1.4 authz guard. tests/test_web_authz.py walks the
-       whole POST surface and fails on an unguarded route, so this is enforced, not trusted.
-     - Any new model owes app/db/references.py an entry, even an empty tuple (R3.7), and
-       EXERCISE it with blocking_references(db, row) in a test. A Reference names its column
-       by STRING, so a wrong one raises AttributeError at check time, not import time.
-     - A new column on an EXISTING table needs an _ADDITIVE_COLUMNS entry in app/main.py
-       (~line 45), or it is silently missing on every DB seeded earlier. Part 6 adds credit
-       fields to `customer`, so this WILL apply.
-     - status_class in web/core.py picks badge colour from a status STRING; one not in its
-       positive/warning/negative sets renders GREY, silently. A new status needs a bucket.
-   Seed (G14/R8.14): a customer with multiple contacts and ship-to branches, a credit limit,
-   enough order/invoice/payment history for the timeline to be worth reading, ONE order that
-   breaches the limit, and ONE recorded override. Add a NEW app/seed/<domain>.py plus one
-   call in run() — never by appending logic into run() itself.
+       whole POST surface and fails on an unguarded route.
+     - Every new model owes app/db/references.py an entry, even an empty tuple (R3.7), and
+       EXERCISE it with blocking_references(db, row) in a test. An OPEN quotation should
+       block retiring a product it names — that is the R4.1/R4.3 precedent.
+     - status_class in web/core.py picks badge colour from a status STRING. draft / sent /
+       expired / converted each need a bucket, or every quotation badge renders grey.
+     - A new column on an EXISTING table needs an _ADDITIVE_COLUMNS entry in app/main.py.
+   Seed (G14/R9.15): a quotation, a revised quotation, and one converted to an order. C2
+   adds the reservation-holding order and the partial return. Extend a NEW
+   app/seed/<domain>.py plus one call in run() — never by appending logic into run().
 
-8. Work on main. No branches, no PRs, no tags. Commit at the end and push. Part 6 is ONE
-   checkpoint: if you run low before it is done, commit what is GREEN, write the resume
-   block, and stop rather than pushing on.
+8. Work on main. No branches, no PRs, no tags. Commit at the end of C1 and push. Part 7's
+   checkpoints: C1 quotation · C2 returns + credit note + reservation wiring + health score
+   + the speed work. Do not push into C2.
 
 9. NAME EVERY NEW TEST AFTER THE REQUIREMENT IT PROVES —
-   `def test_r8_9_one_minor_unit_over_the_credit_limit_is_blocked(...)`. A requirement's
-   evidence is a test node id (`pytest -q -k r8_9`), NOT a paragraph. No per-requirement
-   prose tables.
+   `def test_r9_3_conversion_carries_the_quoted_price(...)`. A requirement's evidence is a
+   test node id, NOT a paragraph. No per-requirement prose tables.
 
    MUTATION-CHECK the new suite once — break the implementation and confirm the tests go
-   red. Every checkpoint in Parts 4 and 5 did this and it paid every time. Part 5 C3b's
-   fourth mutation found something worth remembering: **an equality assertion between two
-   code paths only tests what the current data distinguishes.** A no-op filter inserted into
-   a delegation passed an "outputs are identical" test because the seeded data could not
-   tell the difference. If a test compares two paths, ask what data would make them differ —
-   and if none does, assert the structure instead. Good mutations here: shift the credit
-   boundary by one minor unit, accept a blank override reason, and drop a source type from
-   the timeline.
+   red. Every checkpoint in Parts 4–6 did this and it paid every time. Two lessons worth
+   carrying: **an equality assertion between two code paths only tests what the current data
+   distinguishes** (Part 5 — a no-op filter passed an "identical output" test), and **when a
+   change relocates a fact, move the assertion rather than deleting it** (Part 6 — versioning
+   moved where a field-diff lived and a Part 2 test had to follow it, not be weakened).
+   Good mutations here: let a revision overwrite the previous one, and drop the quoted price
+   on conversion so it re-resolves from the price list.
 
    If the checkpoint changed the SHAPE of anything, amend docs/CODEBASE-MAP.md in the same
    session. A stale map is worse than none.
 
-10. CLOSING PART 6: write docs/parts/part-06.md, delete the Part 6 block from PROGRESS.md,
-    and rewrite the NEXT SESSION PROMPT for PART 7 C1 (quotation — create/revise/send/
-    expire/convert; §10's R9.x) with measured baseline counts. PROGRESS.md IS CAPPED AT
-    ~350 LINES AND DOES NOT GROW — replace, never append.
+10. BEFORE you run low, update the "▶ CURRENT WORK" block: the checkpoint SHA table,
+    R-numbers passed and outstanding, gotchas, decisions a later checkpoint must not
+    reverse, and the four delta lines — Changed since / Read for the next checkpoint /
+    Call, don't read (copy signatures FROM SOURCE) / Do NOT read. Then rewrite the NEXT
+    SESSION PROMPT for C2 with measured baselines. PROGRESS.md IS CAPPED AT ~350 LINES —
+    replace, never append. Part 5 kept it there by archiving each finished checkpoint to
+    docs/parts/ progressively rather than waiting for the close; do the same.
 
 Use pytest -q, never verbose. Don't re-read files you just edited.
 ```
 
 **If a session has drifted** and you want a hard reset on scope, ignore the above and paste the whole
-```-fenced PROMPT from `docs/prompts/part-06.md` instead. More deterministic, more typing.
+```-fenced PROMPT from `docs/prompts/part-07.md` instead. More deterministic, more typing.
 
 **Rules of thumb.** One checkpoint per session — don't push a session past its checkpoint to "just
 finish the part". Start each session fresh (`/clear` or a new window) rather than continuing a long
@@ -172,56 +159,52 @@ re-reading the design docs.
 
 ---
 
-## ▶ Handoff — Part 5 closed · Part 6 starts here
+## ▶ Handoff — Part 6 closed · Part 7 starts here
 
-Part 5 (Inventory: locations, states, valuation, operations, health) is **COMPLETE** on `main`.
-**Not tagged** — the user waived tags for Parts 5–7, so these SHAs are the record.
+Parts 5 and 6 are **COMPLETE** on `main`. **Not tagged** — waived for Parts 5–7, so these SHAs are
+the record. Full records in `docs/parts/part-05.md` and `part-06.md`. **Do not read them.**
 
-| Checkpoint | Commit | What landed |
+| Part | Commit(s) | What landed |
 |---|---|---|
-| C1 | `437a185` | Locations (warehouse→rack→bin), four derived states, the reservation ledger |
-| C2 | `b442322` | Weighted-average cost, stock ageing |
-| C3a | `eaee67b` | Count sheets, mandatory reasons, two-step in-transit transfers |
-| C3b | `4667a5e` | ABC, dead stock, fast/slow, low-stock alerts, reorder reading R5.9 |
+| 5 | `437a185` `b442322` `eaee67b` `4667a5e` | Inventory: locations, four states, reservation ledger, weighted-average cost, ageing, count sheets, in-transit transfers, ABC / dead stock / fast-slow / low-stock |
+| 6 | `a8c9bde` | Customer depth: contacts, ship-to branches, VERSIONED credit terms, the credit gate at confirm, the override, the unified timeline |
 
-**Verified at close:** **505 tests passing**, `ruff check app/ tests/` **exactly 37** — zero new
-findings across the whole part. Fresh seed + uvicorn: every nav page 200s, all four health sections
-render with their thresholds stated, the count sheet walks open → record → close over HTTP, a bad id
-renders `error.html` at 404.
+**Verified at Part 6 close:** **541 tests passing**, `ruff check app/ tests/` **exactly 37** — zero
+new findings across six parts. Evidence: `-k r6_` (53) `-k r7_` (47) `-k r8_` (35). Fresh seed +
+uvicorn: every nav page 200s, the customer depth page renders every section, a bad id renders
+`error.html` at 404.
 
-**Every R6.x and R7.x passes.** The requirement-by-requirement evidence, the seventeen decisions the
-part made, and the four mutation rounds are in **`docs/parts/part-05.md`**. **Do not read it.**
-Everything Part 6 needs is below.
+### Four things Part 7 inherits and must not break
 
-### Three things Part 6 inherits and must not break
+1. **R9.8 must reserve AFTER the credit check passes.** `SalesOrderService.confirm` now runs
+   `CreditPolicyService.enforce` first and raises on a breach with no override reason, leaving the
+   order in **draft**. Reserving before that check would leave a reservation holding stock for an
+   order that never confirmed. The verb to call is `ReservationService.reserve` — **no flag, no
+   second mechanism** (R6.5/R6.6).
+2. **Two versioning idioms already exist. Do not invent a third.** Part 3 used append-only revision
+   rows (`PurchaseOrderRevision`, current = `max(revision_no)`, no `superseded_at`); Part 6 used
+   `valid_from`/`valid_to` on credit policy. R9.2's quotation revisions should mirror the Part 3
+   shape — pick one and **say which and why** in the resume block.
+3. **G11 has exactly one implementation.** `Explained` + the `explain_panel` macro. R9.10's health
+   score is a new *output*, not a new shape, and R9.11's "unknown" is `Explained.unknown`.
+4. **`_qty_text`, `round_minor` and `default_business_unit` have all moved** to escape circular
+   imports (`app/core/money.py`, `app/modules/config/service.py`). **A fourth such move is a sign the
+   layering needs a proper look rather than another move.**
 
-1. **The reservation verb is Part 7's, and it already exists.** `ReservationService.reserve /
-   release / consume` (R6.6). Part 7's R9.8 calls it at sales-order confirm — **Part 6 must not add
-   a stock flag or a second mechanism** while working on that same confirm path, and should leave the
-   method easy for Part 7 to hook.
-2. **G11 has exactly one implementation.** Build an `Explained` (`app/db/explain.py`) and render it
-   with the `explain_panel` macro. Part 7's health score is a new *output*, not a new shape. If Part 6
-   shows a computed number (an outstanding total, a credit position), it renders through that panel.
-3. **An equality test between two code paths only tests what the data distinguishes.** Part 5 C3b
-   proved it: a no-op filter inserted into a delegation passed an "identical output" assertion.
-   Where two paths must agree, ask what data would separate them — and if nothing would, assert the
-   structure.
+### Read for Part 7 — these and nothing else
 
-### Read for Part 6 — these and nothing else
+- `docs/REQUIREMENTS.md` §10 (R9.x) — the whole contract. §1 for the invariants.
+- `docs/prompts/part-07.md` — self-contained. Binding rules: `docs/STANDING-RULES.md`.
+- `docs/08-module-breakdown.md` §2.4 and §2.7.
+- **The edit set for C1 (quotation):** a new `app/modules/sales/quotation.py` (or a `quotations`
+  module — the sales module already holds the order spine) · `app/modules/sales/models.py` for the
+  quotation + revision tables · `app/db/references.py` · `app/main.py`'s `_ADDITIVE_COLUMNS` if a
+  column lands on an existing table · `app/web/pages/sales.py` + templates · a NEW
+  `app/seed/<domain>.py` plus one call in `run()` · `tests/test_quotations.py`.
+- **`allocate_document_number` doc types already in use:** PO GRN BILL REQ RFQ QUO SO INV TRF CNT
+  FUL. **`QUO` is Part 3's SUPPLIER quotation** — a customer quotation needs its own type.
 
-- `docs/REQUIREMENTS.md` §9 (R8.x) — the whole acceptance contract. §1 for the invariants.
-- `docs/prompts/part-06.md` — the brief, self-contained. Binding rules: `docs/STANDING-RULES.md`.
-- `docs/08-module-breakdown.md` §2.4 (Customers/CRM) and §2.7 (Sales).
-- **The edit set:** `app/modules/customers/{models,repository,service,schemas}.py` · a credit policy
-  service (`CreditPolicyService.check` is what R8.6 names) · `app/modules/sales/service.py` for the
-  confirm-time check · `app/web/pages/customers.py` + its templates · `app/main.py`'s
-  `_ADDITIVE_COLUMNS` for the new `customer` columns · `app/db/references.py` for every new model ·
-  a NEW `app/seed/customers.py` plus one call in `run()` · `tests/` — a new file per flow, following
-  `tests/test_inventory_operations.py`.
-- **Documents attach through the existing module** (R8.4). There is one upload path already; find it
-  before writing anything that stores a file.
-
-### Call, don't read — verified signatures, copied from source at Part 5 close
+### Call, don't read — verified signatures, copied from source at Part 6 close
 
 ```python
 # app/modules/inventory/service.py — the ONLY writer of stock_movement (G8), enforced by a
@@ -237,7 +220,8 @@ InventoryService(db).available(product_id, warehouse_id=None) -> Decimal
 InventoryService(db).states(warehouse_id=None) -> list[StockStateRow]
 #   (.on_hand .reserved .in_transit .quarantined .available) — all derived (G7).
 
-# THE VERB PART 7's R9.8/R9.9 CALLS. Part 6 must not add a second mechanism.
+# THE VERB R9.8/R9.9 CALLS. Reserve at confirm (AFTER the credit gate), consume at
+# fulfilment, release at cancellation. No flag, no second mechanism.
 ReservationService(db).reserve(ReservationCreate, *, actor_id)  -> ReservationResult
 ReservationService(db).release(ReservationCreate, *, actor_id)  -> ReservationResult
 ReservationService(db).consume(ReservationCreate, *, actor_id)  -> ReservationResult
@@ -274,29 +258,63 @@ minor_to_text(minor: int | None) -> str        # 123456 -> "1234.56"
 # app/modules/config/service.py
 default_business_unit(db) -> uuid.UUID
 allocate_document_number(db, *, doc_type, business_unit_id, on_date) -> "SO-202607-00001"
-#   Row-locked per (BU, doc_type, period). In use: PO GRN BILL REQ RFQ QUO SO INV TRF CNT.
+#   Row-locked per (BU, doc_type, period). In use: PO GRN BILL REQ RFQ QUO SO INV TRF CNT FUL.
+#   QUO is Part 3's SUPPLIER quotation — a customer quotation needs a different type.
+
+# app/modules/customers/credit.py — Part 6. R9.8's confirm path already calls `enforce`.
+CreditPolicyService(db).check(customer_id, order_total_minor) -> CreditDecision
+#   CreditDecision(.allowed .limit_minor .outstanding_minor .order_total_minor .unlimited
+#                  .overridden .override_reason) · .exposure_minor · .shortfall_minor
+#   Integer arithmetic (G1): AT the limit is allowed, one minor unit over is not. A limit of
+#   ZERO means none recorded — allowed, `.unlimited` True — not "refuse everything".
+CreditPolicyService(db).enforce(customer_id, total, *, override_reason=None, actor_id=None,
+                               ref_label="") -> CreditDecision
+#   Passes, or raises ConflictError with all four numbers, or records the override as ONE
+#   activity row against the CUSTOMER (G5). A passing check logs nothing.
+CreditPolicyService(db).set_policy(customer_id, CreditPolicySet, *, actor_id)
+#   APPENDS a version and stamps valid_to on the previous one (R8.3). Reason mandatory.
+CreditPolicyService(db).current(customer_id) · .history(customer_id) · .explain(decision)
+CreditPolicyService(db).refusal_message(decision) -> str   # R8.7's sentence
+
+# app/modules/customers/{service,timeline}.py
+CustomerService(db).contacts/branches/notes/documents(customer_id)
+CustomerService(db).add_contact/add_branch/add_note(customer_id, payload, *, actor_id)
+CustomerService(db).delete_contact(contact_id, *, actor_id) · .delete_branch(branch_id, ...)
+CustomerRepository(db).outstanding_minor(customer_id) -> int   # receivable, derived
+CustomerTimelineService(db).events(customer_id, *, limit=200) -> list[TimelineEvent]
+#   Six sources, six queries, NO events table. TimelineEvent(.at .kind .summary .href
+#   .amount_minor); kinds: order invoice payment task note activity.
+
+# app/modules/sales/service.py — the confirm path Part 7 hooks
+SalesOrderService(db).confirm(order_id, *, actor_id, credit_override_reason=None)
+#   Runs the credit gate FIRST. On a breach with no reason it raises and the order stays
+#   DRAFT. R9.8 must reserve stock AFTER this passes.
+SalesOrderService(db).create/fulfill/invoice(...)
 ```
 
 Part 2's machinery still holds unchanged: `ListSpec` + `view_from_request` (list pages),
 `ensure_unreferenced` / `soft_delete` / `ensure_unique`, `ActivityService.history`, and the
 `page_header` / `stat` / `badge` / `list_*` / `history_panel` / `explain_panel` macros.
 
-### Gotchas that will bite Part 6
+### Gotchas that will bite Part 7
 
-- **`create_all` builds new TABLES but never ALTERs an existing one.** A new column on `customer`,
-  `sales_order` … needs an `_ADDITIVE_COLUMNS` entry in `app/main.py` (~line 45) or it is silently
+- **`create_all` builds new TABLES but never ALTERs an existing one.** A new column on `sales_order`,
+  `invoice` … needs an `_ADDITIVE_COLUMNS` entry in `app/main.py` (~line 45) or it is silently
   missing on every DB seeded earlier, including the dev `apexos.db` carried since Part 1. Get the DDL
   from what `create_all` emits (`CreateTable(...).compile(sqlite)`), don't guess:
   `DateTime(timezone=True)` → `DATETIME`, `Uuid()` → `CHAR(32)`, `Numeric(18,4)` → `NUMERIC(18, 4)`.
   Part 5 verified this path against a pre-Part-5 copy of the dev database; the shim works.
 - **A column default of `func.now()` TIES.** Rows written in one transaction share a timestamp, so
-  `ORDER BY occurred_at` alone is non-deterministic and a test reading "the newest row" fails
-  intermittently. Add `id` as the tiebreaker — UUID v7 keys are time-ordered. **This matters directly
-  for R8.10's chronological timeline.** (`InventoryRepository.movements()` still has this latent tie —
-  pre-existing, left alone.)
+  ordering on it alone is non-deterministic and a test reading "the newest row" fails intermittently.
+  Add `id` as the tiebreaker — UUID v7 keys are time-ordered. **Quotation revisions will hit this.**
+  (`InventoryRepository.movements()` still has this latent tie — pre-existing, left alone.)
 - **A test can pass without testing anything.** Assert a **floor** on anything you enumerate
-  (`assert len(found) > 40`), and mutation-check once. See "Three things Part 6 inherits" #3.
-- **Assert on HTML phrases that do NOT straddle a template line break** — cost two runs in Part 5.
+  (`assert len(found) > 40`), and mutation-check once.
+- **Adding a row to a shared seed can break unrelated tests.** Part 6's breaching order left a
+  *confirmed* order on the first customer, which made it undeletable and broke two Part 1/3 tests
+  that encode "that customer's work is closed". **Before seeding a document in an open status, ask
+  which existing tests treat that party as quiet.**
+- **Assert on HTML phrases that do NOT straddle a template line break** — cost three runs so far.
 - **A page with an entry form has TWO `<tbody>`s**, so `html.count("<tbody>") == 1` is wrong there.
   Assert markers the shared macros emit; read totals from the paginator, not by counting `<tr>`.
 - **A `select()` per row in a projector is the thing to avoid**; `db.get(Model, id)` in a loop is free
@@ -313,10 +331,13 @@ Part 2's machinery still holds unchanged: `ListSpec` + `view_from_request` (list
 
 ### Do NOT read
 
-`app/seed/core.py` (720 lines — read `app/seed/__init__.py`'s docstring, and `app/seed/inventory.py`
+`app/seed/core.py` (720 lines — read `app/seed/__init__.py`'s docstring, and `app/seed/customers.py`
 as the pattern for a new section) · `app/modules/procurement/preorder.py` (814 lines) ·
-`app/modules/suppliers/vendor.py` · `app/modules/inventory/{valuation,health}.py` (Part 5 finished
-them; their signatures are above) · `tests/test_preorder.py`, `test_po_revisions.py`,
+`app/modules/suppliers/vendor.py` · `app/modules/inventory/{valuation,health}.py` and
+`app/modules/customers/{credit,timeline}.py` (Parts 5 and 6 finished them; their signatures are
+above) · **`app/modules/procurement/service.py`'s revision code IS worth reading** for R9.2's shape —
+that is the exception to this list · `tests/test_customer_depth.py`, `test_inventory_*.py`,
+`tests/test_preorder.py`, `test_po_revisions.py`,
 `test_vendor_intel.py`, `test_vendor_screens.py`, `test_procurement_planning.py`,
 `tests/test_inventory_*.py` (they pass; read one only if you change what it covers) · anything in
 `docs/parts/` · `docs/ROADMAP.md` (~17k tokens, planning only) · the older `docs/` design files,
