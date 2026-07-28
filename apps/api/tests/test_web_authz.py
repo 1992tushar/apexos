@@ -10,6 +10,7 @@ from __future__ import annotations
 import uuid
 
 import pytest
+from _web_routes import web_routes_for
 from fastapi import Depends, FastAPI, Request
 from fastapi.testclient import TestClient
 
@@ -121,15 +122,25 @@ def test_permission_phrase_reads_as_a_sentence(code, expected):
 
 # --- R1.5: the guard is actually wired onto the web POST routes ---------------
 
+def test_the_route_walk_finds_the_whole_web_surface():
+    """Guard-rail for the walk below, and for the smoke test's.
+
+    This assertion exists because the walk it protects failed silently. It read
+    `build_web_router().routes` directly, which in FastAPI >= 0.140 is a list of
+    `_IncludedRouter` wrappers with no `.methods` — so it matched nothing and
+    asserted `[] == []` for free. A dependency upgrade quietly disarmed a P0 test
+    and the suite stayed green. If enumeration breaks again, fail here loudly
+    rather than pass everywhere cheaply.
+    """
+    posts = web_routes_for("POST")
+    assert len(posts) > 40, f"expected the full web POST surface, walked only {len(posts)}"
+
+
 def test_every_web_post_route_carries_the_guard():
     """Spot-check turned exhaustive because it is cheap: no web POST route may
     depend on the bare actor. A new mutation added without a guard fails here."""
-    from app.web import build_web_router
-
     unguarded = []
-    for route in build_web_router().routes:
-        if "POST" not in getattr(route, "methods", set()):
-            continue
+    for route in web_routes_for("POST"):
         sources = [
             d.call.__qualname__
             for d in route.dependant.dependencies
