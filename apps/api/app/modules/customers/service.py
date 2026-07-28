@@ -7,6 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.errors import ConflictError, NotFoundError
+from app.db.soft_delete import soft_delete
 from app.modules.activity.service import ActivityService
 from app.modules.config.models import BusinessUnit
 from app.modules.customers.models import Customer, CustomerCreditPolicy
@@ -58,6 +59,17 @@ class CustomerService:
         if customer is None:
             raise NotFoundError(f"Customer {customer_id} not found")
         return self._to_read(customer)
+
+    def delete(self, customer_id: uuid.UUID, *, actor_id: uuid.UUID | None) -> None:
+        """Soft-delete a customer (R1.2).
+
+        Invoices and orders that reference the customer keep rendering — the row
+        stays addressable, it just leaves the lists and lookups (R1.7).
+        """
+        customer = self.repo.get(customer_id)
+        if customer is None:
+            raise NotFoundError(f"Customer {customer_id} not found")
+        soft_delete(self.db, customer, actor_id=actor_id, label="Customer")
 
     def create(self, payload: CustomerCreate, *, actor_id: uuid.UUID | None) -> CustomerRead:
         code = payload.code or self.repo.next_code()

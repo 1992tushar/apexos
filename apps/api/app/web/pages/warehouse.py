@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, Form, Request
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.security import Actor, get_current_actor
+from app.core.security import Actor
 from app.modules.config.service import ConfigService
 from app.modules.inventory.schemas import (
     StockAdjustmentCreate,
@@ -22,6 +22,7 @@ from app.modules.inventory.service import (
 )
 from app.modules.products.service import ProductService
 from app.web.core import form_action, render
+from app.web.security import require_web_permission
 
 router = APIRouter()
 
@@ -64,7 +65,7 @@ def create_transfer(
     to_warehouse_id: str = Form(...),
     qty: str = Form(...),
     db: Session = Depends(get_db),
-    actor: Actor = Depends(get_current_actor),
+    actor: Actor = Depends(require_web_permission("stock.transfer")),
 ):
     def work():
         payload = StockTransferCreate(
@@ -89,7 +90,7 @@ def create_adjustment(
     warehouse_id: str = Form(...),
     qty_delta: str = Form(...),
     db: Session = Depends(get_db),
-    actor: Actor = Depends(get_current_actor),
+    actor: Actor = Depends(require_web_permission("stock.adjust")),
 ):
     def work():
         payload = StockAdjustmentCreate(
@@ -114,7 +115,7 @@ def create_count(
     warehouse_id: str = Form(...),
     counted_qty: str = Form(...),
     db: Session = Depends(get_db),
-    actor: Actor = Depends(get_current_actor),
+    actor: Actor = Depends(require_web_permission("stock.adjust")),
 ):
     def work():
         payload = StockCountCreate(

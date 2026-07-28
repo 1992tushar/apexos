@@ -13,10 +13,11 @@ from fastapi import APIRouter, Depends, Form, Request
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.security import Actor, get_current_actor
+from app.core.security import Actor
 from app.modules.finance.schemas import BillPaymentCreate, PaymentCreate
 from app.modules.finance.service import BillService, InvoiceService
 from app.web.core import form_action, render
+from app.web.security import require_web_permission
 
 router = APIRouter()
 
@@ -58,7 +59,7 @@ def record_invoice_payment(
     amount_rupees: str = Form(...),
     method: str = Form("bank"),
     db: Session = Depends(get_db),
-    actor: Actor = Depends(get_current_actor),
+    actor: Actor = Depends(require_web_permission("payment.create")),
 ):
     def work():
         payload = PaymentCreate(
@@ -80,7 +81,7 @@ def record_bill_payment(
     amount_rupees: str = Form(...),
     method: str = Form("bank"),
     db: Session = Depends(get_db),
-    actor: Actor = Depends(get_current_actor),
+    actor: Actor = Depends(require_web_permission("payment.create")),
 ):
     def work():
         payload = BillPaymentCreate(

@@ -25,3 +25,14 @@
 {% macro empty(message="Nothing here yet.") %}
 <div class="empty-state">{{ message }}</div>
 {% endmacro %}
+
+{# The one delete control (R1.2). `action` is the entity's POST .../delete route and
+   `name` is what the confirm prompt should call the row. Passing the prompt through
+   `tojson` makes it a proper JS string literal, so a name containing an apostrophe
+   ("Joe's Diner") cannot break the handler. #}
+{% macro delete_button(action, name, note="It will disappear from lists; documents that reference it are unaffected.") %}
+<form method="post" action="{{ action }}" class="inline-form"
+      onsubmit="return confirm({{ ("Delete " ~ name ~ "?\n\n" ~ note) | tojson }});">
+  <button class="btn btn-sm btn-danger" type="submit">Delete</button>
+</form>
+{% endmacro %}

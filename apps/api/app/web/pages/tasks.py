@@ -8,10 +8,11 @@ from fastapi import APIRouter, Depends, Form, Request
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.security import Actor, get_current_actor
+from app.core.security import Actor
 from app.modules.tasks.schemas import TaskCreate
 from app.modules.tasks.service import TaskService
 from app.web.core import form_action, render
+from app.web.security import require_web_permission
 
 router = APIRouter()
 
@@ -38,7 +39,7 @@ def create_task(
     due_date: str = Form(""),
     description: str = Form(""),
     db: Session = Depends(get_db),
-    actor: Actor = Depends(get_current_actor),
+    actor: Actor = Depends(require_web_permission("task.create")),
 ):
     def work():
         payload = TaskCreate(
@@ -61,11 +62,26 @@ def complete_task(
     request: Request,
     task_id: uuid.UUID,
     db: Session = Depends(get_db),
-    actor: Actor = Depends(get_current_actor),
+    actor: Actor = Depends(require_web_permission("task.complete")),
 ):
     return form_action(
         db, lambda: TaskService(db).complete(task_id, actor_id=actor.id),
         back="/tasks",
         success=("/tasks", "Task completed"),
         err="Could not complete task",
+    )
+
+
+@router.post("/tasks/{task_id}/delete")
+def delete_task(
+    request: Request,
+    task_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    actor: Actor = Depends(require_web_permission("task.delete")),
+):
+    return form_action(
+        db, lambda: TaskService(db).delete(task_id, actor_id=actor.id),
+        back="/tasks",
+        success=("/tasks", "Task deleted"),
+        err="Could not delete task",
     )

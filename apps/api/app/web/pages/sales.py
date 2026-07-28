@@ -9,12 +9,13 @@ from fastapi import APIRouter, Depends, Form, Request
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.security import Actor, get_current_actor
+from app.core.security import Actor
 from app.modules.customers.service import CustomerService
 from app.modules.products.service import ProductService
 from app.modules.sales.schemas import SalesOrderCreate, SalesOrderLineCreate
 from app.modules.sales.service import SalesOrderService
 from app.web.core import form_action, render
+from app.web.security import require_web_permission
 
 router = APIRouter()
 
@@ -58,7 +59,7 @@ def create_sale(
     qty: list[str] = Form([]),
     unit_price_rupees: list[str] = Form([]),
     db: Session = Depends(get_db),
-    actor: Actor = Depends(get_current_actor),
+    actor: Actor = Depends(require_web_permission("sales_order.create")),
 ):
     def work():
         lines: list[SalesOrderLineCreate] = []
@@ -99,7 +100,7 @@ def confirm_sale(
     request: Request,
     order_id: uuid.UUID,
     db: Session = Depends(get_db),
-    actor: Actor = Depends(get_current_actor),
+    actor: Actor = Depends(require_web_permission("sales_order.confirm")),
 ):
     return form_action(
         db, lambda: SalesOrderService(db).confirm(order_id, actor_id=actor.id),
@@ -112,7 +113,7 @@ def fulfill_sale(
     request: Request,
     order_id: uuid.UUID,
     db: Session = Depends(get_db),
-    actor: Actor = Depends(get_current_actor),
+    actor: Actor = Depends(require_web_permission("sales_order.fulfill")),
 ):
     return form_action(
         db, lambda: SalesOrderService(db).fulfill(order_id, actor_id=actor.id),
@@ -125,7 +126,7 @@ def invoice_sale(
     request: Request,
     order_id: uuid.UUID,
     db: Session = Depends(get_db),
-    actor: Actor = Depends(get_current_actor),
+    actor: Actor = Depends(require_web_permission("sales_order.invoice")),
 ):
     return form_action(
         db, lambda: SalesOrderService(db).invoice(order_id, actor_id=actor.id),

@@ -37,7 +37,8 @@
   <table>
     <thead>
       <tr>
-        <th>Code</th><th>Name</th><th>Parent</th><th class="num">Sort</th><th>Status</th><th>Move</th>
+        <th>Code</th><th>Name</th><th>Parent</th><th class="num">Sort</th><th>Status</th>
+        <th>Move</th><th>Actions</th>
       </tr>
     </thead>
     <tbody>
@@ -56,6 +57,10 @@
             </select>
             <button class="btn btn-sm" type="submit">Move</button>
           </form>
+        </td>
+        <td class="row-actions">
+          {{ ui.delete_button("/categories/" ~ cat.id ~ "/delete", cat.name,
+             "Only possible while it has no subcategories and no products.") }}
         </td>
       </tr>
       {% endfor %}

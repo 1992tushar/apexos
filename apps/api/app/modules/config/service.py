@@ -11,10 +11,11 @@ import uuid
 from datetime import UTC, date, datetime
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.errors import ConflictError, NotFoundError, ValidationError
+from app.db.soft_delete import soft_delete
 from app.modules.activity.service import ActivityService
 from app.modules.config.models import (
     Brand,
@@ -225,6 +226,43 @@ class CategoryService:
         if cat is None:
             raise NotFoundError(f"Category {category_id} not found")
         return cat
+
+    def delete(self, category_id: uuid.UUID, *, actor_id) -> None:
+        """Soft-delete a category (R1.2).
+
+        Refused while anything still hangs off it. Unlike a customer — whose
+        invoices stay readable because they snapshot what they need — a category
+        is a live classification: hiding one with children would orphan a subtree,
+        and hiding one with products would blank the category column on rows that
+        are still for sale. Reparent or reassign first.
+        """
+        cat = self._require(category_id)
+
+        children = self.db.scalar(
+            select(func.count())
+            .select_from(Category)
+            .where(Category.parent_category_id == cat.id, Category.deleted_at.is_(None))
+        ) or 0
+        if children:
+            raise ConflictError(
+                f"Category {cat.name} still has {children} subcategor"
+                f"{'y' if children == 1 else 'ies'}. Move them first."
+            )
+
+        from app.modules.products.models import Product
+
+        products = self.db.scalar(
+            select(func.count())
+            .select_from(Product)
+            .where(Product.category_id == cat.id, Product.deleted_at.is_(None))
+        ) or 0
+        if products:
+            raise ConflictError(
+                f"Category {cat.name} still has {products} "
+                f"product{'' if products == 1 else 's'}. Reassign them first."
+            )
+
+        soft_delete(self.db, cat, actor_id=actor_id, label="Category")
 
     def create(self, payload, *, actor_id) -> Category:
         if self.db.scalar(select(Category.id).where(Category.code == payload.code)):

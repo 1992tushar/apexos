@@ -8,11 +8,12 @@ from fastapi import APIRouter, Depends, Form, Request
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.security import Actor, get_current_actor
+from app.core.security import Actor
 from app.modules.config.service import ConfigService
 from app.modules.products.schemas import ProductCreate
 from app.modules.products.service import ProductService
 from app.web.core import form_action, render
+from app.web.security import require_web_permission
 
 router = APIRouter()
 
@@ -48,7 +49,7 @@ def create_product(
     selling_price_rupees: str = Form(""),
     purchase_price_rupees: str = Form(""),
     db: Session = Depends(get_db),
-    actor: Actor = Depends(get_current_actor),
+    actor: Actor = Depends(require_web_permission("product.create")),
 ):
     def work():
         payload = ProductCreate(
@@ -75,4 +76,19 @@ def create_product(
         db, work, back="/products",
         success=("/products", "Product created"),
         err="Could not create product",
+    )
+
+
+@router.post("/products/{product_id}/delete")
+def delete_product(
+    request: Request,
+    product_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    actor: Actor = Depends(require_web_permission("product.delete")),
+):
+    return form_action(
+        db, lambda: ProductService(db).delete(product_id, actor_id=actor.id),
+        back="/products",
+        success=("/products", "Product deleted"),
+        err="Could not delete product",
     )

@@ -4,6 +4,7 @@
 {% block content %}
 {% call ui.page_header(sup.name, sup.code) %}
   <a class="btn" href="/suppliers">← All suppliers</a>
+  {{ ui.delete_button("/suppliers/" ~ sup.id ~ "/delete", sup.name) }}
 {% endcall %}
 
 <div class="grid grid-3 mt">

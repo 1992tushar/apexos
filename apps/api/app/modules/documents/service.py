@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.errors import NotFoundError, ValidationError
+from app.db.soft_delete import soft_delete
 from app.db.uuid7 import uuid7
 from app.modules.activity.service import ActivityService
 from app.modules.config.models import BusinessUnit
@@ -124,16 +125,8 @@ class DocumentService:
         return doc
 
     def delete(self, document_id: uuid.UUID, *, actor_id: uuid.UUID | None) -> None:
-        """Soft-delete a document and record the action on the activity ledger."""
-        doc = self.get(document_id)
-        self.repo.soft_delete(doc)
-        self.activity.log(
-            actor_id=actor_id,
-            verb="deleted",
-            entity_type="document",
-            entity_id=doc.id,
-            summary=f"Document {doc.filename} deleted",
-        )
+        """Soft-delete a document; the bytes are left in storage."""
+        soft_delete(self.db, self.get(document_id), actor_id=actor_id, label="Document")
 
     def upload(
         self,

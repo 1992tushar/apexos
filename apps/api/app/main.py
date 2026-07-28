@@ -38,6 +38,10 @@ async def lifespan(app: FastAPI):
 # only creates whole missing tables — it never ALTERs an existing one — so with
 # no migration tool we patch in additive, nullable/defaulted columns here. Each
 # entry is idempotent (skipped when the column is already present).
+#
+# Additive only, and every entry must also exist on the model. The full strategy —
+# including how this is retired in favour of Alembic when a Postgres deployment
+# appears — is docs/MIGRATION-STRATEGY.md (R1.8).
 _ADDITIVE_COLUMNS: dict[str, dict[str, str]] = {
     "document": {"category": "VARCHAR(32) NOT NULL DEFAULT 'other'"},
 }

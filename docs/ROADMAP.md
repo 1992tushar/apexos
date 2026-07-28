@@ -39,7 +39,7 @@ real operational data flows into it.
 
 | Part | Title | Phase | Requirements | Sessions | Tag when done | Status |
 |---|---|---|---|---|---|---|
-| **1** | Foundation finish | 0 | R1.x | 3 | `part-01-done` | **in progress** — C1, C2 done; C3 remaining |
+| **1** | Foundation finish | 0 | R1.x | 3 | `part-01-done` | **done** — R1.1–R1.10 all pass, tagged |
 | **2** | Master data & shared machinery | 1 | R2.x, R3.x | 3 | `part-02-done` | not started |
 | **3** | Procurement: pre-order → PO depth | 2 | R4.x | 2 | `part-03-done` | not started |
 | **4** | Procurement: vendor intelligence + planning | 2 | R5.x | 2 | `part-04-done` | not started |
@@ -52,7 +52,7 @@ real operational data flows into it.
 | **11** | Polish & Optimization | 8 | R14.x | 3 | `part-11-done` | not started |
 | **12** | Product Challenge | X | R15.x | 1 | `part-12-done` | not started |
 
-**12 parts · 27 sessions, of which 2 are done — 25 remaining.** A session is a token budget; a part is
+**12 parts · 27 sessions, of which 3 are done — 24 remaining.** A session is a token budget; a part is
 a group of sessions. The *Session protocol* section below lists the checkpoints each part is broken
 into — one per session, each ending in a commit, with the `PROGRESS.md` resume block as the handoff.
 
@@ -112,7 +112,7 @@ tags it done.
 
 | Part | Checkpoints |
 |---|---|
-| **1** Foundation finish | **C1** WS1 tests ✔ · **C2** WS2 web errors ✔ · **C3** WS3 soft delete + WS4 authz + WS5 migration decision + E501 |
+| **1** Foundation finish | **C1** WS1 tests ✔ · **C2** WS2 web errors ✔ · **C3** WS3 soft delete + WS4 authz + WS5 migration decision + E501 ✔ |
 | **2** Master data & shared machinery | **C1** macros + query helper + dup prevention + change history · **C2** prove on products + customers, record the R2.14 line count · **C3** roll out to the remaining 8 masters + their special cases |
 | **3** Procurement core | **C1** requisition (request→approve→convert) + RFQ + quote capture + comparison · **C2** PO revisions + partial receipt + back orders + receipt-against-revision |
 | **4** Vendor intelligence | **C1** mapping + vendor score + measured lead time + MOQ + price history · **C2** calendar + recommendations (R5.9's single entry point) |

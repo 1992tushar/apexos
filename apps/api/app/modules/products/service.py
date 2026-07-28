@@ -8,6 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.errors import ConflictError, NotFoundError
+from app.db.soft_delete import soft_delete
 from app.modules.activity.service import ActivityService
 from app.modules.config.models import BusinessUnit
 from app.modules.inventory.service import InventoryService
@@ -66,6 +67,18 @@ class ProductService:
         if product is None:
             raise NotFoundError(f"Product {product_id} not found")
         return self._to_read(product)
+
+    def delete(self, product_id: uuid.UUID, *, actor_id: uuid.UUID | None) -> None:
+        """Soft-delete a product (R1.2).
+
+        Order lines, invoice lines and its stock movements keep rendering — the
+        row stays addressable, it just leaves the catalogue (R1.7). Stock history
+        is never rewritten; the ledger is append-only (G4).
+        """
+        product = self.repo.get(product_id)
+        if product is None:
+            raise NotFoundError(f"Product {product_id} not found")
+        soft_delete(self.db, product, actor_id=actor_id, label="Product")
 
     def create(self, payload: ProductCreate, *, actor_id: uuid.UUID | None) -> ProductRead:
         sku = payload.sku_code

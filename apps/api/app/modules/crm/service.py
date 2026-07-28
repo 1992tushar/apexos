@@ -8,6 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.errors import ConflictError, NotFoundError, ValidationError
+from app.db.soft_delete import soft_delete
 from app.modules.activity.service import ActivityService
 from app.modules.config.models import BusinessUnit
 from app.modules.crm.models import Competitor, Lead, Opportunity
@@ -146,6 +147,23 @@ class CrmService:
             data={"customer_id": str(customer.id)},
         )
         return LeadRead.model_validate(lead)
+
+    def delete_lead(self, lead_id: uuid.UUID, *, actor_id: uuid.UUID | None) -> None:
+        """Soft-delete a lead (R1.2).
+
+        A converted lead is refused: its customer and won opportunities point back
+        at it, and hiding the lead would hide where that customer came from. Drop
+        the customer instead if that is what was meant.
+        """
+        lead = self.repo.lead(lead_id)
+        if lead is None:
+            raise NotFoundError(f"Lead {lead_id} not found")
+        if lead.status == "converted":
+            raise ConflictError(
+                f"Lead {lead.company_name} was converted to a customer and is that "
+                "customer's origin record. Delete the customer instead."
+            )
+        soft_delete(self.db, lead, actor_id=actor_id, label="Lead")
 
     # --- opportunities --------------------------------------------------
     def create_opportunity(

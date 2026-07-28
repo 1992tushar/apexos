@@ -17,11 +17,12 @@ from fastapi import APIRouter, Depends, Form, Request
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.security import Actor, get_current_actor
+from app.core.security import Actor
 from app.modules.config.service import ConfigService
 from app.modules.customers.schemas import CustomerCreate
 from app.modules.customers.service import CustomerService
 from app.web.core import form_action, render
+from app.web.security import require_web_permission
 
 router = APIRouter()
 
@@ -54,7 +55,7 @@ def create_customer(
     credit_limit_rupees: str = Form("0"),
     payment_terms_days: int = Form(30),
     db: Session = Depends(get_db),
-    actor: Actor = Depends(get_current_actor),
+    actor: Actor = Depends(require_web_permission("customer.create")),
 ):
     def work():
         payload = CustomerCreate(
@@ -83,3 +84,19 @@ def customer_detail(request: Request, customer_id: uuid.UUID, db: Session = Depe
     # A missing customer raises NotFoundError → the web error handler renders error.html.
     customer = CustomerService(db).get(customer_id)
     return render(request, "customers/detail.html", c=customer)
+
+
+@router.post("/customers/{customer_id}/delete")
+def delete_customer(
+    request: Request,
+    customer_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    actor: Actor = Depends(require_web_permission("customer.delete")),
+):
+    # On success the detail page is gone, so land on the list; on failure stay put.
+    return form_action(
+        db, lambda: CustomerService(db).delete(customer_id, actor_id=actor.id),
+        back=f"/customers/{customer_id}",
+        success=("/customers", "Customer deleted"),
+        err="Could not delete customer",
+    )

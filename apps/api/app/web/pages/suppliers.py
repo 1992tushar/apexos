@@ -7,11 +7,12 @@ from fastapi import APIRouter, Depends, Form, Request
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.security import Actor, get_current_actor
+from app.core.security import Actor
 from app.modules.config.service import ConfigService
 from app.modules.suppliers.schemas import SupplierCreate, SupplierEvaluationCreate
 from app.modules.suppliers.service import SupplierService, VendorEvaluationService
 from app.web.core import form_action, render
+from app.web.security import require_web_permission
 
 router = APIRouter()
 
@@ -41,7 +42,7 @@ def create_supplier(
     city: str = Form(""),
     state: str = Form(""),
     db: Session = Depends(get_db),
-    actor: Actor = Depends(get_current_actor),
+    actor: Actor = Depends(require_web_permission("supplier.create")),
 ):
     def work():
         payload = SupplierCreate(
@@ -71,6 +72,21 @@ def supplier_detail(request: Request, supplier_id: uuid.UUID, db: Session = Depe
     return render(request, "suppliers/detail.html", sup=sup, evals=evals)
 
 
+@router.post("/suppliers/{supplier_id}/delete")
+def delete_supplier(
+    request: Request,
+    supplier_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    actor: Actor = Depends(require_web_permission("supplier.delete")),
+):
+    return form_action(
+        db, lambda: SupplierService(db).delete(supplier_id, actor_id=actor.id),
+        back=f"/suppliers/{supplier_id}",
+        success=("/suppliers", "Supplier deleted"),
+        err="Could not delete supplier",
+    )
+
+
 @router.post("/supplier-evaluations")
 def evaluate_supplier(
     request: Request,
@@ -80,7 +96,7 @@ def evaluate_supplier(
     reliability_score: int = Form(...),
     notes: str = Form(""),
     db: Session = Depends(get_db),
-    actor: Actor = Depends(get_current_actor),
+    actor: Actor = Depends(require_web_permission("supplier_evaluation.create")),
 ):
     def work():
         payload = SupplierEvaluationCreate(

@@ -5,10 +5,11 @@ from fastapi import APIRouter, Depends, Form, Request
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.security import Actor, get_current_actor
+from app.core.security import Actor
 from app.modules.config.schemas import SettingUpsert, TaxRateSlabCreate
 from app.modules.config.service import ConfigService, SettingService, TaxRateService
 from app.web.core import form_action, redirect, render
+from app.web.security import require_web_permission
 
 router = APIRouter()
 
@@ -39,7 +40,7 @@ def create_master(
     code: str = Form(...),
     name: str = Form(...),
     db: Session = Depends(get_db),
-    actor: Actor = Depends(get_current_actor),
+    actor: Actor = Depends(require_web_permission("config.write")),
 ):
     if entity_type not in _MASTER_TYPES:
         return redirect("/settings", err=f"Unknown master '{entity_type}'")
@@ -60,7 +61,7 @@ def create_warehouse(
     city: str = Form(""),
     state_code: str = Form(""),
     db: Session = Depends(get_db),
-    actor: Actor = Depends(get_current_actor),
+    actor: Actor = Depends(require_web_permission("config.write")),
 ):
     return form_action(
         db,
@@ -80,7 +81,7 @@ def create_tax_rate(
     name: str = Form(...),
     rate_percent: str = Form(...),
     db: Session = Depends(get_db),
-    actor: Actor = Depends(get_current_actor),
+    actor: Actor = Depends(require_web_permission("config.write")),
 ):
     def work():
         payload = TaxRateSlabCreate(
@@ -101,7 +102,7 @@ def create_setting(
     value: str = Form(...),
     description: str = Form(""),
     db: Session = Depends(get_db),
-    actor: Actor = Depends(get_current_actor),
+    actor: Actor = Depends(require_web_permission("config.write")),
 ):
     def work():
         payload = SettingUpsert(key=key, value=value, description=description or None)

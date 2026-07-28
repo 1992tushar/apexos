@@ -7,10 +7,11 @@ from fastapi import APIRouter, Depends, Form, Request
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.security import Actor, get_current_actor
+from app.core.security import Actor
 from app.modules.config.schemas import CategoryCreate
 from app.modules.config.service import CategoryService, ConfigService
 from app.web.core import form_action, render
+from app.web.security import require_web_permission
 
 router = APIRouter()
 
@@ -38,7 +39,10 @@ def create_category(
     parent_category_id: str = Form(""),
     sort_order: str = Form("0"),
     db: Session = Depends(get_db),
-    actor: Actor = Depends(get_current_actor),
+    # Categories are config-module masters: the JSON API guards their writes with
+    # `config.write`, so the web routes use the same code (R1.5). Deletion is a
+    # web-only capability and follows the `<entity>.delete` shape of the others.
+    actor: Actor = Depends(require_web_permission("config.write")),
 ):
     def work():
         payload = CategoryCreate(
@@ -66,7 +70,7 @@ def reparent_category(
     category_id: uuid.UUID,
     parent_category_id: str = Form(""),
     db: Session = Depends(get_db),
-    actor: Actor = Depends(get_current_actor),
+    actor: Actor = Depends(require_web_permission("config.write")),
 ):
     def work():
         pid = uuid.UUID(parent_category_id) if parent_category_id else None
@@ -75,4 +79,18 @@ def reparent_category(
     return form_action(
         db, work, back="/categories", success=("/categories", "Category moved"),
         err="Could not move category",
+    )
+
+
+@router.post("/categories/{category_id}/delete")
+def delete_category(
+    request: Request,
+    category_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    actor: Actor = Depends(require_web_permission("category.delete")),
+):
+    return form_action(
+        db, lambda: CategoryService(db).delete(category_id, actor_id=actor.id),
+        back="/categories", success=("/categories", "Category deleted"),
+        err="Could not delete category",
     )

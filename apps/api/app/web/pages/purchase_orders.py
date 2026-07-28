@@ -9,12 +9,13 @@ from fastapi import APIRouter, Depends, Form, Request
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.security import Actor, get_current_actor
+from app.core.security import Actor
 from app.modules.procurement.schemas import PurchaseOrderCreate, PurchaseOrderLineCreate
 from app.modules.procurement.service import GoodsReceiptService, PurchaseOrderService
 from app.modules.products.service import ProductService
 from app.modules.suppliers.service import SupplierService
 from app.web.core import form_action, render
+from app.web.security import require_web_permission
 
 router = APIRouter()
 
@@ -55,7 +56,7 @@ def create_purchase_order(
     qty: list[str] = Form([]),
     unit_price_rupees: list[str] = Form([]),
     db: Session = Depends(get_db),
-    actor: Actor = Depends(get_current_actor),
+    actor: Actor = Depends(require_web_permission("purchase_order.create")),
 ):
     def work():
         lines: list[PurchaseOrderLineCreate] = []
@@ -96,7 +97,7 @@ def confirm_purchase_order(
     request: Request,
     order_id: uuid.UUID,
     db: Session = Depends(get_db),
-    actor: Actor = Depends(get_current_actor),
+    actor: Actor = Depends(require_web_permission("purchase_order.confirm")),
 ):
     return form_action(
         db, lambda: PurchaseOrderService(db).confirm(order_id, actor_id=actor.id),
@@ -110,7 +111,7 @@ def receive_purchase_order(
     request: Request,
     order_id: uuid.UUID,
     db: Session = Depends(get_db),
-    actor: Actor = Depends(get_current_actor),
+    actor: Actor = Depends(require_web_permission("goods_receipt.receive")),
 ):
     return form_action(
         db, lambda: GoodsReceiptService(db).receive(order_id, None, actor_id=actor.id),
@@ -124,7 +125,7 @@ def bill_purchase_order(
     request: Request,
     order_id: uuid.UUID,
     db: Session = Depends(get_db),
-    actor: Actor = Depends(get_current_actor),
+    actor: Actor = Depends(require_web_permission("bill.issue")),
 ):
     return form_action(
         db, lambda: PurchaseOrderService(db).bill(order_id, actor_id=actor.id),

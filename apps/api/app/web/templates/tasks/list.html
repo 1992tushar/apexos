@@ -38,7 +38,7 @@
   <table>
     <thead>
       <tr>
-        <th>Title</th><th>Priority</th><th>Due</th><th>Status</th><th>Action</th>
+        <th>Title</th><th>Priority</th><th>Due</th><th>Status</th><th>Actions</th>
       </tr>
     </thead>
     <tbody>
@@ -51,14 +51,16 @@
         <td>{{ ui.badge(t.priority) }}</td>
         <td>{{ t.due_date | fmt_date }}</td>
         <td>{{ ui.badge(t.status) }}</td>
-        <td>
+        <td class="row-actions">
           {% if t.status != 'completed' %}
-          <form method="post" action="/tasks/{{ t.id }}/complete">
+          <form method="post" action="/tasks/{{ t.id }}/complete" class="inline-form">
             <button class="btn btn-sm" type="submit">Complete</button>
           </form>
           {% else %}
           <span class="muted">Done</span>
           {% endif %}
+          {{ ui.delete_button("/tasks/" ~ t.id ~ "/delete", t.title,
+             "It leaves the task list. Deleting is not the same as completing.") }}
         </td>
       </tr>
       {% endfor %}

@@ -47,7 +47,7 @@ If the baseline is not green, stop and report what failed — do not start featu
 
 ### ▶ How to start the next session
 
-Open a fresh Claude Code session in `c:\Imp Data\Personal\apexos` and paste **exactly this**:
+Open a fresh Claude Code session in your clone of the repo and paste **exactly this**:
 
 ```
 Continue the ApexOS build. Do this in order:
@@ -72,24 +72,60 @@ finish the part". Start each session fresh (`/clear` or a new window) rather tha
 one. And if a session ends messy, the recovery is `git log --oneline -5` plus the resume block, not
 re-reading the design docs.
 
-## Part 1 — Foundation finish · on `main` · checkpoint 2 of 3 · tag when done: `part-01-done`
+## Part 2 — Master data & shared machinery · on `main` · checkpoint 0 of 3 · tag when done: `part-02-done`
 
-- [x] **C1** WS1 — test suite → commit `edf51ea`
-- [x] **C2** WS2 — centralized web error handling → commit `edf51ea`
-- [ ] **C3** WS3 soft-delete write path + WS4 web authz guard + WS5 migration decision + settings.py E501
+**Part 1 is COMPLETE and tagged `part-01-done`.** Its record is in the log below.
 
-**Requirements passed:** none formally verified yet against `docs/REQUIREMENTS.md` §2 — WS1/WS2
-predate the register. Treat R1.1–R1.10 as all outstanding and check them off in C3.
-**Requirements outstanding:** R1.1–R1.10.
-**Baseline:** 43 tests passing; `ruff` clean except pre-existing E501 in untouched modules.
-**Gotchas for the next session:** WS2 changed GET detail handlers so the global error handler renders
-`error.html` on not-found. Tests cover it, but eyeball a bad URL (`/customers/<random-uuid>`) in the
-booted app — R1.10.
-**Decisions made mid-part:** none yet. WS5 will add one (migration strategy).
+- [ ] **C1** table/filter macros + generic query helper + duplicate prevention + change history
+- [ ] **C2** prove the machinery on products + customers, record the R2.14 line count
+- [ ] **C3** roll out to the remaining 8 masters + their special cases
 
-**NEXT SESSION:** start at C3 using the Part 1 prompt in `docs/ROADMAP.md`. Read this block +
-`docs/REQUIREMENTS.md` §2 + `git log --oneline -15`. Do **not** re-read the older `docs/` design
-files — the standing rules are reproduced in the prompt itself.
+**Requirements passed:** R2.x / R3.x — none yet, part not started.
+**Requirements outstanding:** all of `docs/REQUIREMENTS.md` §3 (R2.1–R2.15) and §4 (R3.1–R3.x).
+**Baseline:** 82 tests passing; `ruff check app/ tests/` reports 39 findings, **all pre-existing** in
+untouched modules (`app/seed.py` ×17, `app/modules/*`; E501/E402/B007/F841). `app/web/` is fully
+clean. That 39 is the number to compare against — do not add to it (G13).
+
+**Gotchas for the next session:**
+- **Do not build a second query helper or a second table macro.** R2.1/R2.4 are explicit that these
+  are one definition each. Part 1 set the precedent with soft delete (one mechanism in
+  `app/db/soft_delete.py`, every caller uses it) — follow that shape.
+- **`ui.delete_button` in `_macros.html` already exists.** When C1 builds the list/table macros, the
+  Actions column has to keep rendering it; don't replace the column wholesale and drop delete.
+- **Every web POST route now carries `require_web_permission`.** A new mutation route added without
+  one fails `tests/test_web_authz.py::test_every_web_post_route_carries_the_guard`. That test is the
+  coverage guarantee — add the guard, don't weaken the test.
+- **R2.13 wants hundreds of products/customers** in the seed to make pagination real. The seed
+  currently loads 17 products and 3 customers, so this is a real seed extension, not a tweak.
+- **Port 8000 may be occupied** on the current build machine by an unrelated app. `uvicorn` logs the
+  bind failure but the shell may still report success — check the log, or just use `--port 8010`.
+- **Python is per-user installed** at `C:\Users\Administrator\AppData\Local\Programs\Python\Python312`
+  and is not on `PATH` in a fresh shell; the venv at `apps/api/.venv` is what to activate.
+
+**Decisions made mid-part (Part 1 — do not silently reverse):**
+1. **Soft delete is one function, not a base-repository method** — `soft_delete()` in
+   `app/db/soft_delete.py`. It owns the append-only guard, the already-deleted guard and the single
+   `activity_log` row. `documents` was migrated off its own `repository.soft_delete` onto it, so
+   there is one implementation rather than one plus a legacy.
+2. **The non-deletable guard is table-level and unconditional**, keyed on `__tablename__` in
+   `PROTECTED_TABLES`. Stricter than R1.3's "*posted* orders", which is fine because no delete path
+   exists for drafts either. A part that wants draft deletion makes that entry status-aware **inside**
+   the dict rather than adding a bypassing delete path.
+3. **Categories refuse deletion while they have children or products**; customers do not refuse while
+   they have invoices. The test is "does anything read this row *live*", not "does anything reference
+   it" — an invoice snapshots what it needs, a product reads its category name now.
+4. **A converted lead cannot be deleted** — it is the origin record of a real customer.
+5. **Category web writes use `config.write`**, mirroring the JSON API (categories are a config-module
+   master). Only `category.delete` uses the `<entity>.delete` shape, since deletion has no API twin.
+6. **Web 404/422 rendering was widened beyond R1.10's letter** — `app/web/errors.py` now also handles
+   `RequestValidationError` (a malformed id like `/customers/not-a-uuid` never reaches the service,
+   so it needed its own path) and `StarletteHTTPException` (an unrouted web path). API, `/docs`,
+   `/health` and `/static` keep their JSON.
+
+**NEXT SESSION:** start Part 2 at **C1** using the Part 2 prompt in `docs/ROADMAP.md`. Read this block
++ `docs/REQUIREMENTS.md` §3 and §4 + `git log --oneline -15`. Do **not** re-read the older `docs/`
+design files, and do not re-read `docs/DELETION-POLICY.md` or `docs/MIGRATION-STRATEGY.md` — Part 1
+resolved both and the standing rules are reproduced in the prompt.
 
 ---
 
@@ -122,6 +158,43 @@ Rules that make the block worth writing:
    decision is the expensive failure mode.
 4. **Say what NOT to read.** Resuming sessions burn most of their budget re-establishing context they
    do not need.
+
+---
+
+## Part 1 — Foundation finish · COMPLETE · tagged `part-01-done` (2026-07-28)
+
+Three checkpoints, three sessions. Delivered the two mechanisms every later part wires into (soft
+delete, web authz) plus the migration strategy written down.
+
+- [x] **C1** WS1 — test suite → commit `edf51ea`
+- [x] **C2** WS2 — centralized web error handling → commit `edf51ea`
+- [x] **C3** WS3 soft delete + WS4 web authz guard + WS5 migration strategy → this commit
+
+**Requirements passed: R1.1–R1.10, all of them** (§2 of `docs/REQUIREMENTS.md`). R1.1–R1.10 were all
+marked outstanding at the start of C3 because WS1/WS2 predated the register, so C3 verified the whole
+section rather than just its own workstreams.
+
+| ID | How it was verified |
+|---|---|
+| R1.1 | One definition: `soft_delete()` in `app/db/soft_delete.py`. `documents` migrated onto it and `DocumentRepository.soft_delete` deleted, so there is no second implementation. |
+| R1.2 | Service verb + web POST route + `ui.delete_button` for customers, suppliers, products, tasks, leads, categories. Each POSTed against the booted app: 303, `ok=` flash, row count drops by one. |
+| R1.3 | `PROTECTED_TABLES` (16 tables, reason each) + `docs/DELETION-POLICY.md` §3. Tests assert `ConflictError` with a readable message for invoices, bills, payments, sales orders, purchase orders, stock movements — and that a refusal writes no activity row. |
+| R1.4 | `require_web_permission` in `app/web/security.py`. Tests drive a permission-less actor: GET → 403 `error.html`; POST → 303 with `err=` flash, and only the referer's *path* is used so an offsite referer cannot pick the redirect target. |
+| R1.5 | All **36** web POST routes carry the guard, codes mirroring the API's. `test_every_web_post_route_carries_the_guard` walks the router and fails on any unguarded POST. |
+| R1.6 | `soft_delete` writes exactly one `activity_log` row in the caller's transaction; tests assert the count goes 0→1 and that `entity_type`/`summary` are right. |
+| R1.7 | Test deletes the seeded customer that has an invoice, then asserts `FinanceRepository.customer_name` still resolves and `/invoices/{id}` still 200s. |
+| R1.8 | `docs/MIGRATION-STRATEGY.md` — dev SQLite `create_all` + the additive `_ensure_new_columns` shim (with its rules), prod Postgres via Alembic reintroduced behind `DATABASE_URL` (with the 6-step reintroduction and the "gate `create_all` to SQLite" step). |
+| R1.9 | **Already clean on arrival** — longest line in `app/web/pages/settings.py` is 86 chars and `ruff check app/web/` passes. The "~3 E501" in the roadmap was stale; a previous checkpoint had cleared them. No change needed. |
+| R1.10 | Verified in the booted app on five URLs. Two gaps found and fixed beyond the letter of the requirement: a **malformed** uuid returned a raw JSON 422 (FastAPI rejects it before the handler), and an **unrouted** web path returned raw JSON 404. Both now render `error.html`; API/docs/health/static keep JSON. |
+
+**Verify loop at close:** 82 tests passing (43 baseline + 39 new); `ruff check app/ tests/` at exactly
+the 39 pre-existing findings, zero new; app boots; all 17 nav pages 200.
+
+**New files:** `app/db/soft_delete.py`, `app/web/security.py`, `tests/test_soft_delete.py`,
+`tests/test_web_authz.py`, `docs/DELETION-POLICY.md`, `docs/MIGRATION-STRATEGY.md`.
+
+**Scope held (G17):** no roles/permissions UI was built — D-B says the guard is a no-op with one user
+and the mechanism existing is the whole point. No batch/lot, no FIFO, no notifications, no saved views.
 
 ---
 

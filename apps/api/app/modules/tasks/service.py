@@ -8,6 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.errors import ConflictError, NotFoundError
+from app.db.soft_delete import soft_delete
 from app.modules.activity.service import ActivityService
 from app.modules.config.models import BusinessUnit
 from app.modules.tasks.models import Task
@@ -49,6 +50,14 @@ class TaskService:
         if task is None:
             raise NotFoundError(f"Task {task_id} not found")
         return TaskRead.model_validate(task)
+
+    def delete(self, task_id: uuid.UUID, *, actor_id: uuid.UUID | None) -> None:
+        """Soft-delete a task (R1.2). Distinct from `complete` — a deleted task
+        never happened as far as the lists are concerned; a completed one did."""
+        task = self.repo.get(task_id)
+        if task is None:
+            raise NotFoundError(f"Task {task_id} not found")
+        soft_delete(self.db, task, actor_id=actor_id, label="Task")
 
     def create(self, payload: TaskCreate, *, actor_id: uuid.UUID | None) -> TaskRead:
         task = Task(

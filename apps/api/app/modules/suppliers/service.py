@@ -11,6 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.errors import ConflictError, NotFoundError
+from app.db.soft_delete import soft_delete
 from app.modules.activity.service import ActivityService
 from app.modules.config.models import BusinessUnit
 from app.modules.suppliers.models import Supplier, SupplierEvaluation
@@ -67,6 +68,17 @@ class SupplierService:
         if supplier is None:
             raise NotFoundError(f"Supplier {supplier_id} not found")
         return self._to_read(supplier)
+
+    def delete(self, supplier_id: uuid.UUID, *, actor_id: uuid.UUID | None) -> None:
+        """Soft-delete a supplier (R1.2).
+
+        Purchase orders, bills and past evaluations keep rendering — the row stays
+        addressable, it just leaves the lists and lookups (R1.7).
+        """
+        supplier = self.repo.get(supplier_id)
+        if supplier is None:
+            raise NotFoundError(f"Supplier {supplier_id} not found")
+        soft_delete(self.db, supplier, actor_id=actor_id, label="Supplier")
 
     def create(self, payload: SupplierCreate, *, actor_id: uuid.UUID | None) -> SupplierRead:
         code = payload.code or self.repo.next_code()

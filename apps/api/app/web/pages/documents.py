@@ -8,10 +8,11 @@ from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.security import Actor, get_current_actor
+from app.core.security import Actor
 from app.modules.documents.models import DOCUMENT_CATEGORIES
 from app.modules.documents.service import DocumentService
 from app.web.core import form_action, render
+from app.web.security import require_web_permission
 
 router = APIRouter()
 
@@ -53,7 +54,7 @@ async def upload_document(
     category: str = Form("other"),
     entity_type: str = Form(""),
     db: Session = Depends(get_db),
-    actor: Actor = Depends(get_current_actor),
+    actor: Actor = Depends(require_web_permission("document.upload")),
 ):
     data = await file.read()
 
@@ -80,7 +81,7 @@ def delete_document(
     request: Request,
     document_id: uuid.UUID,
     db: Session = Depends(get_db),
-    actor: Actor = Depends(get_current_actor),
+    actor: Actor = Depends(require_web_permission("document.delete")),
 ):
     return form_action(
         db, lambda: DocumentService(db).delete(document_id, actor_id=actor.id),

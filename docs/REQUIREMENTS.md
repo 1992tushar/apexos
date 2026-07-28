@@ -81,7 +81,9 @@ These are not re-stated per part. A PR that violates one is not done, regardless
 ## 2. Part 1 — Foundation finish · Phase 0 · tag `part-01-done`
 
 **Goal:** the two mechanisms every later part wires into (soft delete, web authz), plus the migration
-strategy written down. **Status:** WS1 (tests) and WS2 (centralized web error handling) complete.
+strategy written down. **Status: COMPLETE** — R1.1–R1.10 all pass, tagged `part-01-done`. See the Part 1
+record in `PROGRESS.md` for how each was verified; `docs/DELETION-POLICY.md` and
+`docs/MIGRATION-STRATEGY.md` are the written artifacts R1.3 and R1.8 call for.
 
 | ID | Requirement | Acceptance | Pri |
 |---|---|---|---|

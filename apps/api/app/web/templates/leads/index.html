@@ -31,7 +31,7 @@
   <table>
     <thead>
       <tr>
-        <th>Company</th><th>Contact</th><th>City</th><th>Source</th><th>Action</th>
+        <th>Company</th><th>Contact</th><th>City</th><th>Source</th><th>Actions</th>
       </tr>
     </thead>
     <tbody>
@@ -41,11 +41,12 @@
         <td>{{ lead.contact_name or "—" }}</td>
         <td>{{ lead.city or "—" }}</td>
         <td>{{ lead.source or "—" }}</td>
-        <td>
+        <td class="row-actions">
           {% if lead.status == 'open' %}
-          <form method="post" action="/leads/{{ lead.id }}/convert">
+          <form method="post" action="/leads/{{ lead.id }}/convert" class="inline-form">
             <button class="btn btn-sm" type="submit">Convert</button>
           </form>
+          {{ ui.delete_button("/leads/" ~ lead.id ~ "/delete", lead.company_name) }}
           {% else %}
           {{ ui.badge(lead.status) }}
           {% endif %}

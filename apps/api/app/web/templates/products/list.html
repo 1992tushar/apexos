@@ -52,7 +52,7 @@
     <thead>
       <tr>
         <th>SKU</th><th>Name</th><th>Category</th><th>Brand</th><th>Specification</th>
-        <th class="num">Selling price</th><th class="num">Stock</th>
+        <th class="num">Selling price</th><th class="num">Stock</th><th>Actions</th>
       </tr>
     </thead>
     <tbody>
@@ -67,6 +67,10 @@
         <td class="num">
           {{ p.stock_on_hand | number }}
           {% if p.stock_on_hand <= 0 %}{{ ui.badge("out") }}{% elif p.stock_on_hand <= 10 %}{{ ui.badge("low") }}{% endif %}
+        </td>
+        <td class="row-actions">
+          {{ ui.delete_button("/products/" ~ p.id ~ "/delete", p.name,
+             "It leaves the catalogue. Existing orders, invoices and stock history keep it.") }}
         </td>
       </tr>
       {% endfor %}

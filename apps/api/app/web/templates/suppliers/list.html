@@ -34,7 +34,7 @@
     <thead>
       <tr>
         <th>Code</th><th>Name</th><th>Type</th><th>City</th>
-        <th class="num">Score</th><th class="num">Payable</th><th>Status</th>
+        <th class="num">Score</th><th class="num">Payable</th><th>Status</th><th>Actions</th>
       </tr>
     </thead>
     <tbody>
@@ -47,6 +47,9 @@
         <td class="num">{{ s.latest_score or "—" }}/5</td>
         <td class="num">{{ s.outstanding_minor | money }}</td>
         <td>{{ ui.badge(s.status) }}</td>
+        <td class="row-actions">
+          {{ ui.delete_button("/suppliers/" ~ s.id ~ "/delete", s.name) }}
+        </td>
       </tr>
       {% endfor %}
     </tbody>
