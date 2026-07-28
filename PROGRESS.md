@@ -3,7 +3,71 @@
 > Working log so any session can pick up where the last one stopped.
 > This file is the source of truth for status.
 
-_Last updated: 2026-07-23_
+_Last updated: 2026-07-28_
+
+---
+
+# ▶ CURRENT WORK — read this first
+
+A **part** is a branch and a PR. A **session** is a token budget. They are not the same size, so most
+parts are delivered over several sessions with a checkpoint commit between each. See the *Session
+protocol* in `docs/ROADMAP.md` for the checkpoint list per part.
+
+**Every session ends by updating the block below, before it runs out of room.** A session that dies
+with an accurate resume block costs nothing; one that dies without it costs a re-derivation.
+
+## Part 1 — Foundation finish · branch `phase-0/foundation-sweep` · checkpoint 2 of 3
+
+- [x] **C1** WS1 — test suite → commit `edf51ea`
+- [x] **C2** WS2 — centralized web error handling → commit `edf51ea`
+- [ ] **C3** WS3 soft-delete write path + WS4 web authz guard + WS5 migration decision + settings.py E501
+
+**Requirements passed:** none formally verified yet against `docs/REQUIREMENTS.md` §2 — WS1/WS2
+predate the register. Treat R1.1–R1.10 as all outstanding and check them off in C3.
+**Requirements outstanding:** R1.1–R1.10.
+**Baseline:** 43 tests passing; `ruff` clean except pre-existing E501 in untouched modules.
+**Gotchas for the next session:** WS2 changed GET detail handlers so the global error handler renders
+`error.html` on not-found. Tests cover it, but eyeball a bad URL (`/customers/<random-uuid>`) in the
+booted app — R1.10.
+**Decisions made mid-part:** none yet. WS5 will add one (migration strategy).
+
+**NEXT SESSION:** start at C3 using the Part 1 prompt in `docs/ROADMAP.md`. Read this block +
+`docs/REQUIREMENTS.md` §2 + `git log phase-0/foundation-sweep`. Do **not** re-read the older `docs/`
+design files — the standing rules are reproduced in the prompt itself.
+
+---
+
+## Resume-block template
+
+Copy this at the start of a new part; update it at every checkpoint. Keep only the current part's
+block in the `CURRENT WORK` section — move finished parts down into the chronological log below.
+
+```
+## Part <n> — <title> · branch `<branch>` · checkpoint <i> of <k>
+
+- [x] **C1** <what it delivered> → commit `<sha>`
+- [ ] **C2** <next chunk>
+
+**Requirements passed:**      <IDs verified, e.g. R6.1–R6.6, R6.16>
+**Requirements outstanding:** <IDs left>
+**Gotchas for the next session:** <signature changes, migrations, half-finished refactors>
+**Decisions made mid-part:**     <choices a later session must not silently reverse>
+
+**NEXT SESSION:** start at C<i+1>. Read this block + `docs/REQUIREMENTS.md` §<n> + `git log <branch>`.
+              Do NOT re-read <the docs this session already resolved>.
+```
+
+Rules that make the block worth writing:
+
+1. **Commit at every checkpoint**, not at part end. Uncommitted work dies with the session.
+2. **Requirement IDs, not prose.** "Did the inventory stuff" is not resumable; "R6.1–R6.6 pass,
+   R6.10 outstanding" is.
+3. **Record decisions, not just progress.** A later session that silently reverses a mid-part
+   decision is the expensive failure mode.
+4. **Say what NOT to read.** Resuming sessions burn most of their budget re-establishing context they
+   do not need.
+
+---
 
 ## Stack Lightening — Postgres→SQLite + Next.js→Jinja (2026-07-23)
 

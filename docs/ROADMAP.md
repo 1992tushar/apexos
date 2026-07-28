@@ -37,20 +37,25 @@ procurement and inventory — the heart of the business — are built first, and
 consumes data that already exists. This minimises rework, and the cockpit is only meaningful once
 real operational data flows into it.
 
-| Part | Title | Phase | Branch | Requirements | Status |
-|---|---|---|---|---|---|
-| **1** | Foundation finish | 0 | `phase-0/foundation-sweep` | R1.x | **in progress** — WS1, WS2 done; WS3–WS5 remaining |
-| **2** | Master data & shared machinery | 1 | `phase-1/master-data` | R2.x, R3.x | not started |
-| **3** | Procurement: pre-order → PO depth | 2 | `phase-2/procurement-core` | R4.x | not started |
-| **4** | Procurement: vendor intelligence + planning | 2 | `phase-2/vendor-intelligence` | R5.x | not started |
-| **5** | Inventory: locations, states, operations, health | 3 | `phase-3/inventory` | R6.x, R7.x | not started |
-| **6** | Sales: customer depth | 4 | `phase-4/customer-depth` | R8.x | not started |
-| **7** | Sales: workflow completion + speed | 4 | `phase-4/sales-workflow` | R9.x | not started |
-| **8** | Finance: ledgers, AR/AP, cash, margin, GST | 5 | `phase-5/finance` | R10.x, R11.x | not started |
-| **9** | Founder Command Center | 6 | `phase-6/command-center` | R12.x | not started |
-| **10** | Intelligence Layer | 7 | `phase-7/intelligence` | R13.x | not started |
-| **11** | Polish & Optimization | 8 | `phase-8/polish` | R14.x | not started |
-| **12** | Product Challenge | X | `phase-x/product-challenge` | R15.x | not started |
+| Part | Title | Phase | Branch | Requirements | Sessions | Status |
+|---|---|---|---|---|---|---|
+| **1** | Foundation finish | 0 | `phase-0/foundation-sweep` | R1.x | 3 | **in progress** — C1, C2 done; C3 remaining |
+| **2** | Master data & shared machinery | 1 | `phase-1/master-data` | R2.x, R3.x | 3 | not started |
+| **3** | Procurement: pre-order → PO depth | 2 | `phase-2/procurement-core` | R4.x | 2 | not started |
+| **4** | Procurement: vendor intelligence + planning | 2 | `phase-2/vendor-intelligence` | R5.x | 2 | not started |
+| **5** | Inventory: locations, states, operations, health | 3 | `phase-3/inventory` | R6.x, R7.x | 3 | not started |
+| **6** | Sales: customer depth | 4 | `phase-4/customer-depth` | R8.x | 1 | not started |
+| **7** | Sales: workflow completion + speed | 4 | `phase-4/sales-workflow` | R9.x | 2 | not started |
+| **8** | Finance: ledgers, AR/AP, cash, margin, GST | 5 | `phase-5/finance` | R10.x, R11.x | 3 | not started |
+| **9** | Founder Command Center | 6 | `phase-6/command-center` | R12.x | 2 | not started |
+| **10** | Intelligence Layer | 7 | `phase-7/intelligence` | R13.x | 2 | not started |
+| **11** | Polish & Optimization | 8 | `phase-8/polish` | R14.x | 3 | not started |
+| **12** | Product Challenge | X | `phase-x/product-challenge` | R15.x | 1 | not started |
+
+**12 parts · 12 branches · 27 sessions, of which 2 are done — 25 remaining.** A part is a branch and a
+PR; a session is a token budget.
+The *Session protocol* section below lists the checkpoints each part is broken into — one per session,
+each ending in a commit, with the `PROGRESS.md` resume block as the handoff.
 
 Each part ends green (tests + lint + app boots + all nav pages 200), satisfies every P0/P1
 requirement in its `REQUIREMENTS.md` sections, updates `PROGRESS.md`, and opens a PR to `main`.
@@ -71,6 +76,68 @@ requirement in its `REQUIREMENTS.md` sections, updates `PROGRESS.md`, and opens 
   8. If either starts recomputing business logic, the earlier part was left incomplete — fix it there.
 - **Part 1 before everything.** Soft delete (WS3) and the web authz guard (WS4) are mechanisms every
   later part wires into.
+
+---
+
+## Session protocol — running a part without exhausting a session
+
+**A part is a branch and a PR. A session is a token budget. They are not the same size.** Six of the
+twelve parts are more than one session's work, so they are delivered over several sessions with a
+**checkpoint commit** between each. Roughly 20 sessions across the 12 branches.
+
+### Checkpoints per part
+
+Each `C<n>` is one session's target and ends in a commit on the part's branch. Only the last
+checkpoint opens the PR.
+
+| Part | Checkpoints |
+|---|---|
+| **1** Foundation finish | **C1** WS1 tests ✔ · **C2** WS2 web errors ✔ · **C3** WS3 soft delete + WS4 authz + WS5 migration decision + E501 |
+| **2** Master data & shared machinery | **C1** macros + query helper + dup prevention + change history · **C2** prove on products + customers, record the R2.14 line count · **C3** roll out to the remaining 8 masters + their special cases |
+| **3** Procurement core | **C1** requisition (request→approve→convert) + RFQ + quote capture + comparison · **C2** PO revisions + partial receipt + back orders + receipt-against-revision |
+| **4** Vendor intelligence | **C1** mapping + vendor score + measured lead time + MOQ + price history · **C2** calendar + recommendations (R5.9's single entry point) |
+| **5** Inventory | **C1** locations (warehouse→rack→bin) + stock states + **reservation as a ledger concept (R6.5/R6.6)** · **C2** weighted-average cost + ageing · **C3** operations (count/adjust/transfer) + health (ABC/dead stock/reorder reading R5.9) |
+| **6** Customer depth | **C1** whole part (contacts, branches, credit limit + override, timeline) |
+| **7** Sales workflow | **C1** quotation (create/revise/send/expire/convert) · **C2** returns + credit note + reservation wiring + health score + speed work |
+| **8** Finance | **C1** customer/vendor ledgers + AR/AP ageing + collections + allocation · **C2** cash flow + working capital + CCC · **C3** margin by 4 dimensions + leakage + GST |
+| **9** Command Center | **C1** tiles + alerts + activity + quick actions · **C2** query-count + render-time measurement, empty state, delete the placeholder |
+| **10** Intelligence | **C1** the R13.1 audit + unifications (this is the real work) · **C2** radars + cockpits + forecasts + Morning Brief |
+| **11** Polish | **C1** measure everything and write the findings down — no fixes · **C2** fix batch 1 (consistency, dedup, global search + Ctrl+K) · **C3** fix batch 2 (perf against C1's baselines, security review, summary) |
+| **12** Product Challenge | **C1** the report. Report only, no code |
+
+Part 11's C1 is deliberately measurement-only: R14.7/R14.8 forbid optimising without a baseline, and a
+session that measures and fixes in one pass invariably loses the baseline.
+
+### The resume block is the handoff
+
+`PROGRESS.md` opens with a **CURRENT WORK** section holding a resume block for the part in flight, plus
+the template. **Every session updates it before running out of room** — checkpoints done with their
+commit SHAs, requirement IDs passed and outstanding, gotchas, mid-part decisions, and where the next
+session starts. A session that dies with an accurate block costs nothing.
+
+### Reading diet
+
+The standing rules below are reproduced inside every part prompt, so a session does **not** need to
+re-read the design corpus. Per session, read only:
+
+1. `docs/REQUIREMENTS.md` — **your part's sections only.** That is the acceptance contract.
+2. The `PROGRESS.md` CURRENT WORK block.
+3. The one `08-module-breakdown.md` § named in your prompt.
+4. `git log <branch>` if resuming mid-part.
+
+Anything beyond that only when you hit something you genuinely cannot resolve. The older `docs/` files
+describe a retired stack; reaching for them mid-session usually costs more than it returns.
+
+### Session hygiene
+
+- **Commit at every checkpoint.** Uncommitted work dies with the session; committed work makes a blown
+  session recoverable rather than restarted.
+- **`pytest -q`, never verbose.** Full test output is one of the two biggest silent context drains.
+- **Delegate wide searches.** When you need to find something across many files, dispatch a search
+  rather than reading candidate files into the main context — you want the conclusion, not the dumps.
+- **Don't re-read a file you just edited.** The edit tools error on failure; a successful edit needs no
+  verification read.
+- **Start each session fresh.** Continue a part via the resume block, not by carrying a long context.
 
 ---
 
@@ -172,6 +239,12 @@ WS5 — Migration-shim decision. app/main.py._ensure_new_columns hand-rolls addi
 
 Also clean up: ~3 E501 lint nits in app/web/pages/settings.py left over from the WS2 form_action edits.
 
+SESSION PROTOCOL — this is checkpoint C3 of 3 (C1 = WS1 tests, C2 = WS2 web errors, both done). Aim to
+finish the part in this session. If you run low, commit what is green and update the CURRENT WORK
+resume block in PROGRESS.md (requirement IDs passed/outstanding, gotchas, where to start next) rather
+than pushing on. Read only REQUIREMENTS.md §2, the PROGRESS.md resume block, and
+`git log phase-0/foundation-sweep`. pytest -q, never verbose.
+
 EXIT CRITERIA (see REQUIREMENTS.md R1.1–R1.10): soft delete works from the UI on every entity where
 it is valid and is refused with a clear reason where it is not; require_web_permission exists and is
 wired onto the web POST routes; the migration strategy is written down; pytest + ruff green; app boots
@@ -198,6 +271,15 @@ docs/REQUIREMENTS.md §3 and §4 (requirements R2.x and R3.x — your acceptance
 PROGRESS.md, docs/08-module-breakdown.md (§2.1 Org/Config, §2.3 Products, §2.4 Customers,
 §2.5 Suppliers), docs/12-coding-standards.md, docs/17-design-system.md.
 Branch: phase-1/master-data off main.
+
+SESSION PROTOCOL — 3 checkpoints, ONE PER SESSION, each ending in a commit:
+  C1 macros + query helper + dup prevention + change history
+  C2 prove on products + customers, and RECORD the R2.14 line count
+  C3 roll out to the remaining 8 masters + their special cases
+Before you run low on room, update the CURRENT WORK resume block in PROGRESS.md: checkpoints done with
+SHAs, requirement IDs passed and outstanding, gotchas, mid-part decisions, where the next session
+starts. Read only REQUIREMENTS.md §3–§4, the PROGRESS.md resume block, and the module-breakdown §§
+named above — the standing rules are reproduced in this prompt. Use pytest -q, never verbose.
 
 GOAL: build ONCE the list/table machinery that parts 3–8 will all reuse, then apply it to every
 master so they are complete, consistent and safe to grow on. Most masters ALREADY EXIST (see
@@ -274,7 +356,14 @@ You are starting Part 3 of 12 (Phase 2 — Procurement core) of ApexOS at
 c:\Imp Data\Personal\apexos. Parts 1–2 are complete and merged. Read docs/ROADMAP.md first —
 "Standing rules" and decisions D-A..D-D are binding. Then read docs/REQUIREMENTS.md §5 (R4.x — your
 acceptance contract). Also read PROGRESS.md, docs/08-module-breakdown.md (§2.5 Suppliers/Procurement,
-§2.6 Pricing), docs/12-coding-standards.md. Branch: phase-2/procurement-core off main.
+§2.6 Pricing). Branch: phase-2/procurement-core off main.
+
+SESSION PROTOCOL — 2 checkpoints, ONE PER SESSION, each ending in a commit:
+  C1 requisition (request → approve → convert) + RFQ + quote capture + comparison
+  C2 PO revisions + partial receipt + back orders + receipt-against-revision
+Before you run low on room, update the CURRENT WORK resume block in PROGRESS.md (checkpoints + SHAs,
+requirement IDs passed/outstanding, gotchas, mid-part decisions, where to start next). Read only
+REQUIREMENTS.md §5, the PROGRESS.md resume block, and the module-breakdown §§ above. pytest -q.
 
 GOAL: procurement is the heart of ApexOS. Make the buy-side workflow deep and extremely efficient —
 the fewest clicks and keystrokes to get from "we need this" to "it's ordered and received".
@@ -325,6 +414,13 @@ revisions and partial receipts all exist with real history. Read docs/ROADMAP.md
 rules" and decisions D-A..D-D are binding. Then read docs/REQUIREMENTS.md §6 (R5.x — your acceptance
 contract). Also read PROGRESS.md, docs/08-module-breakdown.md (§2.5, §2.6).
 Branch: phase-2/vendor-intelligence off main.
+
+SESSION PROTOCOL — 2 checkpoints, ONE PER SESSION, each ending in a commit:
+  C1 product↔supplier mapping + vendor score + measured lead time + MOQ + price history
+  C2 procurement calendar + recommendations behind R5.9's single service entry point
+Before you run low on room, update the CURRENT WORK resume block in PROGRESS.md (checkpoints + SHAs,
+requirement IDs passed/outstanding, gotchas, mid-part decisions, where to start next). Read only
+REQUIREMENTS.md §6, the PROGRESS.md resume block, and the module-breakdown §§ above. pytest -q.
 
 GOAL: make the buy side smart using the data part 3 now produces. Data and arithmetic, NOT ML.
 
@@ -379,7 +475,17 @@ You are starting Part 5 of 12 (Phase 3 — Inventory) of ApexOS at c:\Imp Data\P
 Parts 1–4 are complete and merged. Read docs/ROADMAP.md first — "Standing rules" and decisions
 D-A..D-D are binding. Then read docs/REQUIREMENTS.md §7 and §8 (R6.x and R7.x — your acceptance
 contract). Also read PROGRESS.md, docs/08-module-breakdown.md (§2.8 Inventory/Warehouse),
-docs/12-coding-standards.md. Branch: phase-3/inventory off main.
+Branch: phase-3/inventory off main.
+
+SESSION PROTOCOL — 3 checkpoints, ONE PER SESSION, each ending in a commit:
+  C1 locations (warehouse→rack→bin) + stock states + RESERVATION AS A LEDGER CONCEPT (R6.5/R6.6)
+  C2 weighted-average cost + stock ageing
+  C3 operations (count / adjust / transfer) + health (ABC, dead stock, reorder reading R5.9)
+C1 is the checkpoint that matters — part 7 calls the reservation verb, so a wrong model here forces
+rework there. Do not rush it to reach C2. Before you run low on room, update the CURRENT WORK resume
+block in PROGRESS.md (checkpoints + SHAs, requirement IDs passed/outstanding, gotchas, mid-part
+decisions — R6.3's location-nullability choice belongs there — and where to start next). Read only
+REQUIREMENTS.md §7–§8, the PROGRESS.md resume block, and the module-breakdown § above. pytest -q.
 
 GOAL: inventory must answer three questions — What do we have? Where is it? What is it worth?
 
@@ -453,6 +559,11 @@ D-A..D-D are binding. Then read docs/REQUIREMENTS.md §9 (R8.x — your acceptan
 PROGRESS.md, docs/08-module-breakdown.md (§2.4 Customers/CRM, §2.7 Sales), docs/12-coding-standards.md.
 Branch: phase-4/customer-depth off main.
 
+SESSION PROTOCOL — 1 checkpoint: this part is one session's work. If you find yourself running low
+before it is done, commit what is green and write the CURRENT WORK resume block in PROGRESS.md
+(requirement IDs passed/outstanding, gotchas, where to start next) rather than pushing on. Read only
+REQUIREMENTS.md §9, the PROGRESS.md resume block, and the module-breakdown §§ above. pytest -q.
+
 GOAL: everything you need to know about a customer, on one page, without looking anywhere else.
 
 WHAT EXISTS: app/modules/customers, app/modules/crm (lead, opportunity, pipeline_stage,
@@ -498,7 +609,14 @@ You are starting Part 7 of 12 (Phase 4 — Sales workflow & speed) of ApexOS at
 c:\Imp Data\Personal\apexos. Parts 1–6 are complete and merged. Read docs/ROADMAP.md first —
 "Standing rules" and decisions D-A..D-D are binding. Then read docs/REQUIREMENTS.md §10 (R9.x — your
 acceptance contract). Also read PROGRESS.md, docs/08-module-breakdown.md (§2.4, §2.7),
-docs/12-coding-standards.md. Branch: phase-4/sales-workflow off main.
+Branch: phase-4/sales-workflow off main.
+
+SESSION PROTOCOL — 2 checkpoints, ONE PER SESSION, each ending in a commit:
+  C1 quotation — create / revise / send / expire / convert-to-order
+  C2 returns + credit note + reservation wiring + health score + the speed work
+Before you run low on room, update the CURRENT WORK resume block in PROGRESS.md (checkpoints + SHAs,
+requirement IDs passed/outstanding, gotchas, mid-part decisions, where to start next). Read only
+REQUIREMENTS.md §10, the PROGRESS.md resume block, and the module-breakdown §§ above. pytest -q.
 
 GOAL: close the two gaps at the ends of the sales workflow, wire in reservation, and make order entry
 genuinely fast.
@@ -550,6 +668,14 @@ produce real financial history. Read docs/ROADMAP.md first — "Standing rules" 
 are binding. Then read docs/REQUIREMENTS.md §11 and §12 (R10.x and R11.x — your acceptance contract).
 Also read PROGRESS.md, docs/08-module-breakdown.md (§2.9 Finance), docs/12-coding-standards.md.
 Branch: phase-5/finance off main.
+
+SESSION PROTOCOL — 3 checkpoints, ONE PER SESSION, each ending in a commit:
+  C1 customer + vendor ledgers, AR/AP ageing, collections view, payment allocation
+  C2 cash flow (actual + committed) + working capital + cash conversion cycle
+  C3 margin across the four dimensions + leakage indicators + GST summary
+Before you run low on room, update the CURRENT WORK resume block in PROGRESS.md (checkpoints + SHAs,
+requirement IDs passed/outstanding, gotchas, mid-part decisions, where to start next). Read only
+REQUIREMENTS.md §11–§12, the PROGRESS.md resume block, and the module-breakdown § above. pytest -q.
 
 GOAL: OPERATIONAL finance, not accounting software. No chart of accounts, no journals, no
 double-entry ledger. The questions are "who owes what, when, who do I chase today" and "are we going
@@ -615,7 +741,15 @@ You are starting Part 9 of 12 (Phase 6 — Founder Command Center) of ApexOS at
 c:\Imp Data\Personal\apexos. Parts 1–8 are complete and merged, so real operational data now exists
 across procurement, inventory, sales and finance. Read docs/ROADMAP.md first — "Standing rules" and
 decisions D-A..D-D are binding. Then read docs/REQUIREMENTS.md §13 (R12.x — your acceptance
-contract). Also read PROGRESS.md and docs/17-design-system.md. Branch: phase-6/command-center off main.
+contract). Also read the PROGRESS.md resume block and docs/17-design-system.md.
+Branch: phase-6/command-center off main.
+
+SESSION PROTOCOL — 2 checkpoints, ONE PER SESSION, each ending in a commit:
+  C1 tiles + alerts + recent activity + quick actions
+  C2 query-count and render-time measurement, empty state, delete the placeholder dashboard
+Before you run low on room, update the CURRENT WORK resume block in PROGRESS.md (checkpoints + SHAs,
+requirement IDs passed/outstanding, gotchas, mid-part decisions, where to start next). Read only
+REQUIREMENTS.md §13, the PROGRESS.md resume block, and the design system. pytest -q.
 
 GOAL: build the homepage a founder actually wants to open. This is NOT a dashboard — it is an
 operating cockpit. It replaces the current /dashboard page (app/web/pages/dashboard.py +
@@ -669,6 +803,14 @@ c:\Imp Data\Personal\apexos. Parts 1–9 are complete and merged. Read docs/ROAD
 acceptance contract). Also read PROGRESS.md and docs/16-future-roadmap.md.
 Branch: phase-7/intelligence off main.
 
+SESSION PROTOCOL — 2 checkpoints, ONE PER SESSION, each ending in a commit:
+  C1 the R13.1 audit + the unifications it finds — THIS IS THE REAL WORK OF THE PART
+  C2 radars + cockpits + forecasts + the Founder Morning Brief
+Do not skip past C1 to build the visible screens. The audit is what stops this part becoming a fourth
+copy of logic that already exists three times. Before you run low on room, update the CURRENT WORK
+resume block in PROGRESS.md — the audit list itself belongs there, since it is a deliverable a later
+session must not redo. Read only REQUIREMENTS.md §14 and the PROGRESS.md resume block. pytest -q.
+
 GOAL: turn accumulated operational data into recommendations a founder can trust. Much of this exists
 in partial form from parts 4, 5, 7 and 8 — THIS PART CONSOLIDATES, IT DOES NOT DUPLICATE.
 
@@ -718,6 +860,15 @@ Read docs/ROADMAP.md first — "Standing rules" and decisions D-A..D-D are bindi
 docs/REQUIREMENTS.md §15 (R14.x — your acceptance contract). Also read PROGRESS.md and
 docs/17-design-system.md. Branch: phase-8/polish off main.
 
+SESSION PROTOCOL — 3 checkpoints, ONE PER SESSION, each ending in a commit:
+  C1 MEASURE EVERYTHING and write the findings down — NO FIXES IN THIS SESSION
+  C2 fix batch 1 — UI consistency, de-duplication, global search + Ctrl+K palette
+  C3 fix batch 2 — perf against C1's baselines, security review, the written summary
+C1 is measurement-only on purpose: R14.7/R14.8 forbid optimising without a baseline, and a session that
+measures and fixes in one pass invariably loses the baseline. Put every number from C1 into the
+PROGRESS.md resume block — C3 is graded against them. Read only REQUIREMENTS.md §15, the PROGRESS.md
+resume block, and the design system. pytest -q.
+
 GOAL: make ApexOS feel like a premium internal operating system. Add NO new features. If you find
 yourself designing a new screen, stop — that belongs nowhere.
 
@@ -759,6 +910,11 @@ Follow the ROADMAP verify loop, update PROGRESS.md, commit, open a PR to main, u
 You are running Part 12 of 12 (Phase X — Product Challenge) on ApexOS at
 c:\Imp Data\Personal\apexos. Parts 1–11 are complete. Read docs/ROADMAP.md, docs/REQUIREMENTS.md §16
 (R15.x) and PROGRESS.md.
+
+SESSION PROTOCOL — 1 checkpoint, and it produces no code. Budget your room for READING the product and
+WRITING the report; if you run low, commit the report as far as it goes with a note on which screens
+are still unreviewed. Read the app itself (nav + templates + services) rather than the design docs —
+this review is about what exists, not what was intended.
 
 Forget that this codebase was built with your help. Pretend a different company hired you to REPLACE
 it, and you are being paid to be right, not agreeable.
