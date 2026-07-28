@@ -3,11 +3,11 @@
 > The source of truth for status. **This file is capped at ~350 lines and does not grow.**
 > Closed parts live in `docs/parts/`. A new part's handoff **replaces** the previous one here — never appends.
 >
-> **It is ~385 today, and that overage is scheduled to clear.** Part 5 is mid-flight, so this file is
-> carrying the decisions of *two* checkpoints (C1 and C2) at once. C3 closes the part, and its own
-> starter prompt instructs it to move the whole Part 5 record to `docs/parts/part-05.md` and delete it
-> from here. If you are the C3 session: that archive step is not optional, and it is what brings this
-> file back under the cap. Do not add a Part 6 block on top of the Part 5 one.
+> **It is ~386 today, and the overage is scheduled to clear.** Part 5 is mid-flight across four
+> checkpoints. Rather than let this file carry all of them, C1/C2/C3a's record has **already been
+> archived** to `docs/parts/part-05.md` — the archive is written progressively, not only at close.
+> C3b finishes the part, appends its own record there, and **deletes the Part 5 block from here.**
+> If you are the C3b session: that step is not optional. Do not add a Part 6 block on top of Part 5's.
 
 _Last updated: 2026-07-28_
 
@@ -51,7 +51,7 @@ Type **`Start next part of development`** in a fresh session. `CLAUDE.md` binds 
 to type. **The session that closes a checkpoint owns that prompt** — one still naming last checkpoint's
 baseline counts is worse than none, because the next session will trust it.
 
-#### ▶ NEXT SESSION PROMPT — Part 5, checkpoint C3 (operations + inventory health) · CLOSES PART 5
+#### ▶ NEXT SESSION PROMPT — Part 5, C3b (inventory HEALTH — the operations half is done) · CLOSES PART 5
 
 ```
 Continue the ApexOS build. Do this in order:
@@ -62,10 +62,11 @@ Continue the ApexOS build. Do this in order:
    each part began. Do not expect part-05-done to exist.
 
 2. Read the "▶ CURRENT WORK" block below, especially "▶ Part 5 — IN FLIGHT". C1
-   (437a185) and C2 (b442322) ARE DONE AND GREEN; EVERY R6.x PASSES. That block is your
-   brief — it lists the nine decisions C1 and C2 made that you must not reverse, carries
-   verified signatures to call without opening the source, and its "Do NOT read" list is
-   binding. C3 is the LAST checkpoint of Part 5.
+   (437a185), C2 (b442322) and C3's OPERATIONS half (eaee67b) ARE DONE AND GREEN —
+   every R6.x passes and so do R7.1–R7.6. That block is your brief: it lists the
+   thirteen decisions those checkpoints made that you must not reverse, carries verified
+   signatures to call without opening the source, and its "Do NOT read" list is binding.
+   WHAT REMAINS IS HEALTH: R7.7–R7.13. Part 5 closes when they pass.
 
 3. Read docs/REQUIREMENTS.md §1 (G1–G17) and §8 (R7.x — all of C3). §7 is done; read it
    only if you need context on what ageing gives you. The invariants you must not break
@@ -74,48 +75,50 @@ Continue the ApexOS build. Do this in order:
    Then docs/prompts/part-05.md and docs/STANDING-RULES.md (binding). Do NOT open
    docs/ROADMAP.md — planning only, ~17k tokens.
 
-4. `git show --stat b442322` for what C2 changed. Not a tree walk.
+4. `git show --stat eaee67b` for what C3's operations half changed. Not a tree walk.
 
 5. Verify the baseline before writing code (from apps/api, venv activated):
-     python -m pytest -q                  # expect 457 passed
+     python -m pytest -q                  # expect 482 passed
      python -m ruff check app/ tests/     # expect EXACTLY 37 — 38 is a regression
    If either is off, stop and report. 37 is pre-existing (32 E501, 4 F841, 1 B007, all
-   in untouched modules). Parts 1–5 C2 added zero.
+   in untouched modules). Parts 1–5 C3a added zero.
 
-6. C3 is operations then health. EXTEND WHAT EXISTS — StockTransferService.transfer and
-   StockAdjustmentService.adjust/count are already there and each already writes one
-   activity row. Rebuilding them is the G16 failure.
+6. WHAT REMAINS IS INVENTORY HEALTH. Operations (R7.1–R7.6) are done — do NOT rework
+   the count sheet or the transfer; extend around them.
 
-   a. R7.1–R7.4 — cycle count: sheet → variance → adjustment. A count with NO variance
-      writes NO adjustment movement (R7.2); a variance writes EXACTLY ONE movement and
-      ONE activity_log row (R7.3). Adjustment requires a reason and refuses a blank one
-      (R7.4). NOTE `count` today raises ConflictError when the count matches — decide
-      whether "nothing to reconcile" is an error or a normal no-variance outcome, and
-      say which in the resume block. R7.2 reads more like the latter.
+   a. R7.7–R7.10 — four health outputs, EVERY ONE through `Explained` +
+      the `explain_panel` macro (G11, one shape, already built — do not write per-screen
+      explanation markup):
+        · ABC analysis STATING its class boundaries, with a boundary test. `AGE_BUCKETS`
+          in inventory/schemas.py is the pattern to copy: the thresholds are a module
+          constant, the screen prints them, and a test asserts each edge.
+        · Dead-stock radar STATING its window, with a boundary test.
+        · Fast/slow movers showing the window and the numbers behind the classification.
+        · Low-stock alerts stating trigger + threshold + affected records AND LINKING to
+          them.
+      THE INPUTS ALREADY EXIST — reuse, do not rebuild (G16):
+        ValuationService.ageing() rows carry .stale_qty and .oldest_days
+        InventoryRepository.last_movement_at(product_id) -> datetime | None
+        ValuationService.stock_value() for the value ranking ABC needs
+        InventoryService.low_stock() / .low_stock_count()
+      "No movement in a stated window" (last_movement_at) and "old stock" (ageing) are
+      DIFFERENT measures. Say which the radar uses and why, on screen and in this block.
 
-   b. R7.5 — transfer becomes TWO steps with in-transit between them. THE MECHANISM IS
-      ALREADY BUILT: C1 made StorageBin.kind ("stock"|"transit"|"quarantine") exactly
-      this, so it is OUT of the source's stock bin → IN to a transit bin, then transit →
-      the destination's stock bin. DO NOT ADD AN IN-TRANSIT FLAG. Today transfer posts
-      both movements at once, so nothing is ever in transit; splitting it is the work.
-      /inventory already reports the in-transit state, so it lights up for free.
-
-   c. R7.7–R7.10 — health, every output through Explained + the explain_panel macro
-      (G11, one shape, already built): ABC analysis STATING its class boundaries, a
-      dead-stock radar STATING its window, fast/slow movers showing the window and the
-      numbers, low-stock alerts stating trigger + threshold + affected records AND
-      LINKING to them. Boundary tests on ABC and on the dead-stock window.
-      The inputs exist: ValuationService.ageing() rows carry .stale_qty/.oldest_days and
-      InventoryRepository.last_movement_at(product_id) is there. "No movement in a
-      window" and "old stock" are DIFFERENT measures — say which the radar uses.
-
-   d. R7.11/R7.13 — THE TRAP. Reorder suggestions CALL
+   b. R7.11/R7.13 — THE TRAP, and the reason Part 10 exists. Reorder suggestions CALL
       RecommendationService(db).recommend(...). Part 4 left
       test_r5_9_no_second_implementation_of_what_to_buy_exists_in_the_app, a source walk
       that FAILS if a second `def recommend` appears anywhere in app/ — including one you
-      add. R7.13 requires a test proving both return IDENTICAL output for the same
-      product. If they genuinely must differ, parameterise the ONE engine and record the
-      unification. Part 10's R13.1 audits exactly this.
+      add. R7.13 requires a test proving the suggestion here and Part 4's engine return
+      IDENTICAL output for the same product. If they genuinely must differ, parameterise
+      the ONE engine and record the unification here. Do not copy the engine.
+
+   c. R7.12 is P1 and RELAXED by D-B — a readable/printable count sheet is a SHOULD. The
+      sheet at /warehouse/counts/{id} already renders plainly; a print stylesheet is
+      enough. Do not build a PDF pipeline.
+
+   d. R7.14's remainder: the seed still owes DEAD STOCK, a FAST MOVER, and enough history
+      for non-trivial ABC classes. C2's backdated purchases already give you aged stock to
+      build dead stock from — extend app/seed/inventory.py, never core.py's run().
 
 7. Constraints that still bind:
      - G8: record_movement is the ONLY writer of stock_movement — a source-walk test
@@ -124,18 +127,14 @@ Continue the ApexOS build. Do this in order:
        computed per read, not columns.
      - G5: exactly one activity_log row per state change.
      - Any new model owes app/db/references.py an entry, even an empty tuple (R3.7), and
-       EXERCISE it with blocking_references(db, row) in a test. A count SHEET may be a
-       real new entity; a class or a rate is not.
+       EXERCISE it with blocking_references(db, row) in a test. **Health should add NO
+       new model at all** — an ABC class, a movement rate and a dead-stock flag are all
+       DERIVED. If you find yourself adding a table, re-read G7.
      - A new column on an EXISTING table needs an _ADDITIVE_COLUMNS entry in
        app/main.py (~line 45), or it is silently missing on every DB seeded earlier.
      - G12: arithmetic only. No ML, no runtime LLM call.
-   Seed (G14/R7.14): extend app/seed/inventory.py — a variance count and its
-   adjustment, a zero-variance count, an in-transit transfer AWAITING receipt, dead
-   stock, a fast mover, and enough history for non-trivial ABC classes. C2's backdated
-   purchases already give you aged stock to build dead stock from. Never append logic
-   into core.py's run().
 
-8. Work on main. No branches, no PRs, no tags. Commit at the end of C3 and push.
+8. Work on main. No branches, no PRs, no tags. Commit at the end of C3b and push.
    C3 CLOSES PART 5: when every P0/P1 in §7 and §8 passes, MOVE Part 5's record from
    PROGRESS.md to docs/parts/part-05.md and DELETE it from PROGRESS.md, keeping only the
    "Read for the next part" + "Call, don't read" blocks Part 6 needs. Then rewrite the
@@ -149,9 +148,12 @@ Continue the ApexOS build. Do this in order:
    prose tables.
 
    MUTATION-CHECK the new suite once — break the implementation and confirm the tests go
-   red. C1 found its release test could not catch a broken `available`; C2 ran three
-   mutations and each was caught by exactly the test written for it. A suite that passes
-   first try is not yet evidence.
+   red. Every checkpoint so far has done this and it has paid each time: C1 found its
+   release test could not catch a broken `available`; C2 and C3a each ran three mutations
+   and every one was caught by the test written for it. A suite that passes first try is
+   not yet evidence. Good mutations for health: shift an ABC boundary by one, make the
+   dead-stock window exclusive, and copy the recommendation engine instead of calling it
+   (that last one should fail Part 4's source walk).
 
    If the checkpoint changed the SHAPE of anything, amend docs/CODEBASE-MAP.md in the
    same session. A stale map is worse than none.
@@ -184,7 +186,8 @@ the only record of where each checkpoint landed — the thing `part-0N-done` wou
 | Part 4 C2 | `6381ecd` | `procurement/recommend.py` — R5.9's entry point, R5.8, R5.7's calendar |
 | Part 4 close | `64ae50f` | Archived to `docs/parts/part-04.md`; tagged `part-04-done` |
 | Part 5 C1 | `437a185` | Locations, four derived states, the reservation ledger |
-| **Part 5 C2** | **`b442322`** | **Weighted-average cost, stock ageing, `inventory/valuation.py`** |
+| Part 5 C2 | `b442322` | Weighted-average cost, stock ageing, `inventory/valuation.py` |
+| **Part 5 C3a** | **`eaee67b`** | **Count sheets, mandatory reasons, two-step in-transit transfers** |
 
 **Verified at C2:** **457 tests passing** (402 at Part 4 close + 55 across C1 and C2),
 `ruff check app/ tests/` **exactly 37** — zero new findings across both checkpoints. Fresh
@@ -211,69 +214,60 @@ column lands on an existing table.
 | R6.10 | ✅ inclusive-bound buckets, newest-first attribution, approximation on screen | `ValuationService.ageing` |
 | R6.16 | ✅ weighted average over purchases only, `Explained`; unknown never zero | `ValuationService.cost_basis` |
 | R6.12 | ✅ stock-by-location **and** ageing on both pages | `/inventory`, `/warehouse` |
-| R6.14 | ⚠️ racks/bins/putaway/reservation/aged purchases done; **in-transit transfer + counts are C3's** | `app/seed/inventory.py` |
-| R6.15 R3.7 | ✅ incl. the G8 source walk and exercised references | `tests/test_inventory_locations.py` |
-| **R7.1–R7.14** | ❌ **not started — all of C3** | — |
+| R6.14 R7.14 | ✅ racks/bins/putaway/reservation/aged purchases/in-transit transfer/both counts · ⚠️ **dead stock + fast mover + ABC history still owed** | `app/seed/inventory.py` |
+| R6.15 R3.7 | ✅ incl. the G8 source walk and exercised references | `tests/test_inventory_*.py` |
+| R7.1 R7.2 R7.3 R7.4 R7.5 R7.6 | ✅ count sheet, no-variance writes nothing, mandatory reasons, in-transit | `CycleCountService`, `StockTransferService` |
+| **R7.7 R7.8 R7.9 R7.10** | ❌ **not started — health: ABC, dead stock, fast/slow, low-stock alerts** | — |
+| **R7.11 R7.12 R7.13** | ❌ **not started — reorder reading R5.9, printable sheet (P1)** | — |
 
-**Every R6.x now passes.** Evidence is `pytest -q -k r6_` (55 tests) across
-`tests/test_inventory_locations.py` (26), `test_inventory_screens.py` (12) and
-`test_inventory_valuation.py` (17).
+**Every R6.x passes**, and R7.1–R7.6 pass. Evidence is `pytest -q -k r6_` (55) and
+`pytest -q -k r7_` (25), across `test_inventory_locations.py`, `test_inventory_screens.py`,
+`test_inventory_valuation.py` and `test_inventory_operations.py`.
 
-### Four decisions C2 made that a later checkpoint must not reverse
+**C3 was split across two firings** because it is the largest checkpoint in the part.
+`eaee67b` is the operations half; **health (R7.7–R7.13) is what remains, and Part 5 does not
+close until it lands.**
 
-1. **Only a `PURCHASE` sets a cost basis** (`InventoryRepository.ACQUISITION_REASONS`). Transfers move
-   the same units and both halves carry a cost hint, so counting them weights one purchase twice;
-   putaway is net-zero; an adjustment or count corrects quantity without buying at a price. A test
-   posts all four at a wildly different cost and asserts the basis does not budge.
-2. **Ageing attributes the balance to arrivals newest-first**, i.e. older stock is assumed to leave
-   first, and `PUTAWAY` is excluded from arrivals or every put-away product would look like it landed
-   today. **This is not a FIFO layer** — nothing is stored, nothing is consumed from a layer, and
-   valuation does not read it. A source-walk test asserts `pricing/service.py` never reads the cost
-   basis, because margin depending on valuation is the D-A/R11.6 drift.
-3. **Age bucket upper bounds are INCLUSIVE** (`AGE_BUCKETS`): 30 days is "0–30", 90 is "61–90". Every
-   edge is asserted, and the last bucket must stay open-ended or old-enough stock falls out entirely.
-4. **`record_movement` gained `occurred_at`**, for the same reason Part 3 gave
-   `confirm(confirmed_at=…)`: stock received Saturday and keyed Monday arrived Saturday, and it is the
-   only way the seed can fabricate aged history **at insert time** without UPDATE-ing a ledger (G4).
-   `round_minor` moved to `app.core.money` beside `qty_text`, same circular-import reason, re-exported.
+### The thirteen decisions C1–C3a made are in `docs/parts/part-05.md`
 
-### Five decisions C1 made that a later checkpoint must not reverse
+That file is **the archive of the finished checkpoints**, written progressively so this file
+stays near its cap while Part 5 is still open. You do **not** need to read it — the four that
+bear on the health half are repeated here, and the rest are settled:
 
-1. **`stock_movement.bin_id` is NULLABLE; NULL means "at this warehouse, bin not recorded" (R6.3).**
-   Backfilling would **UPDATE an append-only ledger, which G4 forbids**, and invent a physical fact
-   nobody recorded. Both screens show the unaddressed balance. A test pins the nullability.
-2. **Rack and bin live in `inventory/models.py`, not `config/models.py`** — `Warehouse` stays a config
-   master; racks and bins exist only to address stock, and inventory is their only reader/writer.
-3. **R6.4's four states derive from the two ledgers plus `StorageBin.kind`** (`stock`/`transit`/
-   `quarantine`); no state column exists and a test asserts none appears. **This is the mechanism C3's
-   R7.5 transfer must use** — do not add an in-transit flag, the bin kind already carries it.
-4. **`/warehouse` shows the whole location tree; `/inventory` shows only where stock IS.** An empty
-   quarantine bin appears on the former, not in the latter's rollup. Deliberate.
-5. **The seed's putaway is a NET-ZERO PAIR** — out of the unaddressed pool, into a bin. It changes an
-   address, never a quantity; a test asserts `SUM(qty_delta) WHERE reason='PUTAWAY'` is 0. Writing only
-   the inbound half would inflate on-hand across the whole catalogue.
+1. **`AGE_BUCKETS`' upper bounds are INCLUSIVE, stated on screen, and asserted at every
+   edge.** Copy that pattern for ABC's class boundaries and the dead-stock window: the
+   thresholds are a module constant, the screen prints them, a test pins each edge.
+2. **Ageing is an attribution, not a FIFO layer** — newest-first, `PUTAWAY` excluded, the
+   approximation carried in one string used by both the screen and `Explained.caveat`.
+   Health consumes `.stale_qty` / `.oldest_days`; do not re-derive age.
+3. **Margin must never read the cost basis** (R11.6/D-A). A source-walk test enforces it.
+   Health must not route margin or value through anything new either.
+4. **Three helpers have moved to escape circular imports** — `qty_text` (C1), `round_minor`
+   (C2), `default_business_unit` (C3a), all now in `app/core/money.py` or
+   `app/modules/config/service.py`. **A fourth move is a sign the layering needs a proper
+   look rather than another move.** Health should need none.
 
-**One pre-existing bug C1 found and deliberately left alone:** `InventoryRepository.movements()` orders
-by `occurred_at` alone, which ties for rows written in one transaction (the trap that cost C1 two
-tests). `reservation_entries` and `arrivals` both add `id` as the tiebreaker; `movements()` was not
-changed, to avoid altering Part 1–4 behaviour mid-part. **Fix it if C3 touches that method.**
+**When C3b closes Part 5:** append its own record to `docs/parts/part-05.md`, flip that file's
+status line to COMPLETE, and **delete the whole Part 5 block from this file**, leaving only the
+"Read for the next part" and "Call, don't read" blocks Part 6 needs.
 
-R7.11, G11's single `Explained`+`explain_panel` shape, and G8/G7 are covered in the starter prompt
-above (steps 6c, 6d, 7) — not repeated here.
+**One pre-existing bug, deliberately left alone:** `InventoryRepository.movements()` orders by
+`occurred_at` alone, which ties for rows written in one transaction (the trap that cost C1 two tests).
+`reservation_entries` and `arrivals` both add `id` as the tiebreaker; `movements()` was not changed, to
+avoid altering Part 1–4 behaviour mid-part. **Fix it if C3b touches that method.**
 
-### Read for the next checkpoint (Part 5 C3) — these and nothing else
+### Read for the next checkpoint (Part 5 C3b — health) — these and nothing else
 
 - `docs/REQUIREMENTS.md` §8 (R7.x — **all of C3**) and §1 for the invariants. §7 is done.
 - `docs/prompts/part-05.md` — the whole brief, self-contained. Binding rules: `docs/STANDING-RULES.md`.
-- **The edit set for C3:** `app/modules/inventory/service.py` — `StockTransferService.transfer` and
-  `StockAdjustmentService.adjust/count` **already exist and each writes one activity row; EXTEND
-  them, do not replace them** (R7.1–R7.5) · a health module for ABC / dead stock / fast-slow
-  (`valuation.py` already holds the derived reads, and `arrivals` / `last_movement_at` are there for
-  it) · `app/web/pages/{inventory,warehouse}.py` + templates · `app/seed/inventory.py` for R7.14 ·
-  `tests/` — a new file, following `tests/test_inventory_valuation.py`.
+- **The edit set for C3b (health):** a new `app/modules/inventory/health.py` (ABC / dead stock /
+  fast-slow / low-stock, all derived reads — `valuation.py` is the precedent for a read-only module
+  beside the write half) · `app/web/pages/inventory.py` + its template · `app/seed/inventory.py` for
+  R7.14's remainder · `tests/test_inventory_health.py`, following `test_inventory_valuation.py`.
+  **Operations are done — `service.py` should need little or nothing.**
 
-The four things that will actually bite C3 — R7.5's mechanism, the R7.11 source-walk trap, R7.8's two
-different measures, and G11 on every health output — are spelled out in the starter prompt's step 6.
+The four things that will bite C3b — G11 on every output, ABC/dead-stock boundaries stated and tested,
+R7.8's two different measures, and the R7.11 source-walk trap — are in the starter prompt's step 6.
 Not repeated here; a second copy is a second thing to keep in step.
 
 ### Call, don't read — verified signatures, copied from source (Part 4 close + Part 5 C1/C2)
@@ -304,6 +298,14 @@ InventoryRepository(db).arrivals(product_id, warehouse_id=None) -> [StockMovemen
 InventoryRepository(db).last_movement_at(product_id) -> datetime | None   # R7.8 reads this
 InventoryRepository.ACQUISITION_REASONS = ("PURCHASE",)   # ONLY a purchase sets cost
 
+# app/modules/inventory/service.py — C3a's operations. Health does not call these; they
+# are listed so you know they exist and must not be rebuilt. Read the source if you touch
+# them. CycleCountService(.open/.record/.close/.sheets/.detail) ·
+# StockTransferService(.dispatch/.receive/.transfer/.in_transit) ·
+# StockAdjustmentService(.adjust — note now MANDATORY / .count — a match posts NOTHING)
+InventoryRepository(db).bin_of_kind(warehouse_id, kind) -> StorageBin | None
+default_business_unit(db) -> uuid.UUID    # app.modules.config.service (moved in C3a)
+
 # app/modules/inventory/service.py — Part 5 C1/C2's additions
 InventoryService(db).record_movement(*, product_id, warehouse_id, qty_delta, reason,
     ref_type=None, ref_id=None, unit_cost_minor=None, bin_id=None, occurred_at=None,
@@ -320,18 +322,12 @@ InventoryService(db).states(warehouse_id=None)   -> list[StockStateRow]
 #                 .on_hand .reserved .in_transit .quarantined .available)
 #   Two grouped queries for the whole page + one for names. No per-row query.
 InventoryService(db).bin_stock(warehouse_id=None) -> list[BinStockRow]
-#   BinStockRow(... .rack_id .rack_code .bin_id .bin_code .bin_kind .qty_on_hand)
-#   .location -> "A / A-01", or "no bin recorded" when bin_id is None (R6.3).
-#   INCLUDES the bin_id IS NULL row — dropping it makes the view disagree with on-hand.
+#   .location -> "A / A-01", or "no bin recorded" when bin_id is None (R6.3). INCLUDES
+#   the NULL-bin row — dropping it makes the view disagree with on-hand.
 InventoryService(db).location_rollup(warehouse_id=None) -> list[LocationRollupRow]
-#   LocationRollupRow(.level "warehouse"|"rack"|"bin" .id .code .name .kind
-#                     .qty_on_hand .children). Each level IS the sum of its children.
-
-LocationService(db).racks(warehouse_id=None) -> list[StorageRack]
-LocationService(db).bins(rack_id=None)       -> list[StorageBin]
-LocationService(db).create_rack(RackCreate, *, actor_id) -> StorageRack
-LocationService(db).create_bin(BinCreate, *, actor_id)   -> StorageBin
-LocationService(db).require_rack(id) / .require_bin(id)  # raise NotFoundError
+#   (.level .id .code .name .kind .qty_on_hand .children); each level sums its children.
+LocationService(db).racks(warehouse_id=None) · .bins(rack_id=None) · .create_rack(RackCreate,
+    *, actor_id) · .create_bin(BinCreate, *, actor_id) · .require_rack/.require_bin
 BIN_KINDS = ("stock", "transit", "quarantine")   # app/modules/inventory/models.py
 
 # THE VERB PART 7's R9.8/R9.9 CALLS — do not add a second mechanism
