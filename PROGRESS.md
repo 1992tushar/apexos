@@ -47,25 +47,84 @@ If the baseline is not green, stop and report what failed — do not start featu
 
 ### ▶ How to start the next session
 
-Open a fresh Claude Code session in your clone of the repo and paste **exactly this**:
+Open a fresh Claude Code session in your clone of the repo and type:
+
+```
+Start next part of development
+```
+
+That's the whole thing. `CLAUDE.md` at the repo root binds that phrase to "read the **▶ NEXT SESSION
+PROMPT** below and follow it," so the state lives here in one maintained place rather than in whatever
+you remember to type. Nothing to look up, nothing to keep in your head.
+
+**The session that closes a checkpoint owns this prompt.** Updating it is part of the same duty as
+updating the resume block — a starter that still names last part's baseline counts and edit set is worse
+than none, because the next session will trust it. Keep it short: the binding lists live in the resume
+block, and the prompt's job is to point at them and name the numbers.
+
+#### ▶ NEXT SESSION PROMPT — Part 3, checkpoint C1
 
 ```
 Continue the ApexOS build. Do this in order:
-1. git checkout main && git pull origin main
-2. Read the "CURRENT WORK" block at the top of PROGRESS.md — it names the part in flight, the
-   checkpoint to start at, which requirement IDs are outstanding, and what NOT to re-read.
-3. Open docs/ROADMAP.md, find the PROMPT for that part, and follow it from that checkpoint.
-   Its SESSION PROTOCOL block tells you what this session is expected to finish.
-4. Work on main — no branches, no PRs. Commit when the checkpoint is done.
-5. Before you run low on context, update the CURRENT WORK block in PROGRESS.md.
+
+1. git checkout main && git pull origin main && git fetch origin --tags
+   (tags don't come down with a plain pull, and the delta command below needs part-02-done)
+
+2. Read the "▶ CURRENT WORK" block at the top of PROGRESS.md. Part 2 is COMPLETE and tagged
+   part-02-done — that block's job now is the handoff: the "Read for the next part (Part 3)"
+   list names your edit set, "Call, don't read" carries verified signatures so you don't open
+   those modules, and "Do NOT read" is binding. The last two sessions each burned a third of
+   their budget re-deriving context that is already written down there.
+
+3. Read docs/REQUIREMENTS.md §1 (global invariants G1–G17) and §5 (R4.x — Part 3's acceptance
+   contract). NOT optional: the invariants you must not break — integer minor units, exactly one
+   activity_log row per state change, derived-never-stored, append-only ledgers, InventoryService
+   as the only writer of stock_movement — are not in the files you're editing.
+
+4. Run `git diff part-02-done..HEAD --stat` for the delta (should be empty at session start —
+   if it isn't, someone committed after the tag; read it before you plan). For Part 2's shape,
+   `git show --stat de73c23` and `git show --stat 5a1f89e`, not a tree walk.
+
+5. Open docs/ROADMAP.md → the PROMPT for Part 3 (Procurement: pre-order → PO depth, Phase 2)
+   and follow it from C1. Its SESSION PROTOCOL block says what this session should finish —
+   2 checkpoints, one per session. Read the "Reading diet" section in the standing rules once:
+   it explains orientation vs continuity vs working context, and which you may spend tokens on.
+   Also read docs/08-module-breakdown.md § Procurement — the one design § for this domain.
+
+6. Verify the baseline before writing code (from apps/api, venv activated):
+     python -m pytest -q                  # expect 251 passed
+     python -m ruff check app/ tests/     # expect EXACTLY 38 findings — 39 is a regression
+   If either is off, stop and report. 38 is the verified pre-existing count (32 E501, 4 F841,
+   1 B007, 1 E402, all in untouched modules). It was 39 until C2 deleted a long line with
+   CustomerRepository.search. Parts 1–2 added ~5600 lines with zero new findings; that's the bar.
+
+7. Part 3 is DOMAIN depth, not screen work. Do not re-read the list machinery — PurchaseOrderService
+   already covers create → confirm → receive → bill with the status vocabulary
+   draft / confirmed / partially_received / received. Read those methods before adding a verb that
+   exists (G16). Two things Part 3 inherits and must not break:
+     - Every new model owes app/db/references.py an entry, even an empty tuple. A missing table
+       silently permits deleting something live work depends on (R3.7).
+     - If you add a status to the PO or SO vocabulary, decide whether it counts as "open" in
+       REFERENCES.live_statuses. A new state that quietly stops blocking is R3.7 regressing.
+   Extend app/seed.py for any new screen (G14) — the seed's two trailing passes (master history
+   backfill, tax-slab repair) run last in run(); add new sections before them.
+
+8. Work on main. No branches, no PRs. Commit when the checkpoint is done.
+
+9. BEFORE you run low on context, update the "▶ CURRENT WORK" block: checkpoints with commit
+   SHAs, requirement IDs passed and outstanding, gotchas, mid-part decisions, and the four
+   delta lines — Changed since / Read for the next checkpoint / Call, don't read (copy
+   signatures from source, never from memory) / Do NOT read. Then rewrite the "▶ NEXT SESSION
+   PROMPT" above for wherever the next session starts, including its baseline test and ruff
+   counts. Then commit and push.
+   If the checkpoint changed the SHAPE of anything — new shared machinery, a new pattern —
+   amend docs/CODEBASE-MAP.md in the same session. A stale map is worse than none.
+
+Use pytest -q, never verbose. Don't re-read files you just edited.
 ```
 
-That works unchanged for every remaining session — the resume block carries the state, so the starter
-never has to. Nothing to look up, nothing to keep in your head.
-
-**If you'd rather be explicit:** open `docs/ROADMAP.md`, copy the whole ```-fenced PROMPT for the part
-you want, and paste that instead. More deterministic, more typing. Use it if a session has drifted and
-you want a hard reset on the scope.
+**If a session has drifted** and you want a hard reset on scope, ignore the above and paste the whole
+```-fenced PROMPT for the part from `docs/ROADMAP.md` instead. More deterministic, more typing.
 
 **Rules of thumb.** One checkpoint per session — don't push a session past its checkpoint to "just
 finish the part". Start each session fresh (`/clear` or a new window) rather than continuing a long
