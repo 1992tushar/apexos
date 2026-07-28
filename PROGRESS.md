@@ -3,7 +3,7 @@
 > Working log so any session can pick up where the last one stopped.
 > This file is the source of truth for status.
 
-_Last updated: 2026-07-28_
+_Last updated: 2026-07-28 (Part 3 C1)_
 
 ---
 
@@ -81,7 +81,7 @@ Continue the ApexOS build. Do this in order:
    append-only ledgers, InventoryService as the only writer of stock_movement — are not in
    the files you're editing.
 
-4. `git show --stat HEAD` for C1's shape (one commit, ~20 files). Not a tree walk.
+4. `git show --stat 3d0162b` for C1's shape (22 files, +3,670/−77). Not a tree walk.
 
 5. Verify the baseline before writing code (from apps/api, venv activated):
      python -m pytest -q                  # expect 293 passed
@@ -141,7 +141,7 @@ re-reading the design docs.
 ## Part 3 — Procurement: pre-order → PO depth · **IN FLIGHT** · on `main`
 
 - [x] **C1** requisition (request → approve → convert) + RFQ + quote capture + comparison →
-      commit `PENDING-C1`
+      commit `3d0162b`
 - [ ] **C2** PO revisions + partial receipt + back orders + receipt-against-revision
 
 **Verify loop at C1 close:** 293 tests passing (251 + 42); `ruff check app/ tests/` at **38** findings
