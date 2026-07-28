@@ -312,6 +312,21 @@ class InventoryRepository:
             stmt = stmt.where(StorageRack.warehouse_id == warehouse_id)
         return list(self.db.scalars(stmt.order_by(StorageRack.code)))
 
+    def bin_of_kind(self, warehouse_id: uuid.UUID, kind: str) -> StorageBin | None:
+        """The first bin of a given kind in a warehouse — how R7.5 finds where in-transit
+        stock sits, and R7.x finds quarantine space, without hardcoding a bin code."""
+        return self.db.scalar(
+            select(StorageBin)
+            .join(StorageRack, StorageRack.id == StorageBin.storage_rack_id)
+            .where(
+                StorageRack.warehouse_id == warehouse_id,
+                StorageBin.kind == kind,
+                StorageBin.deleted_at.is_(None),
+                StorageRack.deleted_at.is_(None),
+            )
+            .order_by(StorageBin.code)
+        )
+
     def bins(self, rack_id: uuid.UUID | None = None) -> list[StorageBin]:
         stmt = select(StorageBin).where(StorageBin.deleted_at.is_(None))
         if rack_id is not None:

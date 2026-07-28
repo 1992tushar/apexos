@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+{% block title %}Count {{ sheet.count_no }}{% endblock %}
+{% block content %}
+{% call ui.page_header("Count " ~ sheet.count_no, sheet.warehouse_name) %}{% endcall %}
+
+<div class="grid grid-4 mt">
+  {{ ui.stat("Status", sheet.status) }}
+  {{ ui.stat("Lines", sheet.lines | length) }}
+  {{ ui.stat("Counted", sheet.counted_lines) }}
+  {{ ui.stat("Variances", sheet.variance_lines | length,
+     "each posts one adjustment on close" if sheet.variance_lines else "nothing to post") }}
+</div>
+
+<p class="hint">
+  The system quantity was snapshotted when this sheet was opened, so a variance is measured
+  against what the ledger believed at counting time rather than a balance that moved while
+  the shelf was being walked. A line left blank is <strong>uncounted</strong>, not a count of
+  zero — closing skips it and leaves that stock alone. Lines that match post
+  <strong>no</strong> adjustment at all.
+</p>
+
+{% if sheet.status == "open" %}
+<form method="post" action="/warehouse/counts/{{ sheet.id }}/record">
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>SKU</th><th>Product</th><th class="num">System</th>
+          <th class="num">Counted</th><th class="num">Variance</th></tr>
+      </thead>
+      <tbody>
+        {% for ln in sheet.lines %}
+        <tr>
+          <td class="mono">{{ ln.sku_code }}</td>
+          <td>{{ ln.product_name }}</td>
+          <td class="num">{{ ln.system_qty | number }}</td>
+          <td class="num">
+            <input type="hidden" name="product_id" value="{{ ln.product_id }}" />
+            <input name="counted_qty" type="number" step="0.001" min="0"
+                   value="{{ ln.counted_qty | number if ln.is_counted else '' }}"
+                   style="max-width:110px" />
+          </td>
+          <td class="num">
+            {% if ln.variance is not none and ln.variance %}{{ ln.variance | number }}
+            {% elif ln.is_counted %}—
+            {% else %}<span class="muted">uncounted</span>{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="form-actions"><button class="btn btn-primary" type="submit">Save counts</button></div>
+</form>
+
+<div class="card mt">
+  <div class="card-title">Close the sheet</div>
+  <form method="post" action="/warehouse/counts/{{ sheet.id }}/close">
+    <div class="form-grid one">
+      <div class="field">
+        <label>Reason</label>
+        <input name="reason" required maxlength="300" placeholder="Quarterly count, spot check, …" />
+        <small class="muted">required — closing may adjust stock (R7.4)</small>
+      </div>
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-primary" type="submit">
+        Close and post {{ sheet.variance_lines | length }} adjustment{{ "" if sheet.variance_lines | length == 1 else "s" }}
+      </button>
+    </div>
+  </form>
+</div>
+{% else %}
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr><th>SKU</th><th>Product</th><th class="num">System</th>
+        <th class="num">Counted</th><th class="num">Variance</th></tr>
+    </thead>
+    <tbody>
+      {% for ln in sheet.lines %}
+      <tr>
+        <td class="mono">{{ ln.sku_code }}</td>
+        <td>{{ ln.product_name }}</td>
+        <td class="num">{{ ln.system_qty | number }}</td>
+        <td class="num">{% if ln.is_counted %}{{ ln.counted_qty | number }}{% else %}<span class="muted">uncounted</span>{% endif %}</td>
+        <td class="num">{% if ln.variance is not none and ln.variance %}{{ ln.variance | number }}{% else %}—{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+<p class="hint">
+  Closed{% if sheet.counted_at %} {{ sheet.counted_at | fmt_datetime }}{% endif %}{% if sheet.reason %} — {{ sheet.reason }}{% endif %}.
+  The adjustments it posted are in the stock ledger; this sheet is now history and is not re-posted.
+</p>
+{% endif %}
+
+<p class="mt"><a href="/warehouse">← Back to warehouse</a></p>
+{% endblock %}

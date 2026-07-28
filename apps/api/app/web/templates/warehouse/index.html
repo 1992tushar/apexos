@@ -62,6 +62,12 @@
           <input name="qty_delta" type="number" step="0.001" required />
           <small class="muted">use negative to reduce</small>
         </div>
+        {# R7.4 — mandatory. Stock does not change by itself. #}
+        <div class="field">
+          <label>Reason</label>
+          <input name="note" required maxlength="300" placeholder="Damaged in handling, found on shelf, …" />
+          <small class="muted">required — an adjustment nobody can explain later is not an audit trail</small>
+        </div>
       </div>
       <div class="form-actions"><button class="btn btn-primary" type="submit">Adjust</button></div>
     </form>
@@ -86,6 +92,97 @@
         <div class="field"><label>Counted quantity</label><input name="counted_qty" type="number" step="0.001" min="0" required /></div>
       </div>
       <div class="form-actions"><button class="btn btn-primary" type="submit">Record count</button></div>
+    </form>
+  </div>
+</div>
+
+{# R7.5 — a transfer in flight. Two steps, and between them the stock is still counted
+   and visibly in transit rather than missing. #}
+<h2>In transit</h2>
+{% if in_transit %}
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr><th>Transfer</th><th>Product</th><th>From</th><th>To</th>
+        <th class="num">Qty</th><th>Dispatched</th><th></th></tr>
+    </thead>
+    <tbody>
+      {% for t in in_transit %}
+      <tr>
+        <td class="mono">{{ t.transfer_no }} {{ ui.badge(t.status) }}</td>
+        <td>{{ product_names.get(t.product_id, "—") }}</td>
+        <td>{{ warehouse_names.get(t.from_warehouse_id, "—") }}</td>
+        <td>{{ warehouse_names.get(t.to_warehouse_id, "—") }}</td>
+        <td class="num">{{ t.qty | number }}</td>
+        <td>{{ t.dispatched_at | fmt_datetime }}</td>
+        <td>
+          <form method="post" action="/inventory/transfers/{{ t.id }}/receive">
+            <button class="btn" type="submit">Receive</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<p class="hint">Nothing in transit. A dispatched transfer sits here until it is received —
+  its stock stays on hand throughout, reported as “in transit” rather than disappearing.</p>
+{% endif %}
+
+<div class="grid grid-2 mt">
+  <div class="card">
+    <div class="card-title">Dispatch a transfer</div>
+    <form method="post" action="/inventory/transfers/dispatch">
+      <div class="form-grid one">
+        <div class="field">
+          <label>Product</label>
+          <select name="product_id" required>
+            {% for p in products %}<option value="{{ p.id }}">{{ p.sku_code }} — {{ p.name }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="field">
+          <label>From</label>
+          <select name="from_warehouse_id" required>
+            {% for w in warehouses %}<option value="{{ w.id }}">{{ w.name }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="field">
+          <label>To</label>
+          <select name="to_warehouse_id" required>
+            {% for w in warehouses %}<option value="{{ w.id }}">{{ w.name }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="field"><label>Quantity</label><input name="qty" type="number" step="0.001" min="0" required /></div>
+        <div class="field"><label>Note</label><input name="note" maxlength="300" /></div>
+      </div>
+      <div class="form-actions"><button class="btn btn-primary" type="submit">Dispatch</button></div>
+    </form>
+  </div>
+
+  {# R7.1 — a count sheet, so a variance is a decision rather than a typed-in delta. #}
+  <div class="card">
+    <div class="card-title">Cycle count</div>
+    {% if open_counts %}
+    <p class="hint">Open sheets:
+      {% for c in open_counts %}<a class="mono" href="/warehouse/counts/{{ c.id }}">{{ c.count_no }}</a>{% if not loop.last %} · {% endif %}{% endfor %}
+    </p>
+    {% endif %}
+    <form method="post" action="/warehouse/counts">
+      <div class="form-grid one">
+        <div class="field">
+          <label>Warehouse</label>
+          <select name="warehouse_id" required>
+            {% for w in warehouses %}<option value="{{ w.id }}">{{ w.name }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="field">
+          <label>Lines</label>
+          <input name="limit" type="number" min="1" value="25" />
+          <small class="muted">how many products to put on the sheet</small>
+        </div>
+      </div>
+      <div class="form-actions"><button class="btn btn-primary" type="submit">Open count sheet</button></div>
     </form>
   </div>
 </div>

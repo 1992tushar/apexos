@@ -27,11 +27,22 @@ from decimal import Decimal
 from sqlalchemy import select
 
 from app.modules.inventory.models import StockMovement, StorageRack
-from app.modules.inventory.schemas import BinCreate, RackCreate, ReservationCreate
+from app.modules.inventory.schemas import (
+    BinCreate,
+    CountClose,
+    CountEntry,
+    CountOpen,
+    CountRecord,
+    RackCreate,
+    ReservationCreate,
+    TransferDispatch,
+)
 from app.modules.inventory.service import (
+    CycleCountService,
     InventoryService,
     LocationService,
     ReservationService,
+    StockTransferService,
 )
 from app.seed.helpers import SeedContext
 
@@ -149,6 +160,7 @@ def seed_locations(ctx: SeedContext) -> dict | None:
         break
 
     aged = _seed_aged_purchases(ctx, warehouses[0])
+    operations = _seed_operations(ctx, warehouses)
 
     db.flush()
     return {
@@ -158,6 +170,107 @@ def seed_locations(ctx: SeedContext) -> dict | None:
         "products_put_away": put_away,
         "reserved": str(reserved.qty_delta) if reserved else None,
         "aged_purchases": aged,
+        "operations": operations,
+    }
+
+
+def _seed_operations(ctx: SeedContext, warehouses) -> dict | None:
+    """R7.14 — a transfer awaiting receipt, plus a variance count and a clean one.
+
+    All three exist so the screens have something real to show: an in-transit transfer is
+    outstanding work, a variance count proves an adjustment was posted, and a zero-variance
+    count proves the far more common case where nothing needed posting (R7.2). Without the
+    last one, the "no adjustment" path is a code branch with no demo data behind it.
+    """
+    db = ctx.db
+    if len(warehouses) < 2:
+        return None
+
+    inventory = InventoryService(db)
+    transfers = StockTransferService(db)
+    counts = CycleCountService(db)
+
+    # An in-transit transfer, LEFT UNRECEIVED on purpose.
+    in_flight = None
+    if not transfers.in_transit():
+        for row in inventory.stock():
+            if row.warehouse_id != warehouses[0].id or row.qty_on_hand < 20:
+                continue
+            in_flight = transfers.dispatch(
+                TransferDispatch(
+                    product_id=row.product_id,
+                    from_warehouse_id=warehouses[0].id,
+                    to_warehouse_id=warehouses[1].id,
+                    qty=Decimal("6"),
+                    note="Awaiting receipt at the destination",
+                ),
+                actor_id=ctx.actor_id,
+            )
+            break
+
+    # Two closed count sheets: one that found a discrepancy, one that did not.
+    variance_sheet = clean_sheet = None
+    if not counts.sheets():
+        candidates = [
+            r
+            for r in inventory.stock()
+            if r.warehouse_id == warehouses[0].id and r.qty_on_hand >= 10
+        ][:2]
+        if len(candidates) == 2:
+            short, exact = candidates
+
+            variance_sheet = counts.open(
+                CountOpen(warehouse_id=warehouses[0].id, product_ids=[short.product_id]),
+                actor_id=ctx.actor_id,
+            )
+            counts.record(
+                variance_sheet.id,
+                CountRecord(entries=[
+                    CountEntry(
+                        product_id=short.product_id,
+                        counted_qty=short.qty_on_hand - Decimal("2"),
+                    )
+                ]),
+                actor_id=ctx.actor_id,
+            )
+            variance_sheet = counts.close(
+                variance_sheet.id,
+                CountClose(reason="Quarterly count — two short on the shelf"),
+                actor_id=ctx.actor_id,
+            )
+
+            clean_sheet = counts.open(
+                CountOpen(warehouse_id=warehouses[0].id, product_ids=[exact.product_id]),
+                actor_id=ctx.actor_id,
+            )
+            # Re-read on-hand: the sheet above may have adjusted a different product, but
+            # reading it fresh keeps this correct if the seed order ever changes.
+            counted = inventory.on_hand(exact.product_id, warehouses[0].id)
+            counts.record(
+                clean_sheet.id,
+                CountRecord(entries=[
+                    CountEntry(product_id=exact.product_id, counted_qty=counted)
+                ]),
+                actor_id=ctx.actor_id,
+            )
+            clean_sheet = counts.close(
+                clean_sheet.id,
+                CountClose(reason="Quarterly count — shelf matched the system"),
+                actor_id=ctx.actor_id,
+            )
+
+    return {
+        "in_transit": in_flight.transfer_no if in_flight else None,
+        "variance_count": (
+            f"{variance_sheet.count_no} ({variance_sheet.adjustments_posted} posted)"
+            if variance_sheet
+            else None
+        ),
+        "clean_count": (
+            f"{clean_sheet.count_no} ({clean_sheet.adjustments_posted} posted)"
+            if clean_sheet
+            else None
+        ),
     }
 
 

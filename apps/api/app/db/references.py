@@ -156,6 +156,8 @@ def _build_map() -> dict[str, tuple[Reference, ...]]:
     from app.modules.crm.models import Lead
     from app.modules.customers.models import Customer
     from app.modules.inventory.models import (
+        StockCount,
+        StockCountLine,
         StockMovement,
         StockReservation,
         StorageBin,
@@ -312,6 +314,22 @@ def _build_map() -> dict[str, tuple[Reference, ...]]:
         # (R6.5/G4). Declared rather than omitted: R3.7 reads a missing entry as
         # "not yet considered".
         "stock_reservation": (),
+        # --- Part 5 C3: operations documents (R7.1, R7.5) ---------------------
+        # An OPEN count sheet's lines block it: retiring the sheet mid-count would discard
+        # a walk of the shelves that is still in progress. A CLOSED sheet is history — it
+        # posted its adjustments and the ledger is the record — so it blocks nothing, which
+        # is why `live_statuses` names only "open".
+        "stock_count": (
+            Reference(StockCountLine, "stock_count_id", "counted line", "counted lines",
+                      label="id",
+                      via=Via(StockCount, "stock_count_id", "count_no", ("open",))),
+        ),
+        "stock_count_line": (),
+        # Nothing points AT a transfer. Its own status is what makes it live — stock sits
+        # in a transit bin until it is received — and that is enforced by `receive`
+        # refusing a non-in_transit transfer, not by a reference guard. Declared and
+        # deliberately empty.
+        "stock_transfer": (),
     }
 
 

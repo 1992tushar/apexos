@@ -476,6 +476,15 @@ def run() -> dict:
                       "created_by": actor_id},
         )
 
+        # --- Part 5's locations, putaway, reservation and aged purchases ----
+        # MUST run before the transfer below: R7.5 dispatches into the destination's
+        # `transit` bin and refuses if there isn't one, which is correct — you build the
+        # warehouse before you move stock through it. It also needs the balances written
+        # above, so this is the one point in run() where both hold.
+        locations_result = seed_locations(
+            SeedContext(db=db, actor_id=actor_id, activity=activity)
+        )
+
         # One inter-warehouse transfer (Pune -> Mumbai) if none exist yet.
         from app.modules.inventory.models import StockMovement  # noqa: E402
 
@@ -615,13 +624,6 @@ def run() -> dict:
             SeedContext(
                 db=db, actor_id=actor_id, activity=activity, suppliers=suppliers
             )
-        )
-
-        # --- Part 5 C1's locations + one reservation, its own module (G14) --
-        # Runs after every section that posts stock, so the putaway addresses the
-        # balances they left rather than racing them.
-        locations_result = seed_locations(
-            SeedContext(db=db, actor_id=actor_id, activity=activity)
         )
 
         # --- master change history (last, so it catches every row) ---------

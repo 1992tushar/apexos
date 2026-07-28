@@ -110,6 +110,93 @@ class StockMovement(Base, EntityMixin):
     )
 
 
+class StockTransfer(Base, EntityMixin):
+    """A warehouse-to-warehouse transfer, which R7.5 makes a TWO-STEP document.
+
+    `dispatch` takes stock off the source's shelf and into the destination's `transit`
+    bin; `receive` takes it out of transit and onto the destination's shelf. Between the
+    two the stock is in transit — **still on hand, still counted, and visible as such** —
+    which is the whole point: stock must never be invisible mid-flight.
+
+    The quantity and the two warehouses are recorded here because a transfer awaiting
+    receipt is a real outstanding document the founder can act on. What it does NOT store
+    is any balance: every quantity on screen still comes from `stock_movement` (G7).
+    """
+
+    __tablename__ = "stock_transfer"
+
+    transfer_no: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    product_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(), ForeignKey("product.id"), nullable=False, index=True
+    )
+    from_warehouse_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(), ForeignKey("warehouse.id"), nullable=False, index=True
+    )
+    to_warehouse_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(), ForeignKey("warehouse.id"), nullable=False, index=True
+    )
+    transit_bin_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(), ForeignKey("storage_bin.id"), nullable=True
+    )
+    qty: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
+    # in_transit -> received. Both have a `status_class` bucket in web/core.py, or the
+    # badge renders grey and the screen stops telling the founder anything.
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="in_transit")
+    dispatched_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    received_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    note: Mapped[str | None] = mapped_column(String(300), nullable=True)
+
+
+class StockCount(Base, EntityMixin):
+    """A cycle-count sheet: R7.1's count sheet → variance → adjustment.
+
+    Opening a sheet SNAPSHOTS the system quantity per line, so the variance is measured
+    against what the system believed at counting time rather than against a balance that
+    may have moved while the shelf was being walked. Closing it posts an adjustment for
+    each line that actually varies — and **none at all for a sheet that matches** (R7.2).
+    """
+
+    __tablename__ = "stock_count"
+
+    count_no: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    warehouse_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(), ForeignKey("warehouse.id"), nullable=False, index=True
+    )
+    # open -> closed. A closed sheet is history and is never re-posted.
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="open")
+    counted_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    # R7.4's reason, captured at close because that is when stock actually changes.
+    reason: Mapped[str | None] = mapped_column(String(300), nullable=True)
+
+
+class StockCountLine(Base, EntityMixin):
+    """One product on a count sheet. `variance` is DERIVED, never stored (G7)."""
+
+    __tablename__ = "stock_count_line"
+
+    stock_count_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(), ForeignKey("stock_count.id"), nullable=False, index=True
+    )
+    product_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(), ForeignKey("product.id"), nullable=False, index=True
+    )
+    bin_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(), ForeignKey("storage_bin.id"), nullable=True
+    )
+    # What the ledger said when the sheet was opened — the baseline the variance is
+    # measured against.
+    system_qty: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
+    # NULL until somebody actually counts this line. A line nobody counted is not a
+    # variance of minus-everything; it is uncounted, and closing skips it.
+    counted_qty: Mapped[Decimal | None] = mapped_column(Numeric(18, 4), nullable=True)
+
+
 class StockReservation(Base, EntityMixin):
     """R6.5 — reservation as a ledger, not a flag.
 

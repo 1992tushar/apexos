@@ -156,14 +156,19 @@ def status_class(status: Any) -> str:
     # Pre-order statuses (Part 3) join the same buckets: a requisition awaiting a
     # decision reads as "warning" like a draft, a decided one as "positive". Without
     # this every pre-order badge renders grey and the screen tells the founder nothing.
+    # Part 5 adds inventory states and operations documents to the same buckets: stock in
+    # flight or a sheet still being counted reads as "warning", a landed transfer or a
+    # closed count as "positive", and quarantined stock as "negative" because it is the
+    # one that needs a decision. `stock` is deliberately absent — an ordinary bin needs no
+    # badge, and the templates only badge the non-default kinds.
     positive = {"active", "paid", "confirmed", "received", "billed", "completed",
                 "fulfilled", "invoiced", "won", "done", "success",
-                "approved", "converted", "awarded", "quoted"}
+                "approved", "converted", "awarded", "quoted", "closed"}
     warning = {"draft", "pending", "partial", "partially_paid", "open", "new",
                "qualified", "proposal", "in_progress", "todo", "sent",
-               "requested", "issued", "invited"}
+               "requested", "issued", "invited", "in_transit", "transit"}
     negative = {"cancelled", "canceled", "overdue", "lost", "inactive",
-                "failed", "rejected", "void"}
+                "failed", "rejected", "void", "quarantine", "damaged"}
     if s in positive:
         return "ok"
     if s in warning:

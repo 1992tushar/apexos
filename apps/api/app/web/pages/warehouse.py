@@ -8,16 +8,23 @@ from fastapi import APIRouter, Depends, Form, Request
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.core.errors import ValidationError
 from app.core.security import Actor
 from app.modules.config.service import ConfigService
 from app.modules.inventory.schemas import (
     BinCreate,
+    CountClose,
+    CountEntry,
+    CountOpen,
+    CountRecord,
     RackCreate,
     StockAdjustmentCreate,
     StockCountCreate,
     StockTransferCreate,
+    TransferDispatch,
 )
 from app.modules.inventory.service import (
+    CycleCountService,
     InventoryService,
     LocationService,
     StockAdjustmentService,
@@ -88,6 +95,146 @@ def warehouse_index(request: Request, db: Session = Depends(get_db)):
         summary=summary,
         racks=racks,
         ageing_note=valuation.ageing_note(),
+        # R7.5 — transfers dispatched and not yet received. Outstanding work, and the
+        # proof that stock in flight is visible rather than missing.
+        in_transit=StockTransferService(db).in_transit(),
+        open_counts=CycleCountService(db).sheets(status="open"),
+        product_names={p.id: f"{p.sku_code} — {p.name}" for p in products},
+        warehouse_names={w.id: w.name for w in warehouses},
+    )
+
+
+@router.post("/inventory/transfers/dispatch")
+def dispatch_transfer(
+    request: Request,
+    product_id: str = Form(...),
+    from_warehouse_id: str = Form(...),
+    to_warehouse_id: str = Form(...),
+    qty: str = Form(...),
+    note: str = Form(""),
+    db: Session = Depends(get_db),
+    actor: Actor = Depends(require_web_permission("stock.transfer")),
+):
+    """R7.5 step one — stock leaves the shelf and becomes visibly in transit."""
+
+    def work():
+        payload = TransferDispatch(
+            product_id=uuid.UUID(product_id),
+            from_warehouse_id=uuid.UUID(from_warehouse_id),
+            to_warehouse_id=uuid.UUID(to_warehouse_id),
+            qty=Decimal(str(qty)),
+            note=note or None,
+        )
+        return StockTransferService(db).dispatch(payload, actor_id=actor.id)
+
+    return form_action(
+        db, work, back="/warehouse",
+        success=lambda t: ("/warehouse", f"{t.transfer_no} dispatched — now in transit"),
+        err="Could not dispatch the transfer",
+    )
+
+
+@router.post("/inventory/transfers/{transfer_id}/receive")
+def receive_transfer(
+    request: Request,
+    transfer_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    actor: Actor = Depends(require_web_permission("stock.transfer")),
+):
+    """R7.5 step two — it lands on the destination's shelf."""
+    return form_action(
+        db, lambda: StockTransferService(db).receive(transfer_id, actor_id=actor.id),
+        back="/warehouse",
+        success=lambda t: ("/warehouse", f"{t.transfer_no} received"),
+        err="Could not receive the transfer",
+    )
+
+
+@router.post("/warehouse/counts")
+def open_count(
+    request: Request,
+    warehouse_id: str = Form(...),
+    limit: str = Form("25"),
+    db: Session = Depends(get_db),
+    actor: Actor = Depends(require_web_permission("stock.adjust")),
+):
+    """R7.1 — open a count sheet, snapshotting what the ledger currently believes."""
+
+    def work():
+        payload = CountOpen(
+            warehouse_id=uuid.UUID(warehouse_id),
+            limit=int(limit) if limit.strip() else None,
+        )
+        return CycleCountService(db).open(payload, actor_id=actor.id)
+
+    return form_action(
+        db, work, back="/warehouse",
+        success=lambda sheet: (f"/warehouse/counts/{sheet.id}", f"{sheet.count_no} opened"),
+        err="Could not open a count sheet",
+    )
+
+
+@router.get("/warehouse/counts/{count_id}")
+def count_detail(request: Request, count_id: uuid.UUID, db: Session = Depends(get_db)):
+    return render(
+        request, "warehouse/count.html", sheet=CycleCountService(db).detail(count_id)
+    )
+
+
+@router.post("/warehouse/counts/{count_id}/record")
+def record_count(
+    request: Request,
+    count_id: uuid.UUID,
+    product_id: list[str] = Form(default=[]),
+    counted_qty: list[str] = Form(default=[]),
+    db: Session = Depends(get_db),
+    actor: Actor = Depends(require_web_permission("stock.adjust")),
+):
+    """Store the counted quantities. Blank rows are skipped — a line nobody counted stays
+    uncounted rather than being recorded as zero, which would wipe the stock on close."""
+
+    def work():
+        entries = [
+            CountEntry(product_id=uuid.UUID(pid), counted_qty=Decimal(qty))
+            for pid, qty in zip(product_id, counted_qty, strict=False)
+            if qty.strip()
+        ]
+        if not entries:
+            raise ValidationError("Nothing was counted — enter at least one quantity")
+        return CycleCountService(db).record(
+            count_id, CountRecord(entries=entries), actor_id=actor.id
+        )
+
+    return form_action(
+        db, work, back=f"/warehouse/counts/{count_id}",
+        success=(f"/warehouse/counts/{count_id}", "Counts saved"),
+        err="Could not save the counts",
+    )
+
+
+@router.post("/warehouse/counts/{count_id}/close")
+def close_count(
+    request: Request,
+    count_id: uuid.UUID,
+    reason: str = Form(...),
+    db: Session = Depends(get_db),
+    actor: Actor = Depends(require_web_permission("stock.adjust")),
+):
+    """R7.2/R7.3 — post one adjustment per varying line, none for a sheet that matches."""
+
+    def work():
+        return CycleCountService(db).close(
+            count_id, CountClose(reason=reason), actor_id=actor.id
+        )
+
+    return form_action(
+        db, work, back=f"/warehouse/counts/{count_id}",
+        success=lambda sheet: (
+            f"/warehouse/counts/{count_id}",
+            f"{sheet.count_no} closed — {sheet.adjustments_posted} adjustment"
+            f"{'' if sheet.adjustments_posted == 1 else 's'} posted",
+        ),
+        err="Could not close the count",
     )
 
 
@@ -177,16 +324,19 @@ def create_adjustment(
     product_id: str = Form(...),
     warehouse_id: str = Form(...),
     qty_delta: str = Form(...),
+    note: str = Form(...),
     db: Session = Depends(get_db),
     actor: Actor = Depends(require_web_permission("stock.adjust")),
 ):
+    """R7.4 — the reason is a required form field, not an optional note."""
+
     def work():
         payload = StockAdjustmentCreate(
             product_id=uuid.UUID(product_id),
             warehouse_id=uuid.UUID(warehouse_id),
             qty_delta=Decimal(str(qty_delta)),
             reason="ADJUSTMENT",
-            note=None,
+            note=note,
         )
         return StockAdjustmentService(db).adjust(payload, actor_id=actor.id)
 

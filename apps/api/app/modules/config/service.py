@@ -41,6 +41,21 @@ from app.modules.config.models import (
 from app.modules.config.repository import ConfigRepository
 
 
+def default_business_unit(db: Session) -> uuid.UUID:
+    """The BU a document falls back to when neither the payload nor the party names one.
+
+    Lived in `procurement/service.py` until Part 5 C3, when inventory needed it to number
+    transfer and count documents — and inventory cannot import procurement (procurement
+    imports `InventoryService`, so it would be circular). It belongs here anyway:
+    `BusinessUnit` is a config master and `allocate_document_number` below is its
+    neighbour. Procurement re-exports it under the same name, so its callers are unchanged.
+    """
+    bu = db.scalar(select(BusinessUnit.id).where(BusinessUnit.deleted_at.is_(None)).limit(1))
+    if bu is None:
+        raise NotFoundError("No business unit configured; run the seed first.")
+    return bu
+
+
 def allocate_document_number(
     db: Session,
     *,

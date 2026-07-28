@@ -70,14 +70,18 @@ class StockTransferResult(BaseModel):
 class StockAdjustmentCreate(BaseModel):
     """Manual correction: a signed delta applied to on-hand at a warehouse.
 
-    `reason` is `ADJUSTMENT` (default) or `COUNT`.
+    `reason` is the movement code — `ADJUSTMENT` (default) or `COUNT`. **`note` is the
+    human reason and R7.4 makes it mandatory**: stock does not change by itself, and an
+    adjustment nobody can explain later is exactly what an audit trail is for. A
+    whitespace-only note is refused, not accepted and stored blank.
     """
 
     product_id: uuid.UUID
     warehouse_id: uuid.UUID
     qty_delta: Decimal = Field(description="Signed change; may be negative")
     reason: str = "ADJUSTMENT"
-    note: str | None = None
+    note: str = Field(min_length=1, description="Why the stock changed (R7.4, mandatory)")
+    bin_id: uuid.UUID | None = None
 
 
 class StockCountCreate(BaseModel):
@@ -206,6 +210,111 @@ class ReservationResult(BaseModel):
 # `LocationRollupRow.children` is the same model, so the annotation cannot resolve while
 # the class body is still executing. Rebuilding here is the Pydantic v2 fix.
 LocationRollupRow.model_rebuild()
+
+
+# --- Part 5 C3: operations (R7.1–R7.5) ------------------------------------
+
+
+class TransferDispatch(BaseModel):
+    """Send stock on its way (R7.5's first step)."""
+
+    product_id: uuid.UUID
+    from_warehouse_id: uuid.UUID
+    to_warehouse_id: uuid.UUID
+    qty: Decimal = Field(gt=0)
+    note: str | None = None
+
+
+class TransferRead(BaseModel):
+    """A transfer document, in flight or landed."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    transfer_no: str
+    product_id: uuid.UUID
+    from_warehouse_id: uuid.UUID
+    to_warehouse_id: uuid.UUID
+    qty: Decimal
+    status: str
+    dispatched_at: datetime
+    received_at: datetime | None
+    note: str | None
+
+    @property
+    def is_in_transit(self) -> bool:
+        return self.status == "in_transit"
+
+
+class CountOpen(BaseModel):
+    """Open a count sheet for a warehouse (R7.1).
+
+    `product_ids` empty means "every product with a balance here" — the ordinary case for
+    a full count. Naming products is how a spot count of a few lines is done.
+    """
+
+    warehouse_id: uuid.UUID
+    product_ids: list[uuid.UUID] = Field(default_factory=list)
+    limit: int | None = None
+
+
+class CountEntry(BaseModel):
+    """One counted line."""
+
+    product_id: uuid.UUID
+    counted_qty: Decimal = Field(ge=0)
+
+
+class CountRecord(BaseModel):
+    entries: list[CountEntry]
+
+
+class CountClose(BaseModel):
+    """Close a sheet and post its adjustments. R7.4's reason is mandatory."""
+
+    reason: str = Field(min_length=1)
+
+
+class CountLineRead(BaseModel):
+    product_id: uuid.UUID
+    sku_code: str
+    product_name: str
+    system_qty: Decimal
+    counted_qty: Decimal | None
+
+    @property
+    def variance(self) -> Decimal | None:
+        """Counted − system. None while the line is uncounted — which is NOT a variance
+        of minus-everything, and closing must skip it rather than zero the stock."""
+        if self.counted_qty is None:
+            return None
+        return self.counted_qty - self.system_qty
+
+    @property
+    def is_counted(self) -> bool:
+        return self.counted_qty is not None
+
+
+class CountDetail(BaseModel):
+    id: uuid.UUID
+    count_no: str
+    warehouse_id: uuid.UUID
+    warehouse_name: str
+    status: str
+    counted_at: datetime | None
+    reason: str | None
+    lines: list[CountLineRead]
+    # How many adjustment movements closing this sheet actually wrote. Zero is the
+    # correct, expected answer for a sheet that matched (R7.2) — not an error.
+    adjustments_posted: int = 0
+
+    @property
+    def variance_lines(self) -> list[CountLineRead]:
+        return [ln for ln in self.lines if ln.variance not in (None, Decimal(0))]
+
+    @property
+    def counted_lines(self) -> int:
+        return sum(1 for ln in self.lines if ln.is_counted)
 
 
 # --- Part 5 C2: valuation (R6.16) and ageing (R6.10) ----------------------

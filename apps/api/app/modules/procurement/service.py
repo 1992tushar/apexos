@@ -17,8 +17,9 @@ from sqlalchemy.orm import Session
 from app.core.errors import ConflictError, NotFoundError, ValidationError
 from app.core.money import qty_text, round_minor
 from app.modules.activity.service import ActivityService
-from app.modules.config.models import BusinessUnit, TaxRate, Warehouse
+from app.modules.config.models import TaxRate, Warehouse
 from app.modules.config.service import allocate_document_number
+from app.modules.config.service import default_business_unit as _default_business_unit
 from app.modules.finance.models import Bill, BillLine
 from app.modules.inventory.service import InventoryService
 from app.modules.pricing.service import PricingService
@@ -60,12 +61,10 @@ _round_minor = round_minor
 _qty_text = qty_text
 
 
-def default_business_unit(db: Session) -> uuid.UUID:
-    """The BU a document falls back to when neither the payload nor the party names one."""
-    bu = db.scalar(select(BusinessUnit.id).where(BusinessUnit.deleted_at.is_(None)).limit(1))
-    if bu is None:
-        raise NotFoundError("No business unit configured; run the seed first.")
-    return bu
+# Moved to `app.modules.config.service` in Part 5 C3 so inventory can number its transfer
+# and count documents — inventory cannot import this module (circular). Re-exported under
+# the original name, so `preorder.py` and this module's callers are unchanged.
+default_business_unit = _default_business_unit
 
 
 def tax_bps_for(db: Session, product: Product) -> int:

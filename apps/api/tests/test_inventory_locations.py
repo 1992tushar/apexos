@@ -157,6 +157,22 @@ def test_r6_4_the_four_states_are_reported_distinctly(db, warehouse, stocked):
     _rack, transit_bin = _rack_and_bin(db, warehouse, suffix="T1", kind="transit")
     _rack2, damaged_bin = _rack_and_bin(db, warehouse, suffix="Q1", kind="quarantine")
 
+    # Deltas, not absolutes: C3's seed puts stock in transit and in quarantine of its own,
+    # and this product may be the one it chose.
+    def state_now():
+        return next(
+            (
+                r
+                for r in svc.states(warehouse.id)
+                if r.product_id == stocked.product_id and r.warehouse_id == warehouse.id
+            ),
+            None,
+        )
+
+    before = state_now()
+    transit_before = before.in_transit if before else Decimal(0)
+    quarantined_before = before.quarantined if before else Decimal(0)
+
     svc.record_movement(
         product_id=stocked.product_id, warehouse_id=warehouse.id, bin_id=transit_bin.id,
         qty_delta=Decimal("7"), reason="TRANSFER",
@@ -179,8 +195,8 @@ def test_r6_4_the_four_states_are_reported_distinctly(db, warehouse, stocked):
         if r.product_id == stocked.product_id and r.warehouse_id == warehouse.id
     )
 
-    assert row.in_transit == Decimal("7")
-    assert row.quarantined == Decimal("2")
+    assert row.in_transit == transit_before + Decimal("7")
+    assert row.quarantined == quarantined_before + Decimal("2")
     assert row.reserved == reserved_before + Decimal("4")
     # Available excludes transit and quarantine stock, and the reservation.
     assert row.available == row.on_hand - row.in_transit - row.quarantined - row.reserved
