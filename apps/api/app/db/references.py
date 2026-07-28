@@ -272,6 +272,12 @@ def _build_map() -> dict[str, tuple[Reference, ...]]:
         "rfq_supplier": (),
         "supplier_quotation": (),
         "supplier_quotation_line": (),
+        # A revision is history, not a master (R3.7 / R4.7). Goods receipts point at
+        # one, but a revision is never deleted or deactivated — `purchase_order` is
+        # in PROTECTED_TABLES and revisions cascade with it — so there is no action
+        # for a guard to block. Present, and deliberately empty.
+        "purchase_order_revision": (),
+        "purchase_order_revision_line": (),
     }
 
 

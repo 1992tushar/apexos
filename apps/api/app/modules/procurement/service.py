@@ -26,6 +26,8 @@ from app.modules.procurement.models import (
     GoodsReceiptLine,
     PurchaseOrder,
     PurchaseOrderLine,
+    PurchaseOrderRevision,
+    PurchaseOrderRevisionLine,
 )
 from app.modules.procurement.repository import ProcurementRepository
 from app.modules.procurement.schemas import (
@@ -37,6 +39,9 @@ from app.modules.procurement.schemas import (
     PurchaseOrderDetail,
     PurchaseOrderLineRead,
     PurchaseOrderListRow,
+    PurchaseOrderRevise,
+    PurchaseOrderRevisionLineRead,
+    PurchaseOrderRevisionRead,
 )
 from app.modules.products.models import Product
 from app.modules.suppliers.models import Supplier
@@ -44,6 +49,20 @@ from app.modules.suppliers.models import Supplier
 
 def _round_minor(value: Decimal) -> int:
     return int(value.quantize(Decimal("1")))
+
+
+def _qty_text(value: Decimal) -> str:
+    """A quantity as a person would write it: 40, not 40.0000.
+
+    `Numeric(18, 4)` reads back at full scale, which is right for arithmetic and
+    wrong in a sentence. The web layer's `number` filter does this for screens, but
+    a service message cannot import `app.web` (it would invert the layering — Part 2
+    decision 10), so the rule lives here for the refusals below. Plain `.normalize()`
+    is not enough: it turns 40 into 4E+1.
+    """
+    value = Decimal(value)
+    tidy = value.quantize(Decimal(1)) if value == value.to_integral_value() else value.normalize()
+    return format(tidy, "f")
 
 
 def default_business_unit(db: Session) -> uuid.UUID:
@@ -108,6 +127,48 @@ class PurchaseOrderService:
         ]
         return items, total
 
+    @staticmethod
+    def open_qty(line: PurchaseOrderLine) -> Decimal:
+        """R4.9 — the back order for one line, derived (G7).
+
+        Clamped at zero: a revision that cuts a line down to what already arrived
+        must read as "nothing outstanding", not as a negative back order.
+        """
+        outstanding = Decimal(line.qty) - Decimal(line.qty_received or 0)
+        return outstanding if outstanding > 0 else Decimal("0")
+
+    def _to_revision_read(
+        self, revision: PurchaseOrderRevision, *, current_no: int
+    ) -> PurchaseOrderRevisionRead:
+        lines = []
+        for ln in revision.lines:
+            product = self.db.get(Product, ln.product_id)
+            lines.append(
+                PurchaseOrderRevisionLineRead(
+                    product_id=ln.product_id,
+                    product_name=product.name if product else None,
+                    sku_code=product.sku_code if product else None,
+                    qty=ln.qty,
+                    unit_price_minor=ln.unit_price_minor,
+                    tax_rate_bps=ln.tax_rate_bps,
+                    line_subtotal_minor=ln.line_subtotal_minor,
+                    line_tax_minor=ln.line_tax_minor,
+                    line_total_minor=ln.line_total_minor,
+                    line_no=ln.line_no,
+                )
+            )
+        return PurchaseOrderRevisionRead(
+            id=revision.id,
+            revision_no=revision.revision_no,
+            reason=revision.reason,
+            subtotal_minor=revision.subtotal_minor,
+            tax_minor=revision.tax_minor,
+            total_minor=revision.total_minor,
+            created_at=revision.created_at,
+            is_current=revision.revision_no == current_no,
+            lines=lines,
+        )
+
     def _to_detail(self, order: PurchaseOrder) -> PurchaseOrderDetail:
         line_reads: list[PurchaseOrderLineRead] = []
         for ln in order.lines:
@@ -120,6 +181,7 @@ class PurchaseOrderService:
                     sku_code=product.sku_code if product else None,
                     qty=ln.qty,
                     qty_received=ln.qty_received,
+                    open_qty=self.open_qty(ln),
                     unit_price_minor=ln.unit_price_minor,
                     tax_rate_bps=ln.tax_rate_bps,
                     line_subtotal_minor=ln.line_subtotal_minor,
@@ -127,6 +189,10 @@ class PurchaseOrderService:
                     line_total_minor=ln.line_total_minor,
                 )
             )
+        revisions = list(order.revisions)
+        current_no = revisions[-1].revision_no if revisions else 0
+        revision_reads = [self._to_revision_read(r, current_no=current_no) for r in revisions]
+        revision_no_by_id = {r.id: r.revision_no for r in revisions}
         goods_receipts = [
             GoodsReceiptRef(
                 id=gr.id,
@@ -134,6 +200,7 @@ class PurchaseOrderService:
                 warehouse_id=gr.warehouse_id,
                 status=gr.status,
                 received_at=gr.received_at,
+                revision_no=revision_no_by_id.get(gr.purchase_order_revision_id),
             )
             for gr in self.repo.receipts_for(order.id)
         ]
@@ -158,10 +225,14 @@ class PurchaseOrderService:
             business_unit_id=order.business_unit_id,
             status=order.status,
             order_date=order.order_date,
+            confirmed_at=order.confirmed_at,
             subtotal_minor=order.subtotal_minor,
             tax_minor=order.tax_minor,
             total_minor=order.total_minor,
+            revision_no=current_no,
+            open_qty_total=sum((ln.open_qty for ln in line_reads), Decimal("0")),
             lines=line_reads,
+            revisions=revision_reads,
             goods_receipts=goods_receipts,
             bills=bills,
         )
@@ -252,12 +323,58 @@ class PurchaseOrderService:
         return self._to_detail(order)
 
     # -- confirm ---------------------------------------------------------
+    def _snapshot_revision(
+        self,
+        order: PurchaseOrder,
+        *,
+        reason: str | None,
+        actor_id: uuid.UUID | None,
+    ) -> PurchaseOrderRevision:
+        """Append a verbatim copy of the order's current lines as the next revision.
+
+        Writes no `activity_log` row of its own — the verb that calls it (confirm or
+        revise) owns the single row G5 allows for that state change.
+        """
+        next_no = (order.revisions[-1].revision_no + 1) if order.revisions else 1
+        revision = PurchaseOrderRevision(
+            purchase_order_id=order.id,
+            revision_no=next_no,
+            reason=reason,
+            subtotal_minor=order.subtotal_minor,
+            tax_minor=order.tax_minor,
+            total_minor=order.total_minor,
+            created_by=actor_id,
+        )
+        for ln in order.lines:
+            revision.lines.append(
+                PurchaseOrderRevisionLine(
+                    product_id=ln.product_id,
+                    qty=ln.qty,
+                    unit_price_minor=ln.unit_price_minor,
+                    tax_rate_bps=ln.tax_rate_bps,
+                    line_subtotal_minor=ln.line_subtotal_minor,
+                    line_tax_minor=ln.line_tax_minor,
+                    line_total_minor=ln.line_total_minor,
+                    line_no=ln.line_no,
+                    created_by=actor_id,
+                )
+            )
+        order.revisions.append(revision)
+        self.db.flush()
+        return revision
+
     def confirm(self, order_id: uuid.UUID, *, actor_id: uuid.UUID | None) -> PurchaseOrderDetail:
         order = self._require(order_id)
         if order.status != "draft":
             raise ConflictError(f"Cannot confirm purchase order in status '{order.status}'")
         order.status = "confirmed"
+        # R4.11: the instant part 4 measures lead time from. Deliberately its own
+        # column — `updated_at` is overwritten by the first receipt.
+        order.confirmed_at = datetime.now(UTC)
         order.updated_by = actor_id
+        # R4.7: revision 1 is the agreement as confirmed, and the baseline every
+        # receipt and later revision is read against.
+        self._snapshot_revision(order, reason=None, actor_id=actor_id)
         self.db.flush()
         self.activity.log(
             actor_id=actor_id,
@@ -265,6 +382,118 @@ class PurchaseOrderService:
             entity_type="purchase_order",
             entity_id=order.id,
             summary=f"Purchase order {order.po_no} confirmed",
+        )
+        return self._to_detail(order)
+
+    # -- revise ----------------------------------------------------------
+    def revise(
+        self,
+        order_id: uuid.UUID,
+        payload: PurchaseOrderRevise,
+        *,
+        actor_id: uuid.UUID | None,
+    ) -> PurchaseOrderDetail:
+        """R4.7 — change a confirmed PO by appending a revision, never in place.
+
+        Lines are matched by product: a product already on the order has its
+        quantity and price updated, one that is not is added. Omitted lines keep
+        what they had. There is no line *removal* — cutting a quantity down to what
+        has already arrived is the real-world equivalent and is allowed; cutting
+        below it is refused, because that would make the back order negative and
+        contradict receipts that already posted stock.
+        """
+        order = self._require(order_id)
+        if order.status not in ("confirmed", "partially_received"):
+            raise ConflictError(
+                f"Cannot revise purchase order in status '{order.status}' — "
+                "only a confirmed or partially received order has an agreement to change"
+            )
+        reason = payload.reason.strip()
+        if not reason:
+            raise ValidationError("A revision needs a reason")
+
+        lines_by_product = {ln.product_id: ln for ln in order.lines}
+        next_line_no = max((ln.line_no for ln in order.lines), default=0) + 1
+
+        for item in payload.lines:
+            product = self._product(item.product_id)
+            line = lines_by_product.get(item.product_id)
+            if line is None:
+                unit = item.unit_price_minor
+                if unit is None:
+                    unit = self.pricing.resolve_purchase_minor(
+                        product.id, supplier_id=order.supplier_id
+                    )
+                if unit is None:
+                    raise ValidationError(
+                        f"No purchase price for product {product.sku_code}; "
+                        "pass unit_price_minor"
+                    )
+                line = PurchaseOrderLine(
+                    product_id=product.id,
+                    qty=item.qty,
+                    qty_received=Decimal("0"),
+                    unit_price_minor=unit,
+                    tax_rate_bps=self._tax_bps(product),
+                    line_no=next_line_no,
+                    created_by=actor_id,
+                )
+                order.lines.append(line)
+                lines_by_product[product.id] = line
+                next_line_no += 1
+            else:
+                already = Decimal(line.qty_received or 0)
+                if item.qty < already:
+                    raise ValidationError(
+                        f"Cannot revise {product.sku_code} down to {_qty_text(item.qty)}: "
+                        f"{_qty_text(already)} has already been received"
+                    )
+                line.qty = item.qty
+                if item.unit_price_minor is not None:
+                    line.unit_price_minor = item.unit_price_minor
+                line.updated_by = actor_id
+
+        # Re-price every line with the same integer arithmetic `create` uses (G1),
+        # so a revision cannot drift from the order it revises.
+        subtotal = tax_total = grand = 0
+        for ln in order.lines:
+            ln.line_subtotal_minor = _round_minor(Decimal(ln.qty) * Decimal(ln.unit_price_minor))
+            ln.line_tax_minor = _round_minor(
+                Decimal(ln.line_subtotal_minor) * Decimal(ln.tax_rate_bps) / Decimal(10000)
+            )
+            ln.line_total_minor = ln.line_subtotal_minor + ln.line_tax_minor
+            subtotal += ln.line_subtotal_minor
+            tax_total += ln.line_tax_minor
+            grand += ln.line_total_minor
+        order.subtotal_minor = subtotal
+        order.tax_minor = tax_total
+        order.total_minor = grand
+        order.updated_by = actor_id
+
+        # Cutting the balance of a part-delivered order down to what actually
+        # arrived closes it. (The reverse — reopening a fully received order — is
+        # not reachable: the status guard above rejects `received`, because more
+        # goods after a complete delivery is a new order, not a revision.)
+        if any(Decimal(ln.qty_received or 0) > 0 for ln in order.lines):
+            fully = all(self.open_qty(ln) == 0 for ln in order.lines)
+            order.status = "received" if fully else "partially_received"
+
+        revision = self._snapshot_revision(order, reason=reason, actor_id=actor_id)
+        self.db.flush()
+        self.activity.log(
+            actor_id=actor_id,
+            verb="revised",
+            entity_type="purchase_order",
+            entity_id=order.id,
+            summary=(
+                f"Purchase order {order.po_no} revised to version "
+                f"{revision.revision_no} ({reason})"
+            ),
+            data={
+                "revision_no": revision.revision_no,
+                "reason": reason,
+                "total_minor": grand,
+            },
         )
         return self._to_detail(order)
 
@@ -368,6 +597,18 @@ class GoodsReceiptService:
         if order.status not in ("confirmed", "partially_received"):
             raise ConflictError(f"Cannot receive purchase order in status '{order.status}'")
 
+        # R4.10 — which version of the order these goods were checked against.
+        current = order.revisions[-1] if order.revisions else None
+        named = payload.against_revision_no if payload is not None else None
+        if named is not None:
+            current_no = current.revision_no if current else 0
+            if named != current_no:
+                raise ConflictError(
+                    f"Purchase order {order.po_no} is now at revision {current_no}, but this "
+                    f"receipt was checked against revision {named}. Re-check the delivery "
+                    f"against the current order before receiving it."
+                )
+
         lines_by_product = {ln.product_id: ln for ln in order.lines}
 
         # Determine the quantity to receive per line.
@@ -379,15 +620,18 @@ class GoodsReceiptService:
                     raise ValidationError(
                         f"Product {item.product_id} is not on purchase order {order.po_no}"
                     )
-                outstanding = Decimal(line.qty) - Decimal(line.qty_received or 0)
+                outstanding = PurchaseOrderService.open_qty(line)
                 if item.qty > outstanding:
+                    product = self.db.get(Product, item.product_id)
                     raise ValidationError(
-                        f"Receiving {item.qty} exceeds outstanding {outstanding} for a line"
+                        f"Receiving {_qty_text(item.qty)} of "
+                        f"{product.sku_code if product else 'a line'} exceeds the "
+                        f"{_qty_text(outstanding)} still outstanding"
                     )
                 requested[item.product_id] = Decimal(item.qty)
         else:
             for line in order.lines:
-                outstanding = Decimal(line.qty) - Decimal(line.qty_received or 0)
+                outstanding = PurchaseOrderService.open_qty(line)
                 if outstanding > 0:
                     requested[line.product_id] = outstanding
 
@@ -397,12 +641,14 @@ class GoodsReceiptService:
         warehouse_id = self._default_warehouse()
         receipt = GoodsReceipt(
             purchase_order_id=order.id,
+            purchase_order_revision_id=current.id if current else None,
             warehouse_id=warehouse_id,
             receipt_no=allocate_document_number(
                 self.db, doc_type="GRN", business_unit_id=order.business_unit_id,
                 on_date=order.order_date,
             ),
             status="received",
+            # R4.11: part 4 measures lead time as this minus `PurchaseOrder.confirmed_at`.
             received_at=datetime.now(UTC),
             created_by=actor_id,
         )
@@ -427,9 +673,7 @@ class GoodsReceiptService:
             )
             line.qty_received = Decimal(line.qty_received or 0) + Decimal(qty)
 
-        fully = all(
-            Decimal(ln.qty_received or 0) >= Decimal(ln.qty) for ln in order.lines
-        )
+        fully = all(PurchaseOrderService.open_qty(ln) == 0 for ln in order.lines)
         order.status = "received" if fully else "partially_received"
         order.updated_by = actor_id
         self.db.flush()

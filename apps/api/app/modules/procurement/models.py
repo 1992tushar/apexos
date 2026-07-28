@@ -49,10 +49,22 @@ class PurchaseOrder(Base, EntityMixin, BusinessUnitMixin):
     tax_minor: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
     total_minor: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
 
+    # R4.11: part 4 MEASURES lead time (confirm → receipt) rather than having it
+    # typed in, so the confirm instant has to survive as data. `updated_at` cannot
+    # stand in — any later revision or receipt overwrites it.
+    confirmed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
     lines: Mapped[list[PurchaseOrderLine]] = relationship(
         back_populates="order",
         cascade="all, delete-orphan",
         order_by="PurchaseOrderLine.line_no",
+    )
+    revisions: Mapped[list[PurchaseOrderRevision]] = relationship(
+        back_populates="order",
+        cascade="all, delete-orphan",
+        order_by="PurchaseOrderRevision.revision_no",
     )
 
 
@@ -87,6 +99,12 @@ class GoodsReceipt(Base, EntityMixin):
     purchase_order_id: Mapped[uuid.UUID] = mapped_column(
         Uuid(), ForeignKey("purchase_order.id"), nullable=False
     )
+    # R4.10: which version of the order these goods were accepted against. Nullable
+    # only because receipts taken before revisions existed have no answer; every
+    # receipt written from now on records one.
+    purchase_order_revision_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(), ForeignKey("purchase_order_revision.id"), nullable=True
+    )
     warehouse_id: Mapped[uuid.UUID] = mapped_column(
         Uuid(), ForeignKey("warehouse.id"), nullable=False
     )
@@ -111,6 +129,76 @@ class GoodsReceiptLine(Base, EntityMixin):
     qty: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
 
     receipt: Mapped[GoodsReceipt] = relationship(back_populates="lines")
+
+
+# ---------------------------------------------------------------------------
+# PO revisions — the append-only history of what was agreed (R4.7)
+# ---------------------------------------------------------------------------
+
+
+class PurchaseOrderRevision(Base, EntityMixin):
+    """One version of a purchase order's agreed content.
+
+    A confirmed PO must not be mutated in place (R4.7), but a supplier who
+    short-ships or re-prices is ordinary business. So each change appends a
+    revision holding a **verbatim snapshot** of the lines as agreed, and the live
+    `purchase_order_line` rows carry the current figures. Reading revision 1 after
+    three revisions returns exactly what was confirmed.
+
+    Never updated or deleted once written — this table is in G4's ledger list.
+    There is deliberately no `superseded_at`: the *next* revision's `created_at`
+    already says when this one stopped applying, and a column that gets written
+    after insert would make the append-only claim untrue.
+
+    `revision_no` 1 is written by `confirm`, not `create` — a draft has no agreement
+    to preserve, and R4.7 is a statement about confirmed orders.
+    """
+
+    __tablename__ = "purchase_order_revision"
+
+    purchase_order_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(), ForeignKey("purchase_order.id", ondelete="CASCADE"), nullable=False
+    )
+    revision_no: Mapped[int] = mapped_column(SmallInteger, nullable=False, default=1)
+    # Null on revision 1 (the confirmed baseline); required for every revision after,
+    # because "why did this change" is the whole value of the history.
+    reason: Mapped[str | None] = mapped_column(String(400), nullable=True)
+
+    subtotal_minor: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
+    tax_minor: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
+    total_minor: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
+
+    order: Mapped[PurchaseOrder] = relationship(back_populates="revisions")
+    lines: Mapped[list[PurchaseOrderRevisionLine]] = relationship(
+        back_populates="revision",
+        cascade="all, delete-orphan",
+        order_by="PurchaseOrderRevisionLine.line_no",
+    )
+
+
+class PurchaseOrderRevisionLine(Base, EntityMixin):
+    """A line as it stood in one revision. Carries no `qty_received`: receipts
+    accrue against the live order line, not against a historical snapshot."""
+
+    __tablename__ = "purchase_order_revision_line"
+
+    purchase_order_revision_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(),
+        ForeignKey("purchase_order_revision.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    product_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(), ForeignKey("product.id"), nullable=False
+    )
+    qty: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
+    unit_price_minor: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    tax_rate_bps: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    line_subtotal_minor: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
+    line_tax_minor: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
+    line_total_minor: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
+    line_no: Mapped[int] = mapped_column(SmallInteger, nullable=False, default=1)
+
+    revision: Mapped[PurchaseOrderRevision] = relationship(back_populates="lines")
 
 
 # ---------------------------------------------------------------------------

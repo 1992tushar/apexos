@@ -6,7 +6,12 @@
   <a class="btn" href="/purchase-orders">← All POs</a>
 {% endcall %}
 
-<div class="mt">{{ ui.badge(po.status) }}</div>
+<div class="mt">
+  {{ ui.badge(po.status) }}
+  {% if po.revision_no %}<span class="tag neutral">version {{ po.revision_no }}</span>{% endif %}
+  {% if po.open_qty_total > 0 %}<span class="tag warn">back order {{ po.open_qty_total | number }}</span>{% endif %}
+  {% if po.confirmed_at %}<span class="muted">confirmed {{ po.confirmed_at | fmt_datetime }}</span>{% endif %}
+</div>
 
 <div class="card mt">
   <div class="section-title">Lines</div>
@@ -15,7 +20,7 @@
       <thead>
         <tr>
           <th>SKU</th><th>Product</th>
-          <th class="num">Ordered</th><th class="num">Received</th>
+          <th class="num">Ordered</th><th class="num">Received</th><th class="num">Back order</th>
           <th class="num">Buy price</th><th class="num">Tax</th><th class="num">Line total</th>
         </tr>
       </thead>
@@ -26,6 +31,8 @@
           <td>{{ ln.product_name or "—" }}</td>
           <td class="num">{{ ln.qty | number }}</td>
           <td class="num">{{ ln.qty_received | number }}</td>
+          {# R4.9: ordered − received, derived on every read, never stored. #}
+          <td class="num">{% if ln.open_qty > 0 %}<strong>{{ ln.open_qty | number }}</strong>{% else %}—{% endif %}</td>
           <td class="num">{{ ln.unit_price_minor | money }}</td>
           <td class="num">{{ (ln.tax_rate_bps / 100) }}%</td>
           <td class="num">{{ ln.line_total_minor | money }}</td>
@@ -33,13 +40,46 @@
         {% endfor %}
       </tbody>
       <tfoot>
-        <tr><td colspan="6" class="num">Subtotal</td><td class="num">{{ po.subtotal_minor | money }}</td></tr>
-        <tr><td colspan="6" class="num">Tax</td><td class="num">{{ po.tax_minor | money }}</td></tr>
-        <tr><td colspan="6" class="num"><strong>Total</strong></td><td class="num"><strong>{{ po.total_minor | money }}</strong></td></tr>
+        <tr><td colspan="7" class="num">Subtotal</td><td class="num">{{ po.subtotal_minor | money }}</td></tr>
+        <tr><td colspan="7" class="num">Tax</td><td class="num">{{ po.tax_minor | money }}</td></tr>
+        <tr><td colspan="7" class="num"><strong>Total</strong></td><td class="num"><strong>{{ po.total_minor | money }}</strong></td></tr>
       </tfoot>
     </table>
   </div>
 </div>
+
+{% if po.revisions %}
+<div class="card mt">
+  <div class="section-title">Revision history</div>
+  <p class="muted">A confirmed order is never edited in place — each change appends a version, and every one below is readable exactly as it was agreed.</p>
+  {% for rev in po.revisions | reverse %}
+  <div class="rev{% if rev.is_current %} rev-current{% endif %}">
+    <div class="rev-head">
+      <strong>Version {{ rev.revision_no }}</strong>
+      {% if rev.is_current %}<span class="tag ok">current</span>{% endif %}
+      <span class="muted">{{ rev.created_at | fmt_datetime }}</span>
+      <span class="num">{{ rev.total_minor | money }}</span>
+    </div>
+    <div class="muted">{{ rev.reason or "As confirmed" }}</div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>SKU</th><th class="num">Qty</th><th class="num">Buy price</th><th class="num">Line total</th></tr></thead>
+        <tbody>
+          {% for ln in rev.lines %}
+          <tr>
+            <td class="mono">{{ ln.sku_code or "—" }}</td>
+            <td class="num">{{ ln.qty | number }}</td>
+            <td class="num">{{ ln.unit_price_minor | money }}</td>
+            <td class="num">{{ ln.line_total_minor | money }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
 
 <div class="detail-grid mt">
   <div class="card">
@@ -48,7 +88,12 @@
     <dl class="kv">
       {% for r in po.goods_receipts %}
       <dt class="mono">{{ r.receipt_no }}</dt>
-      <dd>{{ ui.badge(r.status) }} <span class="muted">{{ r.received_at | fmt_datetime }}</span></dd>
+      <dd>
+        {{ ui.badge(r.status) }}
+        {# R4.10: which agreement these goods were accepted against. #}
+        {% if r.revision_no %}<span class="tag neutral">v{{ r.revision_no }}</span>{% endif %}
+        <span class="muted">{{ r.received_at | fmt_datetime }}</span>
+      </dd>
       {% endfor %}
     </dl>
     {% else %}
@@ -69,14 +114,64 @@
   </div>
 </div>
 
+{% if po.status in ("confirmed", "partially_received") %}
+<div class="detail-grid mt">
+  <div class="card">
+    <div class="section-title">Receive goods</div>
+    <p class="muted">Leave the quantities blank to receive everything still outstanding, or enter what actually arrived for a partial receipt.</p>
+    <form method="post" action="/purchase-orders/{{ po.id }}/receive">
+      {# R4.10: the version this form was rendered from. If someone revises the PO
+         in the meantime, the service refuses rather than booking goods against a
+         superseded agreement. #}
+      <input type="hidden" name="against_revision_no" value="{{ po.revision_no }}" />
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>SKU</th><th class="num">Back order</th><th class="num">Receiving now</th></tr></thead>
+          <tbody>
+            {% for ln in po.lines %}{% if ln.open_qty > 0 %}
+            <tr>
+              <td class="mono">{{ ln.sku_code or "—" }}<input type="hidden" name="receive_product_id" value="{{ ln.product_id }}" /></td>
+              <td class="num">{{ ln.open_qty | number }}</td>
+              <td class="num"><input name="receive_qty" type="number" step="0.01" min="0" max="{{ ln.open_qty }}" placeholder="all" /></td>
+            </tr>
+            {% endif %}{% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <div class="form-actions"><button class="btn btn-primary" type="submit">Receive</button></div>
+    </form>
+  </div>
+
+  <div class="card">
+    <div class="section-title">Revise order</div>
+    <p class="muted">Changes append version {{ po.revision_no + 1 }}; the current version stays readable. A quantity cannot go below what has already been received.</p>
+    <form method="post" action="/purchase-orders/{{ po.id }}/revise">
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>SKU</th><th class="num">Ordered</th><th class="num">New qty</th></tr></thead>
+          <tbody>
+            {% for ln in po.lines %}
+            <tr>
+              <td class="mono">{{ ln.sku_code or "—" }}<input type="hidden" name="line_product_id" value="{{ ln.product_id }}" /></td>
+              <td class="num">{{ ln.qty | number }}</td>
+              <td class="num"><input name="line_qty" type="number" step="0.01" min="0" value="{{ ln.qty | number }}" /></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <div class="field"><label>Reason</label><input name="reason" required placeholder="Supplier short-shipped; balance cancelled" /></div>
+      <div class="form-actions"><button class="btn" type="submit">Revise PO</button></div>
+    </form>
+  </div>
+</div>
+{% endif %}
+
 <div class="card mt">
   <div class="section-title">Actions</div>
   <div class="form-actions">
     {% if po.status == "draft" %}
     <form method="post" action="/purchase-orders/{{ po.id }}/confirm"><button class="btn btn-primary" type="submit">Confirm PO</button></form>
-    {% endif %}
-    {% if po.status in ("confirmed", "partially_received") %}
-    <form method="post" action="/purchase-orders/{{ po.id }}/receive"><button class="btn" type="submit">Receive goods</button></form>
     {% endif %}
     {% if po.status in ("received", "partially_received") %}
     <form method="post" action="/purchase-orders/{{ po.id }}/bill"><button class="btn" type="submit">Create bill</button></form>

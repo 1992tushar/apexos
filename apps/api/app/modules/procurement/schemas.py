@@ -28,11 +28,57 @@ class PurchaseOrderLineRead(BaseModel):
     sku_code: str | None = None
     qty: Decimal
     qty_received: Decimal
+    # R4.9: the back order, DERIVED as ordered − received every time it is read
+    # (G7). Never stored — a counter would be one bug away from disagreeing with
+    # the receipts that produced it.
+    open_qty: Decimal
     unit_price_minor: int
     tax_rate_bps: int
     line_subtotal_minor: int
     line_tax_minor: int
     line_total_minor: int
+
+
+class PurchaseOrderReviseLine(BaseModel):
+    """A line's new figures. Identified by product, because that is what the
+    founder is looking at on the screen; omitted lines keep what they had."""
+
+    product_id: uuid.UUID
+    qty: Decimal = Field(gt=0)
+    unit_price_minor: int | None = None
+
+
+class PurchaseOrderRevise(BaseModel):
+    """R4.7 — a change to a confirmed PO. The reason is required, not decorative:
+    it is the only thing that explains the revision to whoever reads it later."""
+
+    reason: str = Field(min_length=1)
+    lines: list[PurchaseOrderReviseLine] = Field(min_length=1)
+
+
+class PurchaseOrderRevisionLineRead(BaseModel):
+    product_id: uuid.UUID
+    product_name: str | None = None
+    sku_code: str | None = None
+    qty: Decimal
+    unit_price_minor: int
+    tax_rate_bps: int
+    line_subtotal_minor: int
+    line_tax_minor: int
+    line_total_minor: int
+    line_no: int
+
+
+class PurchaseOrderRevisionRead(BaseModel):
+    id: uuid.UUID
+    revision_no: int
+    reason: str | None = None
+    subtotal_minor: int
+    tax_minor: int
+    total_minor: int
+    created_at: datetime
+    is_current: bool
+    lines: list[PurchaseOrderRevisionLineRead]
 
 
 class GoodsReceiptLineInput(BaseModel):
@@ -45,6 +91,10 @@ class GoodsReceiptCreate(BaseModel):
     outstanding quantity of every line is received."""
 
     lines: list[GoodsReceiptLineInput] | None = None
+    # R4.10: the revision the goods were checked against. Passing a superseded one
+    # is refused rather than quietly accepted — see GoodsReceiptService.receive.
+    # Omitted means "whatever is current", which is what an unrevised PO wants.
+    against_revision_no: int | None = None
 
 
 class GoodsReceiptRef(BaseModel):
@@ -53,6 +103,7 @@ class GoodsReceiptRef(BaseModel):
     warehouse_id: uuid.UUID
     status: str
     received_at: datetime | None = None
+    revision_no: int | None = None
 
 
 class BillRef(BaseModel):
@@ -80,10 +131,16 @@ class PurchaseOrderDetail(BaseModel):
     business_unit_id: uuid.UUID
     status: str
     order_date: date
+    confirmed_at: datetime | None = None
     subtotal_minor: int
     tax_minor: int
     total_minor: int
+    # 0 on a draft (nothing agreed yet); 1 once confirmed; higher after a revision.
+    revision_no: int = 0
+    # R4.9: the order's total back order, summed from the derived per-line figures.
+    open_qty_total: Decimal = Decimal("0")
     lines: list[PurchaseOrderLineRead]
+    revisions: list[PurchaseOrderRevisionRead] = []
     goods_receipts: list[GoodsReceiptRef]
     bills: list[BillRef]
 

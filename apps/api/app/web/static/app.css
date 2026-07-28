@@ -267,6 +267,17 @@ a.th-sort:hover { color: var(--text); }
   font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em;
   background: var(--ok-bg); color: var(--ok-fg); vertical-align: middle;
 }
+/* `.tag` is green by default (C1 used it for "cheapest"/"fastest"). A version
+   marker is neither good nor bad, and a back order is a warning. */
+.tag.neutral { background: var(--border); color: var(--fg); }
+.tag.warn { background: var(--warn-bg); color: var(--warn-fg); }
+
+/* Part 3 C2: one revision in the PO history (R4.7). */
+.rev { border-left: 3px solid var(--border); padding: 2px 0 2px 14px; margin-top: 14px; }
+.rev-current { border-left-color: var(--ok-fg); }
+.rev-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.rev-head .num { margin-left: auto; font-variant-numeric: tabular-nums; }
+
 .check-grid {
   display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
   gap: 8px 18px; margin-top: 8px;

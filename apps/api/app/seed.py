@@ -77,8 +77,12 @@ from app.modules.procurement.preorder import (  # noqa: E402
     RfqService,
 )
 from app.modules.procurement.schemas import (  # noqa: E402
+    GoodsReceiptCreate,
+    GoodsReceiptLineInput,
     PurchaseOrderCreate,
     PurchaseOrderLineCreate,
+    PurchaseOrderRevise,
+    PurchaseOrderReviseLine,
     QuotationCreate,
     QuotationLineInput,
     RequisitionCreate,
@@ -759,6 +763,40 @@ def run() -> dict:
                 "rfq": rfq.rfq_no,
                 "quotes": len(rfqs.get(rfq.id).quotations),
             }
+
+            # --- Part 3 C2: a partial receipt with a live back order, then a
+            #     revision (R4.15). The requisition's PO is the subject, so the
+            #     screen tells one story end to end: requested → approved → ordered
+            #     → part-delivered → renegotiated.
+            #
+            #     60 ordered, 40 arrived (back order 20), then the supplier admits
+            #     they can only ship 50 in total, so version 2 cuts the order to 50
+            #     and the back order becomes 10. Version 1 stays readable at 60, and
+            #     the receipt stays stamped against version 1 — which is the whole
+            #     point of R4.10.
+            po_service = PurchaseOrderService(db)
+            grn_service = GoodsReceiptService(db)
+            po_service.confirm(req_po.id, actor_id=actor_id)
+            grn_service.receive(
+                req_po.id,
+                GoodsReceiptCreate(
+                    lines=[GoodsReceiptLineInput(product_id=tis3.id, qty=Decimal("40"))],
+                    against_revision_no=1,
+                ),
+                actor_id=actor_id,
+            )
+            revised_po = po_service.revise(
+                req_po.id,
+                PurchaseOrderRevise(
+                    reason="PaperWings can only supply 50 of the 60 ordered this month",
+                    lines=[PurchaseOrderReviseLine(product_id=tis3.id, qty=Decimal("50"))],
+                ),
+                actor_id=actor_id,
+            )
+            preorder_result["revised_po"] = (
+                f"{revised_po.po_no} v{revised_po.revision_no}, "
+                f"back order {revised_po.open_qty_total}"
+            )
 
         # --- one completed spine order (create -> confirm -> fulfill -> invoice) + partial payment
         existing_orders = db.scalar(select(func.count()).select_from(SalesOrder)) or 0

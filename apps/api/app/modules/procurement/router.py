@@ -16,6 +16,7 @@ from app.modules.procurement.schemas import (
     PurchaseOrderCreate,
     PurchaseOrderDetail,
     PurchaseOrderPage,
+    PurchaseOrderRevise,
     QuotationCreate,
     QuotationHistoryRow,
     QuotationRead,
@@ -62,6 +63,17 @@ def confirm_purchase_order(
     actor: Actor = Depends(require_permission("purchase_order.confirm")),
 ):
     return PurchaseOrderService(db).confirm(order_id, actor_id=actor.id)
+
+
+@router.post("/purchase-orders/{order_id}/revise", response_model=PurchaseOrderDetail)
+def revise_purchase_order(
+    order_id: uuid.UUID,
+    payload: PurchaseOrderRevise,
+    db: Session = Depends(get_db),
+    actor: Actor = Depends(require_permission("purchase_order.revise")),
+):
+    """R4.7 — append a revision. A confirmed PO is never edited in place."""
+    return PurchaseOrderService(db).revise(order_id, payload, actor_id=actor.id)
 
 
 @router.post("/purchase-orders/{order_id}/receive", response_model=PurchaseOrderDetail)
