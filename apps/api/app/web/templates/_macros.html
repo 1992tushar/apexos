@@ -185,6 +185,64 @@
 </div>
 {% endmacro %}
 
+{# ==========================================================================
+   The one explained-number pattern (G11, R5.11).
+
+   Renders one `app.db.explain.Explained`: what it means, the value or the word
+   "unknown", the arithmetic, the data window, each input with its weight, and
+   links to the records it reasoned from. Every score, rate, recommendation and
+   forecast in the product goes through this macro — vendor score, measured lead
+   time, on-time rate and purchase recommendations today; inventory health,
+   customer health, margin and forecasts in later parts. There is deliberately no
+   per-screen explanation markup anywhere.
+
+     {{ ui.explain_panel(intel.score) }}
+
+   A missing input renders its `missing_reason`, never a blank or a zero — the
+   whole point of G11 is that a founder can see which term was unavailable.
+   `value` arrives already formatted by the service; this macro never computes.
+   ========================================================================== #}
+{% macro explain_panel(e, title=None) %}
+<div class="explain{{ ' explain-is-unknown' if not e.is_known }}">
+  <div class="explain-head">
+    <div class="explain-what">{{ title or e.what }}</div>
+    <div class="explain-value">{{ e.display }}</div>
+  </div>
+  {% if not e.is_known and e.unknown_reason %}
+    <div class="explain-note explain-note-unknown">{{ e.unknown_reason }}</div>
+  {% endif %}
+  {% if e.caveat %}<div class="explain-note">{{ e.caveat }}</div>{% endif %}
+  <dl class="explain-terms">
+    <dt>Formula</dt><dd>{{ e.formula }}</dd>
+    <dt>Window</dt><dd>{{ e.window }}</dd>
+  </dl>
+  {% if e.inputs %}
+  <ul class="explain-inputs">
+    {% for i in e.inputs %}
+      <li{% if i.is_missing %} class="is-missing"{% endif %}>
+        <span class="explain-input-label">{{ i.label }}</span>
+        {% if i.is_missing %}
+          <span class="explain-missing">{{ i.missing_reason }}</span>
+        {% else %}
+          <span class="explain-input-value">{{ i.value }}</span>
+        {% endif %}
+        {% if i.weight %}<span class="explain-weight">{{ i.weight }}</span>{% endif %}
+      </li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+  {% if e.records %}
+  <div class="explain-records">
+    <span class="muted">Computed from</span>
+    {% for r in e.records %}
+      {% if r.href %}<a class="explain-record" href="{{ r.href }}">{{ r.label }}</a>
+      {% else %}<span class="explain-record">{{ r.label }}</span>{% endif %}
+    {% endfor %}
+  </div>
+  {% endif %}
+</div>
+{% endmacro %}
+
 {# Change history, derived from activity_log (R2.10). `entries` come from
    `ActivityService.history(entity_type, entity_id)`. #}
 {% macro history_panel(entries, title="Change history") %}

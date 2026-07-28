@@ -7,6 +7,8 @@ from decimal import Decimal
 
 from pydantic import BaseModel, Field
 
+from app.db.explain import Explained
+
 
 class PurchaseOrderLineCreate(BaseModel):
     product_id: uuid.UUID
@@ -293,7 +295,12 @@ class QuoteComparisonLine(BaseModel):
 
     product_id: uuid.UUID
     unit_price_minor: int | None = None
+    #: The minimum this supplier stated *in this quote*.
     moq: Decimal | None = None
+    #: The standing minimum on the product↔supplier mapping (R5.5). Separate from
+    #: `moq` on purpose: what a supplier quoted once and what was agreed with them
+    #: are different facts, and a founder comparing quotes wants to see both.
+    agreed_moq: Decimal | None = None
     is_cheapest: bool = False
 
 
@@ -309,7 +316,12 @@ class QuoteComparisonColumn(BaseModel):
     total_minor: int
     is_cheapest_total: bool = False
     is_fastest: bool = False
-    score: str | None = None  # R4.14: part 4 owns scoring; "unknown" until then
+    #: The measured vendor score, already rendered — "75" or literally "unknown"
+    #: (R5.2/R5.11). A string because there is no number to show without history.
+    score: str | None = None
+    #: The same score with its arithmetic, so the grid can satisfy G11 rather than
+    #: printing a bare figure. `.display` is what `score` above holds.
+    score_explained: Explained | None = None
     cells: dict[uuid.UUID, QuoteComparisonLine]
 
 
@@ -321,7 +333,6 @@ class QuoteComparison(BaseModel):
     lines: list[RequisitionLineRead]  # same shape: product + qty per RFQ line
     columns: list[QuoteComparisonColumn]
     invited_not_quoted: list[str]  # supplier names still silent
-    score_note: str
 
 
 class RfqSupplierRead(BaseModel):

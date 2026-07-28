@@ -267,6 +267,43 @@ a.th-sort:hover { color: var(--text); }
   font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em;
   background: var(--ok-bg); color: var(--ok-fg); vertical-align: middle;
 }
+.tag-muted { background: var(--muted-bg); color: var(--muted-fg); }
+
+/* Explained numbers (Part 4, G11). One block per score/rate/recommendation, all
+   emitted by `explain_panel` in _macros.html. The value is deliberately the same
+   size as a stat tile's and the arithmetic sits directly under it — the founder
+   should not have to click to find out where a number came from. */
+.explain { padding: 12px 0; border-bottom: 1px solid var(--border); }
+.explain:last-child { border-bottom: 0; padding-bottom: 0; }
+.explain-head { display: flex; align-items: baseline; gap: 12px; }
+.explain-what { font-weight: 600; }
+.explain-value { margin-left: auto; font-size: 20px; font-weight: 680; letter-spacing: -.01em; }
+.explain-is-unknown .explain-value { font-size: 15px; font-weight: 600; color: var(--muted); }
+.explain-note {
+  margin-top: 6px; padding: 6px 9px; border-radius: 8px; font-size: 12px;
+  background: var(--warn-bg); color: var(--warn-fg);
+}
+.explain-note-unknown { background: var(--muted-bg); color: var(--muted-fg); }
+.explain-terms { display: grid; grid-template-columns: 62px 1fr; gap: 3px 12px; margin: 8px 0 0; font-size: 12px; }
+.explain-terms dt { color: var(--faint); }
+.explain-terms dd { margin: 0; color: var(--muted); }
+.explain-inputs { list-style: none; margin: 8px 0 0; padding: 0; font-size: 13px; }
+.explain-inputs li { display: flex; gap: 8px; align-items: baseline; padding: 2px 0; }
+.explain-input-label { color: var(--muted); }
+.explain-input-value { font-weight: 600; margin-left: auto; }
+.explain-inputs li.is-missing .explain-missing { margin-left: auto; color: var(--warn-fg); font-size: 12px; }
+.explain-weight {
+  min-width: 42px; text-align: right; color: var(--faint); font-size: 11px; font-weight: 600;
+}
+.explain-records { margin-top: 8px; font-size: 12px; display: flex; flex-wrap: wrap; gap: 8px; }
+a.explain-record { color: var(--accent); font-weight: 500; }
+a.explain-record:hover { text-decoration: underline; }
+span.explain-record { color: var(--faint); }
+
+/* Price timeline (R5.6). A rise is what costs the founder money, so it is the one
+   that gets the warning colour; a fall reads as positive. */
+.delta-up { color: var(--bad-fg); font-weight: 600; }
+.delta-down { color: var(--ok-fg); font-weight: 600; }
 /* `.tag` is green by default (C1 used it for "cheapest"/"fastest"). A version
    marker is neither good nor bad, and a back order is a warning. */
 .tag.neutral { background: var(--border); color: var(--fg); }

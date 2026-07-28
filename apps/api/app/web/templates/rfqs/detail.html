@@ -56,6 +56,11 @@
                 {{ cell.unit_price_minor | money }}
                 {% if cell.is_cheapest %}<span class="tag">cheapest</span>{% endif %}
                 <div class="muted">MOQ {{ cell.moq | number if cell.moq is not none else "—" }}</div>
+                {# The standing minimum agreed with this supplier (R5.5) — shown only
+                   when it differs from what they quoted, so the grid stays readable. #}
+                {% if cell.agreed_moq is not none and cell.agreed_moq != cell.moq %}
+                  <div class="muted">Agreed MOQ {{ cell.agreed_moq | number }}</div>
+                {% endif %}
               {% else %}
                 <span class="muted">not quoted</span>
               {% endif %}
@@ -75,10 +80,13 @@
           </td>
           {% endfor %}
         </tr>
+        {# The measured vendor score (R5.2), out of 100. The arithmetic behind each
+           one is rendered below the grid rather than crammed into a cell — G11
+           requires it to be on screen, not that it be in the table. #}
         <tr>
-          <td>Score</td>
+          <td>Vendor score</td>
           {% for col in cmp.columns %}
-          <td class="num"><span class="muted">{{ col.score or "unknown" }}</span></td>
+          <td class="num">{{ col.score }}</td>
           {% endfor %}
         </tr>
         <tr>
@@ -106,7 +114,14 @@
       </tfoot>
     </table>
   </div>
-  <p class="muted mt">{{ cmp.score_note }}</p>
+  {# Where each column's score came from (G11). One panel per quoting supplier,
+     through the same macro the supplier and procurement pages use. #}
+  <div class="card mt">
+    <div class="card-title">How each vendor score was computed</div>
+    {% for col in cmp.columns %}
+      {{ ui.explain_panel(col.score_explained, (col.supplier_name or "Supplier") ~ " — vendor score") }}
+    {% endfor %}
+  </div>
   {% if cmp.invited_not_quoted %}
     <p class="muted">Still waiting on: {{ cmp.invited_not_quoted | join(", ") }}.</p>
   {% endif %}

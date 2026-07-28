@@ -47,6 +47,115 @@
   </div>
 </div>
 
+{# The vendor comparison (R5.1, R5.12). Preferred first, then by supplier name.
+   .score / .lead_time / .on_time_rate arrive as RENDERED strings and may literally
+   read "unknown" — printed as they come, never formatted as numbers (R5.11). #}
+<div class="card mt">
+  <div class="section-title">Who can supply this</div>
+  {% if vendors %}
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>Supplier</th><th class="num">MOQ</th><th class="num">Vendor score</th>
+            <th class="num">Lead time</th><th class="num">On time</th><th>Note</th><th>Actions</th></tr>
+      </thead>
+      <tbody>
+        {% for v in vendors %}
+        <tr>
+          <td>
+            <a class="row-link" href="/suppliers/{{ v.supplier_id }}">{{ v.supplier_name or "—" }}</a>
+            {% if v.is_preferred %}<span class="tag">Preferred</span>
+            {% else %}<span class="tag tag-muted">Alternate</span>{% endif %}
+          </td>
+          <td class="num">{{ v.moq | number if v.moq is not none else "—" }}</td>
+          <td class="num">{{ v.score }}</td>
+          <td class="num">{{ v.lead_time }}</td>
+          <td class="num">{{ v.on_time_rate }}</td>
+          <td>{{ v.note or "—" }}</td>
+          <td class="row-actions">
+            {% if not v.is_preferred %}
+            <form method="post" action="/product-suppliers/{{ v.id }}/prefer" class="inline-form">
+              <input type="hidden" name="product_id" value="{{ p.id }}" />
+              <button class="btn btn-sm" type="submit">Prefer</button>
+            </form>
+            {% endif %}
+            <form method="post" action="/product-suppliers/{{ v.id }}/delete" class="inline-form"
+                  onsubmit="return confirm({{ ("Unlink " ~ (v.supplier_name or "this supplier") ~ " from " ~ p.name ~ "?\n\nIt is only a sourcing preference; existing orders are unaffected.") | tojson }});">
+              <input type="hidden" name="product_id" value="{{ p.id }}" />
+              <button class="btn btn-sm btn-danger" type="submit">Unlink</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+    {{ ui.empty("No supplier is mapped to this product yet. Link one below so it can be recommended and compared.") }}
+  {% endif %}
+
+  <div class="section-title mt">Link a supplier</div>
+  <form method="post" action="/products/{{ p.id }}/suppliers">
+    <div class="form-grid">
+      <div class="field">
+        <label>Supplier</label>
+        <select name="supplier_id" required>
+          {% for s in suppliers %}<option value="{{ s.id }}">{{ s.name }} ({{ s.code }})</option>{% endfor %}
+        </select>
+      </div>
+      {# MOQ (R5.5): the agreed minimum, surfaced in R4.5's comparison grid. #}
+      <div class="field"><label>MOQ</label><input name="moq" type="number" step="0.01" min="0" placeholder="none agreed" /></div>
+      <div class="field">
+        <label>Preferred</label>
+        <label class="check"><input type="checkbox" name="is_preferred" value="1" /> Buy from here by default</label>
+      </div>
+      <div class="field full"><label>Note</label><input name="note" placeholder="Terms, packing, anything worth remembering" /></div>
+    </div>
+    {# Deliberately no lead-time input: lead time is MEASURED from confirm→receipt (R5.3). #}
+    <p class="hint">Lead time is not typed in — it is measured from each order's confirmation to its receipt.</p>
+    <div class="form-actions"><button class="btn btn-primary" type="submit">Link supplier</button></div>
+  </form>
+</div>
+
+{# Price timeline per product+supplier (R5.6, R5.12). Oldest first, so the trend
+   reads top to bottom, and each row shows the change from that supplier's own
+   previous price rather than from whoever happened to be listed above it. #}
+<div class="card mt">
+  <div class="section-title">Price history</div>
+  {% if price_history %}
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>From</th><th>To</th><th>Supplier</th><th class="num">Price</th>
+            <th class="num">Change</th><th>Status</th></tr>
+      </thead>
+      <tbody>
+        {% for r in price_history %}
+        <tr>
+          <td>{{ r.valid_from | fmt_date }}</td>
+          <td>{{ r.valid_to | fmt_date if r.valid_to else "open-ended" }}</td>
+          <td>
+            {% if r.supplier_id %}<a class="row-link" href="/suppliers/{{ r.supplier_id }}">{{ r.supplier_name }}</a>
+            {% else %}{{ r.supplier_name }}{% endif %}
+          </td>
+          <td class="num">{{ r.price_minor | money }}</td>
+          <td class="num">
+            {% if r.delta_minor is none %}<span class="muted">first price</span>
+            {% elif r.delta_minor > 0 %}<span class="delta-up">+{{ r.delta_minor | money }}</span>
+            {% elif r.delta_minor < 0 %}<span class="delta-down">{{ r.delta_minor | money }}</span>
+            {% else %}<span class="muted">no change</span>{% endif %}
+          </td>
+          <td>{% if r.is_current %}{{ ui.badge("active") }}{% else %}<span class="muted">superseded</span>{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+    {{ ui.empty("No purchase price has been recorded for this product yet.") }}
+  {% endif %}
+</div>
+
 {# Quotation history per product + supplier (R4.6). Newest first, so "what did
    PaperWings last want for this?" is one glance rather than opening old RFQs. #}
 <div class="card mt">

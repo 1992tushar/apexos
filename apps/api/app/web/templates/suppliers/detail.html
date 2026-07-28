@@ -7,10 +7,54 @@
   {{ ui.delete_button("/suppliers/" ~ sup.id ~ "/delete", sup.name) }}
 {% endcall %}
 
-<div class="grid grid-3 mt">
+<div class="grid grid-4 mt">
   {{ ui.stat("Payable", sup.outstanding_minor | money) }}
-  {{ ui.stat("Score", (sup.latest_score or "—") ~ "/5", sup.evaluation_count ~ " evals") }}
-  {{ ui.stat("GSTIN", sup.gstin or "—") }}
+  {{ ui.stat("Vendor score", score.display, "scorecard + on-time, out of 100") }}
+  {{ ui.stat("Lead time", lead_time.display, "measured, not typed") }}
+  {{ ui.stat("On-time rate", on_time_rate.display, "on or before the promised date") }}
+</div>
+
+{# R5.12 — the measured intelligence, each figure through the one explain_panel
+   macro so it carries its formula, window, inputs and source records (G11). A
+   supplier with no receipt history shows "unknown" and what it would need,
+   never a stand-in number (R5.11). #}
+<div class="card mt">
+  <div class="card-title">Vendor intelligence</div>
+  {{ ui.explain_panel(score, "Vendor score") }}
+  {{ ui.explain_panel(lead_time, "Measured lead time") }}
+  {{ ui.explain_panel(on_time_rate, "On-time delivery rate") }}
+</div>
+
+<div class="card mt">
+  <div class="section-title">Receipt history</div>
+  {% if receipts %}
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>Receipt</th><th>PO</th><th>Confirmed</th><th>Promised</th>
+            <th>Received</th><th class="num">Lead days</th><th>On time</th></tr>
+      </thead>
+      <tbody>
+        {% for r in receipts %}
+        <tr>
+          <td class="mono">{{ r.receipt_no }}</td>
+          <td><a class="row-link" href="/purchase-orders/{{ r.purchase_order_id }}">{{ r.po_no }}</a></td>
+          <td>{{ r.confirmed_on | fmt_date }}</td>
+          <td>{{ r.expected_on | fmt_date if r.expected_on else "no date promised" }}</td>
+          <td>{{ r.received_on | fmt_date }}</td>
+          <td class="num">{{ r.lead_days }}</td>
+          {# is_on_time is None when nobody promised a date — excluded from the
+             rate rather than counted as met (R5.4). #}
+          <td>{% if r.is_on_time is none %}<span class="muted">not judged</span>
+              {% else %}{{ ui.badge("received" if r.is_on_time else "overdue") }}{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+    {{ ui.empty("No confirmed order from this supplier has been received yet.") }}
+  {% endif %}
 </div>
 
 <div class="detail-grid mt">
@@ -18,6 +62,7 @@
     <div class="section-title">Contact</div>
     <dl class="kv">
       <dt>Type</dt><dd>{{ sup.supplier_type_name or "—" }}</dd>
+      <dt>GSTIN</dt><dd>{{ sup.gstin or "—" }}</dd>
       <dt>Phone</dt><dd>{{ sup.phone or "—" }}</dd>
       <dt>Email</dt><dd>{{ sup.email or "—" }}</dd>
       <dt>City</dt><dd>{{ sup.city or "—" }}</dd>
@@ -26,7 +71,7 @@
     </dl>
   </div>
   <div class="card">
-    <div class="section-title">Evaluations</div>
+    <div class="section-title">Evaluations ({{ sup.evaluation_count }})</div>
     {% if evals %}
     {% for e in evals %}
     <div class="mt">

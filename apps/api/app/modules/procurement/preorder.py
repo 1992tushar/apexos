@@ -64,6 +64,8 @@ from app.modules.procurement.service import (
     default_business_unit,
     tax_bps_for,
 )
+from app.modules.suppliers.service import ProductSupplierService
+from app.modules.suppliers.vendor import VendorIntelService
 
 # The requisition lifecycle. One definition — the filter dropdown on /requisitions
 # and the transitions below read the same tuple, so a new state cannot be
@@ -78,12 +80,6 @@ RFQ_STATUSES: tuple[tuple[str, str], ...] = (
     ("issued", "Issued"),
     ("awarded", "Awarded"),
     ("closed", "Closed"),
-)
-# Why every quoting supplier's score reads "unknown" here. R4.14 puts vendor
-# scoring in part 4; G11 forbids a placeholder number that looks computed.
-SCORE_NOTE = (
-    "Supplier score is not computed yet — vendor scoring is part 4, from measured "
-    "lead time and receipt history. Compare price, promised lead time and MOQ."
 )
 
 
@@ -444,6 +440,13 @@ class RfqService:
         )
         products = self.repo.products_by_id([ln.product_id for ln in rfq.lines])
 
+        # R5.2/R5.5: the measured vendor score and the standing MOQ join the grid.
+        # Both are read from the services that own them (G16) — this method computes
+        # neither. `score` is already rendered and may read "unknown" (R5.11);
+        # `score_explained` carries the arithmetic the screen has to show (G11).
+        intel = VendorIntelService(self.db)
+        mapping = ProductSupplierService(self.db)
+
         columns: list[QuoteComparisonColumn] = []
         for quote in quotes:
             cells = {
@@ -451,9 +454,11 @@ class RfqService:
                     product_id=ln.product_id,
                     unit_price_minor=ln.unit_price_minor,
                     moq=ln.moq,
+                    agreed_moq=mapping.moq(ln.product_id, quote.supplier_id),
                 )
                 for ln in quote.lines
             }
+            score = intel.score(quote.supplier_id)
             columns.append(
                 QuoteComparisonColumn(
                     quotation_id=quote.id,
@@ -463,7 +468,8 @@ class RfqService:
                     status=quote.status,
                     lead_time_days=quote.lead_time_days,
                     total_minor=quote.total_minor,
-                    score=None,  # R4.14 / G11: unknown, never a made-up number
+                    score=score.display,
+                    score_explained=score,
                     cells=cells,
                 )
             )
@@ -505,7 +511,6 @@ class RfqService:
             lines=self._rfq_line_reads(rfq.lines, products),
             columns=columns,
             invited_not_quoted=sorted(silent),
-            score_note=SCORE_NOTE,
         )
 
     @staticmethod

@@ -366,12 +366,27 @@ def test_the_comparison_shows_price_lead_time_and_moq_per_supplier(db):
     assert by_supplier[cheap].is_fastest is False
 
 
-def test_the_comparison_says_unknown_for_score_rather_than_inventing_one(db):
-    """R4.14 + G11: part 4 owns scoring; a placeholder number would mislead."""
+def test_r5_2_the_comparison_carries_a_measured_vendor_score_with_its_arithmetic(db):
+    """Part 4 fills what R4.14 left as a placeholder.
+
+    The grid shows exactly what `VendorIntelService` rendered — a number when there
+    is history and the word "unknown" when there is not (R5.11) — and every column
+    carries the formula behind it, because G11 forbids a bare figure on screen.
+    """
     rfq, *_ = _rfq_with_two_quotes(db)
     cmp = RfqService(db).comparison(rfq.id)
-    assert all(c.score is None for c in cmp.columns)
-    assert "part 4" in cmp.score_note
+
+    assert len(cmp.columns) == 2
+    for col in cmp.columns:
+        explained = col.score_explained
+        assert explained is not None
+        # The cell renders the service's own string; the grid formats nothing.
+        assert col.score == explained.display
+        assert explained.what and explained.formula
+        # Either a value or a stated reason — never a silent blank (R5.11).
+        assert explained.is_known or explained.unknown_reason
+    # The Part 3 placeholder is gone, not merely unused.
+    assert not hasattr(cmp, "score_note")
 
 
 def test_the_comparison_names_suppliers_that_have_not_answered(db):
@@ -635,7 +650,11 @@ def test_the_seeded_rfq_renders_the_comparison_with_both_quotes(db, client):
     for quote in quotes:
         assert quote.quotation_no in html
     assert "cheapest" in html and "fastest" in html
-    assert "unknown" in html  # the score, honestly labelled
+    # R5.2 replaced Part 3's "scoring comes in part 4" note with the measured score,
+    # and G11 requires its arithmetic on the same screen.
+    assert "Vendor score" in html
+    assert "How each vendor score was computed" in html
+    assert "part 4" not in html
     assert f"/rfqs/{rfq.id}/award" in html
 
 
@@ -729,7 +748,13 @@ def test_the_api_compares_and_awards_an_rfq(db, client, api_prefix):
 
     comparison = client.get(f"{api_prefix}/rfqs/{rfq_id}/comparison").json()
     assert len(comparison["columns"]) == 2
-    assert all(c["score"] is None for c in comparison["columns"])
+    # R5.2: a rendered score per column, and its arithmetic travels with it over the
+    # API too — a client cannot get the number without the explanation (G11).
+    for col in comparison["columns"]:
+        explained = col["score_explained"]
+        assert col["score"] == (explained["value"] or "unknown")
+        assert explained["what"] and explained["formula"]
+        assert explained["value"] or explained["unknown_reason"]
     cheapest = next(c for c in comparison["columns"] if c["is_cheapest_total"])
     assert cheapest["supplier_id"] == str(vendors[1].id)
 
