@@ -36,8 +36,35 @@
   </div>
 </div>
 
+{# R9.10 — the health score: every input, its weight, and the conversion to points, all on
+   screen. R9.11: no history at all reads "unknown", never a made-up middling number. #}
+<div class="card mt">{{ ui.explain_panel(health, "Health score") }}</div>
+
 {# R8.7 — the credit position, through the one explanation panel (G11). #}
 <div class="card mt">{{ ui.explain_panel(credit_explained, "Credit position") }}</div>
+
+{% if credit_notes %}
+{# R9.5/R9.7 — credits raised against this customer. The invoices they credit are untouched;
+   the receivable above is already net of these. #}
+<div class="card mt">
+  <div class="section-title">Credit notes</div>
+  <p class="hint">Raised by returns. The invoice each one credits is <strong>unchanged</strong> —
+    the amount owed falls because these are subtracted from it, not because a bill was edited.</p>
+  <table>
+    <thead><tr><th>Credit note</th><th>Date</th><th>Why</th><th class="num">Amount</th></tr></thead>
+    <tbody>
+      {% for cn in credit_notes %}
+      <tr>
+        <td class="mono">{{ cn.credit_note_no }}</td>
+        <td>{{ cn.note_date | fmt_date }}</td>
+        <td>{{ cn.reason or "—" }}</td>
+        <td class="num">{{ cn.total_minor | money }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
 
 {# R8.1 / R8.2 — contacts and ship-to branches, with the verbs that maintain them. #}
 <div class="detail-grid mt">

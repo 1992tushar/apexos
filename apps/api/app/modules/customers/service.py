@@ -4,6 +4,7 @@ from __future__ import annotations
 import uuid
 from collections.abc import Sequence
 from dataclasses import replace
+from datetime import UTC, datetime
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -236,7 +237,17 @@ class CustomerService:
         body = payload.body.strip()
         if not body:
             raise ValidationError("A note needs something in it")
-        note = CustomerNote(customer_id=customer.id, body=body, created_by=actor_id)
+        # `created_at` is stamped EXPLICITLY rather than left to `func.now()`. The server
+        # default has whole-second resolution here, so two notes added in one request tie,
+        # and `uuid7()` cannot break the tie either (its low bits are random). The notes
+        # list would then flip order between page loads. `datetime.now(UTC)` has microsecond
+        # resolution, which is the same reason `CreditPolicyService` stamps `valid_from`.
+        note = CustomerNote(
+            customer_id=customer.id,
+            body=body,
+            created_at=datetime.now(UTC),
+            created_by=actor_id,
+        )
         self.db.add(note)
         self.db.flush()
         self.activity.log(

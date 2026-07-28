@@ -21,6 +21,7 @@ from app.core.security import Actor
 from app.modules.activity.service import ActivityService
 from app.modules.config.service import ConfigService
 from app.modules.customers.credit import CreditPolicyService
+from app.modules.customers.health import CustomerHealthService
 from app.modules.customers.listing import CUSTOMER_LIST
 from app.modules.customers.schemas import (
     BranchUpsert,
@@ -31,6 +32,7 @@ from app.modules.customers.schemas import (
 )
 from app.modules.customers.service import CustomerService
 from app.modules.customers.timeline import CustomerTimelineService
+from app.modules.sales.returns import SalesReturnService
 from app.web.core import form_action, render
 from app.web.listing import csv_response_from_request, view_from_request, wants_csv
 from app.web.security import require_web_permission
@@ -113,6 +115,10 @@ def customer_detail(request: Request, customer_id: uuid.UUID, db: Session = Depe
         credit_explained=credit.explain(credit.check(customer_id, 0)),
         # R8.10 — the one chronological view.
         timeline=CustomerTimelineService(db).events(customer_id, limit=60),
+        # R9.10 — the health score, with its inputs and weighting on screen (G11).
+        health=CustomerHealthService(db).score(customer_id),
+        # R9.5/R9.7 — credits raised against this customer's invoices.
+        credit_notes=SalesReturnService(db).credit_notes(customer_id),
     )
 
 

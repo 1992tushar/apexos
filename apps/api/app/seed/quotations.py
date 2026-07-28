@@ -127,5 +127,60 @@ def seed_quotations(ctx: SeedContext) -> dict | None:
     order = svc.convert(accepted.id, actor_id=ctx.actor_id)
     made["converted"] = f"{accepted.quotation_no} -> {order.order_no}"
 
+    made["partial_return"] = _seed_partial_return(ctx)
+
     db.flush()
     return made
+
+
+def _seed_partial_return(ctx: SeedContext) -> str | None:
+    """R9.15 — one PARTIAL return with its credit note.
+
+    Partial on purpose: a full return leaves nothing behind, so the screen could not show a
+    remaining returnable quantity and R9.6's arithmetic would have no demo data. Uses the
+    invoice the original sell loop already produced rather than inventing another order.
+    """
+    from decimal import Decimal as D
+
+    from app.modules.finance.models import Invoice
+    from app.modules.sales.returns import SalesReturnService
+    from app.modules.sales.schemas import ReturnLineCreate, SalesReturnCreate
+
+    db = ctx.db
+    svc = SalesReturnService(db)
+
+    invoice = db.scalar(
+        select(Invoice)
+        .where(Invoice.deleted_at.is_(None), Invoice.status != "cancelled")
+        .order_by(Invoice.invoice_no)
+        .limit(1)
+    )
+    if invoice is None:
+        return None
+
+    # Return a fraction of the first line that has more than one unit, so something is
+    # genuinely left to return afterwards.
+    candidate = next(
+        (
+            line
+            for line in svc.returnable(invoice.id)
+            if line.returnable_qty >= D("2")
+        ),
+        None,
+    )
+    if candidate is None:
+        return None
+
+    keep_back = (candidate.returnable_qty / D("2")).quantize(D("1"))
+    if keep_back <= 0:
+        return None
+
+    ret = svc.create(
+        SalesReturnCreate(
+            invoice_id=invoice.id,
+            reason="Two cases arrived dented — credited, stock back on the shelf",
+            lines=[ReturnLineCreate(product_id=candidate.product_id, qty=keep_back)],
+        ),
+        actor_id=ctx.actor_id,
+    )
+    return f"{ret.return_no} ({ret.credit_note.credit_note_no if ret.credit_note else '?'})"
