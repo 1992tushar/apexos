@@ -77,7 +77,7 @@ re-reading the design docs.
 **Part 1 is COMPLETE and tagged `part-01-done`.** Its record is in the log below.
 
 - [x] **C1** the machinery: list/table macros + generic query helper + CSV export + duplicate
-      prevention + change history → commit `<recorded below>`
+      prevention + change history → commit `7419f67`
 - [ ] **C2** prove the machinery on products + customers, extend the seed, record the R2.14 line count
 - [ ] **C3** roll out to the remaining 8 masters + their special cases
 
