@@ -38,8 +38,8 @@ python -m app.seed          # creates apexos.db with demo data
 Then verify the baseline before writing any code:
 
 ```bash
-python -m pytest -q                  # count is in the CURRENT WORK block below (166 at Part 2 C1)
-python -m ruff check app/ tests/     # expect exactly 39 pre-existing findings — 40 is a regression
+python -m pytest -q                  # count is in the CURRENT WORK block below (186 at Part 2 C2)
+python -m ruff check app/ tests/     # expect exactly 38 pre-existing findings — 39 is a regression
 python -m uvicorn app.main:app --port 8000   # http://localhost:8000/ — click through every nav page
 ```
 
@@ -72,16 +72,41 @@ finish the part". Start each session fresh (`/clear` or a new window) rather tha
 one. And if a session ends messy, the recovery is `git log --oneline -5` plus the resume block, not
 re-reading the design docs.
 
-## Part 2 — Master data & shared machinery · on `main` · checkpoint 1 of 3 · tag when done: `part-02-done`
+## Part 2 — Master data & shared machinery · on `main` · checkpoint 2 of 3 · tag when done: `part-02-done`
 
 **Part 1 is COMPLETE and tagged `part-01-done`.** Its record is in the log below.
 
 - [x] **C1** the machinery: list/table macros + generic query helper + CSV export + duplicate
       prevention + change history → commit `7419f67`
-- [ ] **C2** prove the machinery on products + customers, extend the seed, record the R2.14 line count
+- [x] **C2** proven on products + customers, seed extended to 311/253 rows, R2.14 recorded →
+      commit `5a1f89e`
 - [ ] **C3** roll out to the remaining 8 masters + their special cases
 
-**Requirements passed (stage 1 machinery — built and tested, not yet wired to a page):**
+### ▶ R2.14 — what the second master cost (this is C3's gate)
+
+**Customers, the second master: 82 lines added, 61 deleted, net +21.** It is net-positive-tiny because
+the hand-rolled query and table markup left with it.
+
+| Where | Added | What |
+|---|---|---|
+| `modules/customers/listing.py` | 41 | the whole spec — 7 columns, 3 filters, search, default sort (14 of the 41 are docstring + imports) |
+| `web/pages/customers.py` | 16 | the CSV branch, `view_from_request`, the history call on detail |
+| `modules/customers/service.py` | 12 | `to_read_many` + `list()` via `query_page` + 2 imports |
+| `web/templates/customers/list.html` | 8 | four macro calls, replacing 28 lines of `<table>` |
+| `modules/customers/repository.py` | 3 | a comment where `search()` was (−23) |
+| `web/templates/customers/detail.html` | 2 | the history panel |
+
+**A third master is ~60–80 lines** — the same rows minus the spec's docstring, or ~40 if it has no
+detail page yet. Well inside R2.14's 100-line gate, so **C3 rolls out as-is; do not redesign.**
+Products cost more (146 added) only because it had *no detail page at all* — 38 lines of new template
+plus a route. That is a missing screen, not machinery friction.
+
+**Where C3 should spend, if a master resists:** improve `app/db/listing.py`, never the page. C2 already
+did this twice — `model_options` / `distinct_options` mean a filter dropdown needs no SQL of its own
+(that alone took ~15 lines out of each spec), and `export_text` now normalises `Decimal`. If a master
+needs a new *kind* of column or filter, add it there and every later master gets it (R3.3).
+
+**Requirements passed at C1 (stage 1 machinery — built and tested, wired to pages in C2):**
 
 | ID | How it was verified |
 |---|---|
@@ -95,28 +120,54 @@ re-reading the design docs.
 | R2.10 | Derived from `activity_log` — **no new table**, and `test_history_uses_the_activity_log_and_nothing_else` fails if one appears. `ActivityService.history()` reads it back with actor names; `field_changes()` records field-level before/after into the `data` JSON column that already existed. |
 | R2.15 | `tests/test_listing.py` (29), `tests/test_duplicates.py` (17), `tests/test_change_history.py` (16), `tests/test_list_macros.py` (22) = 84 new tests. |
 
-**Requirements outstanding:** R2.11, R2.13, R2.14 (all C2 — they need pages wired and the seed
-extended). R2.6/R2.7 are **P2** and deliberately not built (D-C). All of §4 (R3.1–R3.13) is C3.
+**Requirements passed at C2:**
 
-**Verify loop at C1 close:** 166 tests passing (82 baseline + 84 new); `ruff check app/ tests/` at
-exactly the 39 pre-existing findings, **zero new**; app boots on `--port 8010`; all 17 nav pages 200;
-an unknown id 404s and a malformed id 422s, both rendering `error.html`.
+| ID | How it was verified |
+|---|---|
+| R2.11 | `/products` and `/customers` are the machinery end to end. `tests/test_master_pages.py` (20 tests) goes through the real pages: page 2 shares no row ids with page 1, `?q=` narrows and survives a page link, a filter renders a removable chip, an unpublished `?sort=` degrades to the spec's default, `?export=csv` matches the on-screen count and carries *projected* columns, a duplicate POST comes back as a readable flash with no `IntegrityError`, and both detail pages render a history panel — the customer one showing a real before → after diff. Each test also asserts a marker only the shared macros emit, so a page that quietly grew its own table would fail. Confirmed in the booted app on `--port 8010`. |
+| R2.13 | **311 products, 253 customers** from `bulk_products()` / `bulk_customers()` in `seed.py`. Deterministic index arithmetic, no randomness, `get_or_create`-idempotent. Uneven on purpose: draft/discontinued rows, zero-stock rows (no movement at all), a zero-credit-limit account, accounts with no credit policy. `/products` shows "Showing 1–25 of 311" with working Next/Prev. |
+| R2.14 | The table above. 82 lines for the second master, net +21, a third at ~60–80. |
 
-**New files:** `app/db/listing.py`, `app/db/duplicates.py`, `app/web/listing.py`,
-`app/modules/activity/history.py`, `app/core/money.py`, plus the four test modules above.
+**Requirements outstanding:** all of §4 (R3.1–R3.13) is C3. R2.6/R2.7 are **P2** and deliberately not
+built (D-C). Nothing from §3 is left.
 
-**Changed since last checkpoint** (`git diff part-01-done..HEAD --stat` — 20 files, +2595/−39):
-`core/errors.py` · `core/money.py`* · `db/duplicates.py`* · `db/listing.py`* ·
-`modules/activity/{history.py*,repository.py,service.py}` · `modules/customers/{repository,service}.py` ·
-`modules/products/{repository,service}.py` · `web/core.py` · `web/listing.py`* · `web/static/app.css` ·
-`web/templates/_macros.html` · `tests/test_{listing,duplicates,change_history,list_macros}.py`*
+**Verify loop at C2 close:** 186 tests passing (166 + 20); `ruff check app/ tests/` at **38** findings
+(was 39 — the deleted `CustomerRepository.search` held one `E501`), zero new; app boots on `--port 8010`;
+all 19 web routes 200 including the new `/products/{id}`; an unknown product id renders `error.html`.
+
+**New files at C2:** `app/modules/products/listing.py`, `app/modules/customers/listing.py`,
+`app/web/templates/products/detail.html`, `tests/test_master_pages.py`.
+
+**Changed since last checkpoint** (`git show --stat 5a1f89e` — 17 files, +755/−147; use
+`git diff part-01-done..HEAD --stat` for the whole part):
+`db/listing.py` (+41, the two options providers) · `web/listing.py` (+5, `Decimal` in the export) ·
+`modules/products/{listing.py*,service.py,repository.py}` · `modules/customers/{listing.py*,service.py,repository.py}` ·
+`web/pages/{products,customers}.py` · `web/templates/products/{list,detail*}.html` ·
+`web/templates/customers/{list,detail}.html` · `seed.py` (+189) · `tests/test_master_pages.py`* ·
+`tests/test_list_macros.py` (one seed-dependent assertion)
   *(`*` = new file)*
 
-**Read for the next checkpoint (C2)** — these and nothing else:
-- **Modify:** `web/pages/{products,customers}.py` · `web/templates/{products,customers}/list.html` ·
-  `modules/{products,customers}/{service,repository}.py` · `seed.py` (the products and customers
-  sections only — the section list is in `docs/CODEBASE-MAP.md` § Seed)
-- **Reference only:** the usage block at the top of the list-macro section in `_macros.html`.
+**Read for the next checkpoint (C3)** — these and nothing else:
+- **The reference pair, in full:** `app/modules/products/listing.py` + `app/web/pages/products.py`.
+  Together they are ~130 lines and they are the whole pattern. Copy them per master.
+- **Modify:** three page modules hold every remaining master — **verified, not guessed:**
+  - `web/pages/settings.py` → `GET /settings` renders business_units, brands, uoms, customer_types,
+    supplier_types, warehouses, tax_rates, settings in one template (`settings/index.html`), with
+    `POST /settings/masters/{entity_type}`, `/settings/warehouses`, `/settings/tax-rates`.
+    **This page is the bulk of C3.** Eight card-lists on one screen is the thing to decide first —
+    one `ListSpec` per master with its own query string namespace, or a page per master.
+  - `web/pages/categories.py` → `GET /categories`, `POST /categories`,
+    `POST /categories/{id}/reparent` (R3.4's cycle prevention already has a route), `.../delete`.
+  - `web/pages/suppliers.py` → `GET /suppliers` (still hand-rolled; `SupplierRepository.search` is
+    the last surviving old-path query — delete it the way C2 deleted the other two).
+  - Plus a `listing.py` per module, and `seed.py`'s category / tax-rate sections for R3.10 (multi-level
+    category tree + two tax slab versions).
+  - **Manufacturers do not exist yet** — `ConfigService` has no `manufacturers()`. R3.1 lists them as
+    in scope, so C3 either adds the model or records why not. Check before planning the session.
+- **Reference only:** `docs/CODEBASE-MAP.md` § Shared machinery → the `<feature>/listing.py` entry.
+- **Already built, do not rewrite:** `CategoryService.reparent` (R3.4), `UomConversionService.upsert`
+  (R3.5), `TaxRateService.set_slab` (R3.6) all exist in `app/modules/config/service.py`. C3 may only
+  owe them *tests* and a list screen — read those three methods before writing any new validation.
 
 **Call, don't read** — verified signatures, so you don't have to open these files:
 
@@ -130,14 +181,37 @@ Column(key: str, label: str, kind="text", sort=None, href=None, export=True)
 #   key is read off the row the page renders (may be a projection, not the ORM row)
 Filter(key: str, label: str, column: str, coerce="str", options=None, all_label="All")
 #   coerce: str | uuid | int | bool     options: Callable[[Session], Sequence[tuple[str,str]]]
-static_options(*pairs: tuple[str, str])        # for a fixed dropdown
+static_options(*pairs: tuple[str, str])                    # a fixed dropdown
+model_options(model, *, label="name", value="id", order_by=None)   # another table's live rows
+distinct_options(model, column: str)                       # the values a column actually holds
+#   all three return a `Filter.options` provider; a filter needs no SQL of its own
+ListParams(q="", sort="", dir="asc", page=1, filters: Mapping[str,str] = {})
 query_page(db, spec, params, *, business_unit_id=None) -> ListPage
+#   ListPage(.rows .total .page .page_size) — page_size comes from the SPEC, so a
+#   caller wanting a different one passes replace(SPEC, page_size=n) (dataclasses.replace)
 
 # app/web/listing.py
 view_from_request(request, db, spec, *, business_unit_id=None, project=None) -> ListView
-#   "the one call a GET list route makes"
+#   "the one call a GET list route makes". project: Callable[[Sequence[row]], list[row]]
+#   — the WHOLE page of ORM rows at once, not one row at a time
 wants_csv(request) -> bool                     # branch the GET route on this
 csv_response_from_request(request, db, spec, *, business_unit_id=None, project=None) -> Response
+#   pass the same `project` as the view, or projected columns export blank
+
+# app/modules/{products,customers}/listing.py — the two worked specs
+PRODUCT_LIST: ListSpec   ·   CUSTOMER_LIST: ListSpec
+ProductService(db).to_read_many(rows) -> list[ProductRead]     # the projector
+CustomerService(db).to_read_many(rows) -> list[CustomerRead]
+
+# app/modules/activity/service.py
+ActivityService(db).history(entity_type: str, entity_id: uuid.UUID, *, limit=50)
+#   -> list[HistoryEntry(occurred_at, verb, summary, actor, changes)]; pass straight
+#   to ui.history_panel(entries). A pure read (G15).
+
+# app/seed.py
+record_creation(db, activity, *, entity_type, entity_id, summary, actor_id) -> None
+#   the `created` history line for a get_or_create'd master; idempotent, skips if the
+#   row already has any activity
 
 # app/db/duplicates.py
 ensure_unique(db, model, values, *, exclude_id=None) -> None
@@ -153,31 +227,49 @@ soft_delete(db, instance, *, actor_id, label=None) -> None
 **Do NOT read:**
 - `docs/CODEBASE-MAP.md` covers the layout, the shared machinery, the patterns, `seed.py`'s section
   structure and the test inventory. **Read it instead of exploring the tree.** If it's wrong, fix it.
-- `seed.py` end to end (575 lines). Jump to the two `# --- section ---` blocks you need.
-- The other 15 page modules "for an example" — the `_macros.html` usage block *is* the example.
+- `seed.py` end to end (750 lines). Jump to the `# --- section ---` blocks you need; the bulk
+  generators are in the reference-data section at the top.
+- The other 14 page modules "for an example" — `web/pages/products.py` + `modules/products/listing.py`
+  are now *the* example, and they're in the read list above.
+- `db/listing.py` / `web/listing.py` internals. C2 read them so C3 doesn't have to; everything a page
+  calls is in the signature block above. Open them only to *add* a column kind or filter coerce.
 - `db/soft_delete.py`, `web/security.py`, `activity/history.py`, `db/duplicates.py` internals — C1
-  wired them and C2 doesn't change them; the map's one-line contracts are enough.
+  wired them and C2 didn't change them; the map's one-line contracts are enough.
+- `_macros.html` — C2 changed nothing in it. Four calls (`list_toolbar`, `list_table`, `list_empty`,
+  `pagination`) plus `history_panel`; copy them from `products/list.html`.
 - The older `docs/` design files (`00`, `07`, `08` beyond §2.3/§2.4, `09`–`17`). Retired stack.
 - Anything in this file below the `▶ CURRENT WORK` section — historical log.
 
 **Gotchas for the next session:**
-- **The machinery is built but no page uses it yet.** That is C1's scope on purpose (R2.12 forbids
-  rolling out during stage 1). C2's job is to wire `/products` and `/customers` onto it — nothing in
-  `app/web/pages/` was touched, so both lists still hand-roll their query and their table markup.
 - **Do not build a second query helper or a second table macro.** R2.1/R2.4 are one definition each.
-  `ProductRepository.search` and `CustomerRepository.search` are now the *old* path — C2 should route
-  the services' `list()` through `query_page` and delete them, not leave both alive.
-- **The page wiring is 5 template lines.** Copy the usage block from the comment at the top of the
-  list-macro section in `_macros.html`; `{% call(row) ui.list_table(view) %}` is what keeps the
-  Actions column's `ui.delete_button` (R1.2) while the rest of the table stays generic.
-- **A GET list route needs two branches:** `view_from_request(...)` for HTML and
-  `csv_response_from_request(...)` when `wants_csv(request)`. Both live in `app/web/listing.py`.
-- **`ListSpec.columns` read the *projected* row, `sort`/`filters`/`search` read the *model*.** For
-  products that matters: `category_name` and `stock_on_hand` exist only on `ProductRead`, so they can
-  be columns but cannot be sorts. Pass the projection via `project=`.
-- **R2.13 (hundreds of products/customers) moved to C2**, with the page wiring. Doing it in C1 would
-  have left `/products` projecting 300 rows per load — the existing page has no pagination, and each
-  `ProductRead` costs ~7 queries. Wire the page and the seed in the same checkpoint.
+  `SupplierRepository.search` is the **last surviving old-path query** — C2 deleted the product and
+  customer ones. Delete it the same way: `list()` builds `ListParams` and calls `query_page`.
+- **`ListSpec.columns` read the *projected* row; `sort`/`filters`/`search` read the *model*.** On
+  products, `category_name` and `stock_on_hand` exist only on `ProductRead`, so they are columns with
+  no `sort=`. A `?sort=` naming a projection-only key silently falls back to the spec default — that's
+  by design (C1 decision 2), so don't "fix" it by sorting in Python.
+- **`page_size` lives on the spec, not in `query_page`.** A service `list()` that ignores its own
+  `page_size` argument silently truncates its callers — `/sales`, `/purchase-orders` and `/warehouse`
+  all ask `ProductService.list` for 300 rows to fill a `<select>`. Use `replace(SPEC, page_size=n)`.
+- **Keep each service's `list()` signature.** C2 changed both implementations without touching a single
+  caller (10 routers + 8 pages call these). Same for suppliers in C3.
+- **A GET list route needs two branches** — `view_from_request` for HTML, `csv_response_from_request`
+  when `wants_csv(request)` — and **both need the same `project=`**, or the CSV's projected columns
+  come out blank. There's a test for that (`test_the_export_carries_projected_columns...`).
+- **The CSV export leads with a UTF-8 BOM** (deliberate, so Excel opens it correctly). Read it back
+  with `utf-8-sig` or the first header cell compares as `"﻿SKU"`.
+- **Templates escape, so assert accordingly.** A filter chip for "Garbage Bags & Waste Management"
+  renders `&amp;`. And a search term echoes into the toolbar's `value=`, so "the deleted row is gone"
+  must be asserted against the `<tbody>`, not `in html`.
+- **Multi-master screens need a query-string namespace.** `/settings` renders eight master lists on one
+  page. `?q=` and `?page=` are per-`ListView`, so eight specs on one route would fight over them.
+  Decide this before writing code — separate routes per master is the cheap answer.
+- **The seed's masters bypass their services**, so `get_or_create` writes no `activity_log` row and the
+  history panel is empty on demo rows. `record_creation()` fixes that for the *named* rows only; if C3
+  wants history on a config master, call it there too. Don't log the generated hundreds.
+- **A re-seed can't recover a real `occurred_at`.** `ActivityService.log` has no `occurred_at`
+  parameter (it defaults to now), so a backfilled `created` line on an already-seeded DB reads
+  "just now". A fresh DB is correct. Don't add the parameter to make demo data prettier.
 - **Every web POST route carries `require_web_permission`.** A new mutation route added without one
   fails `tests/test_web_authz.py::test_every_web_post_route_carries_the_guard`. Add the guard, don't
   weaken the test. (A GET export route needs no guard — the test only walks POSTs.)
@@ -217,7 +309,28 @@ soft_delete(db, instance, *, actor_id, label=None) -> None
    arithmetic only (G1). Used by the CSV export and the history panel. `app/web/core.py:money` is
    left alone — it presents a figure with the ₹ symbol and Indian grouping, a different job.
 9. **`number()` now normalises `Decimal`.** A `Numeric(18,4)` quantity was rendering as `20.0000`
-   on screen. It now shows `20` and `1.25`; every quantity column benefits.
+   on screen. It now shows `20` and `1.25`; every quantity column benefits. **C2 extended the same
+   normalisation to the CSV export** — a file carrying `40.0000` for a stock of 40 exports the column's
+   scale rather than the number.
+10. **A master's `ListSpec` lives in `app/modules/<feature>/listing.py`, not beside the page.** C1's
+   note said "beside the page"; C2 moved it because R2.4 requires the *service* to run its `list()`
+   through `query_page` too, and a service importing `app.web` would invert the layering. `app.db.listing`
+   has no web dependency, so the module can own the spec and the page can import it. One spec means the
+   JSON API's filters and the screen's headers cannot drift (this is decision 1, applied).
+11. **The projector is a public service method** (`to_read_many`), not a lambda over a private one.
+   Both the HTML and the CSV branch need the same projection, and `_to_read`-per-row in a page would
+   have put N+1 query knowledge in the template layer.
+12. **`/products/{id}` is new.** Products had no detail page, so the change-history panel R2.11 requires
+   had nowhere to live. Its 38-line template is *not* counted as machinery cost in R2.14 — it is a
+   screen that was missing.
+13. **Filter dropdowns are three providers, not per-page SQL.** `model_options` (another table's live
+   rows) and `distinct_options` (the values a column actually holds) joined `static_options` in
+   `app/db/listing.py`. This is R3.3 applied before C3 rather than after: it took ~15 lines out of each
+   spec, and every master C3 touches inherits it.
+14. **The seed generates rather than lists.** 311 products and 253 customers come from
+   `bulk_products()` / `bulk_customers()` — deterministic index arithmetic, no `random`, so re-seeding
+   is idempotent, tests can name a row, and diffs stay readable. The named demo rows stay literal
+   because later seed steps order and invoice them by code.
 
 **Decisions made mid-part (Part 1 — do not silently reverse):**
 1. **Soft delete is one function, not a base-repository method** — `soft_delete()` in
@@ -239,16 +352,18 @@ soft_delete(db, instance, *, actor_id, label=None) -> None
    so it needed its own path) and `StarletteHTTPException` (an unrouted web path). API, `/docs`,
    `/health` and `/static` keep their JSON.
 
-**NEXT SESSION:** start Part 2 at **C2** using the Part 2 prompt in `docs/ROADMAP.md`. Read this block
-+ `docs/REQUIREMENTS.md` §3 (R2.11, R2.13, R2.14 are what C2 owes) + `git log --oneline -15`, then
-`app/db/listing.py` and `app/web/listing.py` — the two module docstrings are the machinery's contract.
+**NEXT SESSION:** start Part 2 at **C3** using the Part 2 prompt in `docs/ROADMAP.md`, from STAGE 2.
+Read this block + `docs/REQUIREMENTS.md` §4 (R3.1–R3.13 is everything C3 owes) + the read list above.
+**Do not re-read the machinery** — the signature block above is what C2 verified against source.
 
-C2's work, in order: route `ProductService.list` / `CustomerService.list` through `query_page`;
-declare a `ListSpec` in `app/web/pages/products.py` and `.../customers.py`; replace both list
-templates' table markup with the macros; add the CSV branch; add the change-history panel to the
-customer detail page; extend `app/seed.py` to hundreds of products and customers (R2.13); then
-**count the lines the second master needed and write the number in this block** (R2.14) — it is the
-gate for C3, which must come in well under 100 lines per master.
+C3's work, in order: (1) decide the `/settings` question — eight masters on one page need either a
+query-string namespace per list or a route per master; (2) suppliers first, since it's the closest twin
+of what C2 did and its `SupplierRepository.search` must go; (3) categories, whose `reparent` service
+already exists (R3.4 may be tests only); (4) the config masters, cheapest last; (5) `seed.py` for R3.10
+(multi-level category tree + two tax slab versions); (6) R3.7 relationship integrity — deactivating a
+product on an open PO must refuse *and name the PO*; (7) the R3.1 capability matrix in this file, no
+empty cells. If a master needs materially more than the ~60–80 lines R2.14 measured, **fix
+`app/db/listing.py` and say so here** (R3.3) rather than working around it.
 
 Do **not** re-read the older `docs/` design files, `docs/DELETION-POLICY.md`, or
 `docs/MIGRATION-STRATEGY.md` — Part 1 resolved those. Do not re-read `docs/17-design-system.md` §6

@@ -15,7 +15,8 @@
 
 | I need to… | Read | Don't read |
 |---|---|---|
-| Build or change a list screen | `app/db/listing.py`, `app/web/listing.py`, the list macros in `_macros.html` | Any individual page module "for an example" — the usage block at the top of the list-macro section is the example |
+| Build or change a list screen | `app/modules/<feature>/listing.py` (the spec — usually the only file you touch), then `app/db/listing.py` / `app/web/listing.py` for the contracts | Any individual page module "for an example" — the usage block at the top of the list-macro section is the example |
+| Add a master to the uniform treatment | `app/modules/products/listing.py` + `app/web/pages/products.py` — the reference pair (~80 lines total) | Re-deriving the pattern from the machinery; copy the pair and change the config |
 | Delete something | `app/db/soft_delete.py` (its docstring is the contract) | Per-module delete code — there isn't any, by design |
 | Prevent duplicates | `app/db/duplicates.py` — `NATURAL_KEYS` is the config | — |
 | Show change history | `app/modules/activity/history.py` + `ActivityService.history()` | Any new table — there is none (R2.10) |
@@ -38,6 +39,7 @@ apps/api/app/
   core/              config, database (engine/Session), errors, logging, security, money
   db/                cross-cutting persistence machinery — see § Shared machinery
   modules/<feature>/ domain logic: models · repository · service · router · schemas
+                     + listing.py where the feature has a list screen (its `ListSpec`)
   web/               server-rendered UI
     core.py          Jinja env, filters, render(), redirect() helpers
     listing.py       request→view adapter + CSV export
@@ -72,6 +74,9 @@ Declarative list config and the only place `LIMIT` / `OFFSET` / `ORDER BY` appea
   column and `business_unit_id` for any model with the mixin, automatically (R2.5).
 - `query_page` / `query_rows` / `count_rows` — execution, all over `build_select`.
 - `coerce` / `is_valid` — filter-value parsing; an invalid value degrades rather than raising.
+- `static_options` / `model_options` / `distinct_options` — the three `Filter.options` providers
+  (fixed choices · another table's live rows · the values a column actually holds). A filter dropdown
+  should need none of its own SQL.
 
 ### `app/web/listing.py` — request → view (R2.3, R2.8)
 
@@ -82,6 +87,20 @@ Declarative list config and the only place `LIMIT` / `OFFSET` / `ORDER BY` appea
 - `csv_response` / `csv_response_from_request` — export over the same `build_select` with pagination
   removed, so an export matches the filters on screen.
 - `wants_csv` — a GET list route has two branches: CSV if this is true, HTML otherwise.
+
+### `app/modules/<feature>/listing.py` — one master's list, as config (R2.2, R2.11)
+
+**Where a `ListSpec` lives, and the only file a new list screen usually needs.** In the module rather
+than beside the page because both halves consume it: the service's `list()` runs it through
+`query_page`, and the page renders the same columns. `products/listing.py` and `customers/listing.py`
+are the two worked examples.
+
+- `Column.key` reads the **projected** row (`ProductRead`), so a computed field can be a column.
+  `Column.sort` and `Filter.column` name real **model** attributes — a projection can't be sorted in SQL.
+- A service passes `replace(SPEC, page_size=n)` when a caller wants a different page size (a form's
+  product dropdown asks for 300); everything else comes from the spec.
+- Projection happens in one place: `Service.to_read_many(rows)`, handed to `view_from_request(project=)`
+  and `csv_response_from_request(project=)` so the screen and the file show the same values.
 
 ### `app/db/soft_delete.py` — the delete write path (R1.1)
 
@@ -132,6 +151,20 @@ of the list-macro section in the file — copy that rather than reverse-engineer
 
 ## Patterns
 
+**List page** (the shape every master now follows): `<feature>/listing.py` declares the spec; the GET
+route is two branches over it —
+
+```python
+project = ProductService(db).to_read_many
+if wants_csv(request):
+    return csv_response_from_request(request, db, PRODUCT_LIST, project=project)
+return render(request, "products/list.html",
+              view=view_from_request(request, db, PRODUCT_LIST, project=project))
+```
+
+— and the template is `list_toolbar` / `list_table` / `list_empty` / `pagination`, with the `{% call(row) %}`
+block carrying the per-entity Actions verbs. No page holds a query or table markup.
+
 **Page module** (`app/web/pages/<screen>.py`): module-level `router`, auto-discovered by
 `app.web.build_web_router`, mounted at root. Handlers take `Request` + `Session` + the current actor,
 call a service directly, and return `render(...)` or `redirect(...)` from `web/core.py`. Forms POST to
@@ -163,8 +196,16 @@ bill → partial payment) → one complete sell loop (order → confirm → fulf
 payment) → second warehouse + transfer, tasks, a document → pipeline stages, leads, opportunity,
 competitors.
 
-**Bulk master rows** (R2.13 wants hundreds of products/customers, not five) belong in the
-products and customers sections. **Don't read the file end to end to add rows** — read the one section.
+**Bulk master rows** (R2.13): products and customers are ~311 and ~253 rows. The named demo rows stay
+as literal lists (`PRODUCTS`, `DEMO_CUSTOMERS`) because other seed steps order and invoice them by
+code; the rest come from `bulk_products()` / `bulk_customers()` in the reference-data section —
+deterministic index arithmetic, **no randomness**, so a re-seed is idempotent and a test can name a row.
+Status, stock and credit are deliberately uneven (draft/discontinued rows, zero-stock rows, a
+credit-limit-zero account, accounts with no credit policy) so filters and empty states have something
+to bite on (G14). `record_creation()` gives the *named* masters their `created` history line, since
+`get_or_create` bypasses the services that would have logged it.
+
+**Don't read the file end to end to add rows** — read the one section.
 
 ---
 
@@ -185,6 +226,7 @@ products and customers sections. **Don't read the file end to end to add rows** 
 | `test_duplicates.py` | R2.9: field-level error, no `IntegrityError` escapes |
 | `test_change_history.py` | R2.10: derived from `activity_log`, fails if a history table appears |
 | `test_list_macros.py` | R2.1/R2.2: each macro renders against a real `ListView` |
+| `test_master_pages.py` | R2.11: the machinery through the real `/products` and `/customers` pages — search/filter/sort/pagination, export matching the screen, duplicate rejection as a flash, history panel |
 
 Run `pytest -q`, never verbose.
 
@@ -192,11 +234,15 @@ Run `pytest -q`, never verbose.
 
 ## Known debt
 
-**39 pre-existing `ruff` findings**, all in modules the current work hasn't touched — 33 `E501`, 4
-`F841`, 1 `B007`, 1 `E402` (the last two in `seed.py`). Verified identical before and after Parts 1
-and C1: **new work has added zero findings, and that's the bar.** Part 11 (`R14.x`) clears them; until
-then `ruff check app/ tests/` reporting exactly 39 is a *pass*, and 40 is a regression to fix before
-committing.
+**38 pre-existing `ruff` findings**, all in modules the current work hasn't touched — 32 `E501`, 4
+`F841`, 1 `B007`, 1 `E402` (the last two in `seed.py`). It was 39 through Part 2 C1; C2 deleted
+`CustomerRepository.search`, which held one of the `E501`s. **New work has added zero findings, and
+that's the bar.** Part 11 (`R14.x`) clears them; until then `ruff check app/ tests/` reporting exactly
+38 is a *pass*, and 39 is a regression to fix before committing.
+
+**`/warehouse` and `/inventory` render every product** (`page_size=300`, no pagination) — harmless at
+17 rows, now ~170 KB of HTML at 311. They are not list-machinery pages yet; whichever part owns them
+should wire them onto `ListSpec` rather than raising the page size again.
 
 ---
 
