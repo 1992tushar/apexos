@@ -9,9 +9,12 @@
    311-product dropdown is ~1900 <option> elements, and it cannot be typed into.
    With a datalist the founder types "TIS" and picks — search-as-you-type with no
    JavaScript (R4.12). The input submits the SKU, which the route resolves. #}
-{% macro product_datalist(products, id="product-options") %}
+{# `hints` (Part 7 C2c) maps sku_code -> extra text shown beside the name, so the founder
+   sees the price and how much is AVAILABLE while typing rather than having to look it up
+   (R9.12). Optional and off by default: the requisition and RFQ forms do not price lines. #}
+{% macro product_datalist(products, id="product-options", hints=None) %}
 <datalist id="{{ id }}">
-  {% for p in products %}<option value="{{ p.sku_code }}">{{ p.name }}</option>{% endfor %}
+  {% for p in products %}<option value="{{ p.sku_code }}">{{ p.name }}{% if hints and hints.get(p.sku_code) %} — {{ hints.get(p.sku_code) }}{% endif %}</option>{% endfor %}
 </datalist>
 {% endmacro %}
 
@@ -20,8 +23,8 @@
 {# `with_price` adds a per-line price column (Part 7 C1). Optional and off by default, so
    the four callers that predate it are unchanged — a quotation names its own price, which a
    requisition or an RFQ does not. One grid macro, not two (G16). #}
-{% macro line_grid(products, rows, autofocus=false, title="Lines", with_price=false) %}
-{{ product_datalist(products) }}
+{% macro line_grid(products, rows, autofocus=false, title="Lines", with_price=false, hints=None) %}
+{{ product_datalist(products, hints=hints) }}
 <div class="section-title mt">{{ title }}</div>
 <p class="muted">Type part of a SKU and pick from the list. Leave rows blank to skip them.</p>
 <div class="table-wrap">

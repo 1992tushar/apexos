@@ -1,49 +1,89 @@
 {% extends "base.html" %}
 {% import "_macros.html" as ui %}
+{% import "_preorder.html" as pre %}
 {% block title %}New sales order{% endblock %}
 {% block content %}
 {% call ui.page_header("New sales order", "Create a draft order") %}
   <a class="btn" href="/sales">← All orders</a>
 {% endcall %}
 
+{# R9.12 — keyboard-first, and ONE form rather than two.
+   The customer field is AUTOFOCUSED, so the caret is already in the form on load: without it
+   the founder tabs past 19 sidebar links to reach the first field, which is the single biggest
+   cost on this screen. Tab order then runs customer → load-last-order → date → SKU → qty →
+   price → next SKU, matching reading order.
+   "Load their last order" is the SAME form submitted as a GET (`formmethod`/`formaction`), so
+   there is no second customer picker to keep in step — pick the customer once and either load
+   their last order or type the lines. Pressing Enter in any field submits the order, so the
+   repeat path is: type the customer, Tab, Enter, Enter. #}
 <div class="card">
   <form method="post" action="/sales">
     <div class="form-grid">
       <div class="field">
         <label>Customer</label>
-        <select name="customer_id" required>
+        <select name="customer_id" required autofocus>
           <option value="">Select customer…</option>
-          {% for c in customers %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}
+          {% for c in customers %}
+          <option value="{{ c.id }}" {% if selected_customer_id == c.id | string %}selected{% endif %}>{{ c.name }}{% if c.id in repeatable %} ↺{% endif %}</option>
+          {% endfor %}
         </select>
+        <small class="muted">↺ marks a customer with a previous order to repeat</small>
+      </div>
+      <div class="field">
+        <label>Repeat</label>
+        <input type="hidden" name="repeat" value="1" />
+        <button class="btn" type="submit" formmethod="get" formaction="/sales/new">
+          Load their last order
+        </button>
+        <small class="muted">fills the lines below at the prices they paid</small>
       </div>
       <div class="field">
         <label>Order date</label>
         <input name="order_date" type="date" />
+        <small class="muted">blank means today</small>
       </div>
     </div>
 
+    {# R9.12/R9.14 — the typed picker, with the price and how much is AVAILABLE beside every
+       SKU, so stock is not looked up in another tab. Available, not on hand: confirming an
+       order reserves, so on-hand would offer stock already promised elsewhere. #}
+    {{ pre.product_datalist(products, hints=hints) }}
     <div class="section-title mt">Lines</div>
+    <p class="muted">Type part of a SKU and pick from the list — each option shows its price and
+      what is available to sell. Leave rows blank to skip them. An unknown SKU is named back to
+      you rather than dropped.</p>
     <div class="table-wrap">
       <table>
         <thead>
-          <tr><th>Product</th><th>Qty</th><th>Unit price (₹)</th></tr>
+          <tr><th>Product (SKU)</th><th class="num">Qty</th><th class="num">Unit price (₹)</th></tr>
         </thead>
         <tbody>
           {% for i in line_rows %}
+          {% set row = prefill[i] if prefill and i < prefill | length else None %}
           <tr>
             <td>
-              <select name="product_id">
-                <option value="">—</option>
-                {% for p in products %}<option value="{{ p.id }}">{{ p.sku_code }} — {{ p.name }}</option>{% endfor %}
-              </select>
+              <input list="product-options" name="product_code" placeholder="SKU"
+                     value="{{ row[0] if row else '' }}" />
             </td>
-            <td><input name="qty" type="number" step="0.001" min="0" /></td>
-            <td><input name="unit_price_rupees" type="number" step="0.01" min="0" placeholder="auto" /></td>
+            <td class="num">
+              <input name="qty" type="number" step="0.001" min="0"
+                     value="{{ row[1] | number if row else '' }}" />
+            </td>
+            <td class="num">
+              <input name="unit_price_rupees" type="number" step="0.01" min="0"
+                     placeholder="list price"
+                     value="{{ (row[2] / 100) if row else '' }}" />
+            </td>
           </tr>
           {% endfor %}
         </tbody>
       </table>
     </div>
+
+    {% if prefill %}
+    <p class="hint">{{ prefill | length }} line(s) loaded from their last order, at the prices
+      they paid then. Adjust anything before creating the order — or just press Enter.</p>
+    {% endif %}
 
     <div class="form-actions"><button class="btn btn-primary" type="submit">Create order</button></div>
   </form>

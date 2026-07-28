@@ -60,8 +60,8 @@ found into the resume block, commit nothing else, and **stop the loop**.
 | 5 | **P7-C1** quotation — create / revise / send / expire / convert | ✅ done — `eeae971` |
 | 6a | **P7-C2** reservation wiring + returns + credit notes | ✅ done — `27d1c49` |
 | 6b | **P7-C2** customer health score + R9.15's partial return | ✅ done — `761e9aa` |
-| 6c | **P7-C2** the SPEED work — R9.12 keyboard-first entry, R9.13 keystroke measurements | next — **closes Part 7** |
-| 7 | **E2E** the cross-part walkthrough + final PROGRESS.md and CODEBASE-MAP.md | |
+| 6c | **P7-C2** the SPEED work — R9.12 keyboard-first entry, R9.13 keystroke measurements | ✅ done · **Part 7 CLOSED** |
+| 7 | **E2E** the cross-part walkthrough + final PROGRESS.md and CODEBASE-MAP.md | next — **the last item of this run** |
 
 After #7, stop the loop — that is the terminal state. The per-checkpoint requirement detail is
 in `docs/REQUIREMENTS.md` and the resume block; the three things worth repeating here because

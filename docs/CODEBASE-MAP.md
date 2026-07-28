@@ -240,6 +240,22 @@ The verbs other modules call:
 - `InventoryService.states()` / `.bin_stock()` / `.location_rollup()` / `.available()` — derived reads
   for the screens; each is one or two grouped queries for a whole page, never a query per row.
 
+### `app/modules/sales/fast_entry.py` — what makes order entry quick (Part 7 C2c)
+
+Reads only, and every helper is **bulk** — the entry form shows ~300 products, so a per-product query
+would be 300 round trips to render one page. A test counts the statements rather than grepping the
+source, because a text match cannot tell a call from a comment.
+
+- **`picker_hints`** puts the price and **how much is AVAILABLE** beside every SKU in the datalist.
+  Available, not on-hand: confirming an order reserves (R9.8), so on-hand would offer stock already
+  promised to somebody else.
+- **`last_order_lines`** is reorder-from-last-order, excluding cancelled orders, ordered by
+  `(order_date, id)` because seeded orders share a date.
+- The form posts `product_code` (a SKU) and resolves it through **Part 3's `_lines`** — one resolver,
+  which names an unknown SKU back to the founder instead of dropping the row.
+- **`autofocus` is the single biggest saving**: without it the caret starts outside the form, behind
+  19 focusable sidebar links. See `docs/parts/part-07.md` for R9.13's measured before/after.
+
 ### `app/modules/sales/returns.py` — the gap after the invoice (Part 7 C2a)
 
 **The invoice is never mutated** (G4/R9.5). A return posts stock IN through `record_movement` and
