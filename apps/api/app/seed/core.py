@@ -84,6 +84,7 @@ from app.seed.catalogue import (
 )
 from app.seed.helpers import SeedContext, get_or_create, record_creation
 from app.seed.preorder import seed_preorder
+from app.seed.vendor import seed_vendor
 
 
 def run() -> dict:
@@ -608,6 +609,13 @@ def run() -> dict:
                 actor_id=actor_id,
             )
 
+        # --- Part 4's vendor intelligence history, its own module (Move 0) --
+        vendor_result = seed_vendor(
+            SeedContext(
+                db=db, actor_id=actor_id, activity=activity, suppliers=suppliers
+            )
+        )
+
         # --- master change history (last, so it catches every row) ---------
         # Every config master gets its `created` line (R2.10, G14, R3.1's audit column).
         # Most of these rows are written with `get_or_create` rather than through
@@ -683,6 +691,8 @@ def run() -> dict:
                 }
         if preorder_result is not None:
             summary["preorder"] = preorder_result
+        if vendor_result is not None:
+            summary["vendor"] = vendor_result
         summary["counts"] = {
             "products": db.scalar(select(func.count()).select_from(Product)) or 0,
             "customers": db.scalar(select(func.count()).select_from(Customer)) or 0,

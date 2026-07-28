@@ -7,12 +7,14 @@ from __future__ import annotations
 
 import uuid
 from datetime import date
+from decimal import Decimal
 
 from sqlalchemy import (
     Boolean,
     Date,
     ForeignKey,
     Integer,
+    Numeric,
     String,
     Text,
     Uuid,
@@ -51,6 +53,38 @@ class SupplierContact(Base, EntityMixin):
     phone: Mapped[str | None] = mapped_column(String(20), nullable=True)
     designation: Mapped[str | None] = mapped_column(String(80), nullable=True)
     is_primary: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+
+
+class ProductSupplier(Base, EntityMixin):
+    """Which suppliers a product can be bought from (R5.1) and their MOQ (R5.5).
+
+    The **only** new mutable entity Part 4 adds, and R5.10 names exactly these two
+    things as legitimate new master data: a preferred/alternate mapping and a
+    minimum order quantity are *recorded facts*, agreed with a supplier.
+
+    What is deliberately NOT here: vendor score, lead time, on-time rate. Those are
+    derived from receipt history every time they are shown (G7, R5.10) — storing
+    them would make the number a thing that can go stale and disagree with the
+    ledger it came from. `app/modules/suppliers/vendor.py` computes them.
+
+    Nor is price: `purchase_price` already holds price per product+supplier with
+    `valid_from`/`valid_to`, which is what R5.6's timeline reads.
+    """
+
+    __tablename__ = "product_supplier"
+
+    product_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(), ForeignKey("product.id"), nullable=False
+    )
+    supplier_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(), ForeignKey("supplier.id"), nullable=False
+    )
+    #: Exactly one preferred supplier per product; the service enforces it, because
+    #: "preferred" is a statement about the product, not about the link.
+    is_preferred: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    #: Minimum the supplier will accept on one order (R5.5). Null = none agreed.
+    moq: Mapped[Decimal | None] = mapped_column(Numeric(18, 4), nullable=True)
+    note: Mapped[str | None] = mapped_column(String(400), nullable=True)
 
 
 class SupplierEvaluation(Base, EntityMixin):

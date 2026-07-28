@@ -8,7 +8,7 @@ each line subtotal. `PurchaseOrderService` owns create/confirm/bill;
 from __future__ import annotations
 
 import uuid
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 
 from sqlalchemy import select
@@ -363,14 +363,34 @@ class PurchaseOrderService:
         self.db.flush()
         return revision
 
-    def confirm(self, order_id: uuid.UUID, *, actor_id: uuid.UUID | None) -> PurchaseOrderDetail:
+    def confirm(
+        self,
+        order_id: uuid.UUID,
+        *,
+        actor_id: uuid.UUID | None,
+        confirmed_at: datetime | None = None,
+        expected_date: date | None = None,
+    ) -> PurchaseOrderDetail:
+        """Confirm a draft order.
+
+        `confirmed_at` and `expected_date` are optional INPUTS, not derived values.
+        An order confirmed on the phone yesterday and entered this morning really was
+        confirmed yesterday, and the supplier really did promise a date — pretending
+        otherwise would corrupt the lead time part 4 measures from this instant.
+        Both default to "now" / "nothing promised". Passing `confirmed_at` is how the
+        seed fabricates history at INSERT time rather than UPDATE-ing a ledger (G4).
+        """
         order = self._require(order_id)
         if order.status != "draft":
             raise ConflictError(f"Cannot confirm purchase order in status '{order.status}'")
         order.status = "confirmed"
         # R4.11: the instant part 4 measures lead time from. Deliberately its own
         # column — `updated_at` is overwritten by the first receipt.
-        order.confirmed_at = datetime.now(UTC)
+        order.confirmed_at = confirmed_at or datetime.now(UTC)
+        # R5.4/R5.7: what the supplier committed to for THIS order. Not a lead-time
+        # field (R5.3) — lead time stays measured from confirm → receipt.
+        if expected_date is not None:
+            order.expected_date = expected_date
         order.updated_by = actor_id
         # R4.7: revision 1 is the agreement as confirmed, and the baseline every
         # receipt and later revision is read against.
@@ -649,7 +669,10 @@ class GoodsReceiptService:
             ),
             status="received",
             # R4.11: part 4 measures lead time as this minus `PurchaseOrder.confirmed_at`.
-            received_at=datetime.now(UTC),
+            # Taken from the payload when the delivery physically arrived earlier than
+            # it was keyed in; set at INSERT, never patched afterwards (G4).
+            received_at=(payload.received_at if payload is not None else None)
+            or datetime.now(UTC),
             created_by=actor_id,
         )
         for product_id, qty in requested.items():

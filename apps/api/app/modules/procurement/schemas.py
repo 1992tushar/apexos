@@ -95,6 +95,10 @@ class GoodsReceiptCreate(BaseModel):
     # is refused rather than quietly accepted — see GoodsReceiptService.receive.
     # Omitted means "whatever is current", which is what an unrevised PO wants.
     against_revision_no: int | None = None
+    # When the goods actually arrived, if that is not now — a delivery taken on
+    # Saturday and keyed in on Monday arrived on Saturday, and R5.3 measures lead
+    # time from it. Set at insert, never patched afterwards (G4).
+    received_at: datetime | None = None
 
 
 class GoodsReceiptRef(BaseModel):

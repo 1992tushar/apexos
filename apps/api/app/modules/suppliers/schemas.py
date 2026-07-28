@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import date, datetime
+from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -79,3 +80,37 @@ class SupplierEvaluationCreate(BaseModel):
     price_score: int = Field(ge=0, le=5)
     reliability_score: int = Field(ge=0, le=5)
     notes: str | None = None
+
+
+# --- Part 4: product↔supplier mapping (R5.1) + MOQ (R5.5) -------------------
+
+
+class ProductSupplierUpsert(BaseModel):
+    """Link a product to a supplier, or amend the link.
+
+    Deliberately no lead-time field — R5.3 forbids one, lead time is measured.
+    """
+
+    product_id: uuid.UUID
+    supplier_id: uuid.UUID
+    is_preferred: bool = False
+    moq: Decimal | None = Field(default=None, gt=0)
+    note: str | None = None
+
+
+class ProductSupplierRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    product_id: uuid.UUID
+    supplier_id: uuid.UUID
+    supplier_code: str | None = None
+    supplier_name: str | None = None
+    is_preferred: bool = False
+    moq: Decimal | None = None
+    note: str | None = None
+    #: Rendered vendor score for this supplier, or "unknown" (G11). A string on
+    #: purpose: there is no number to show when the history is not there.
+    score: str | None = None
+    lead_time: str | None = None
+    on_time_rate: str | None = None

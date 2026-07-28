@@ -56,6 +56,16 @@ class PurchaseOrder(Base, EntityMixin, BusinessUnitMixin):
         DateTime(timezone=True), nullable=True
     )
 
+    # R5.4/R5.7: the date the supplier COMMITTED to for this order. This is not a
+    # lead-time field and R5.3 is not violated by it — lead time stays measured from
+    # `confirmed_at` → `goods_receipt.received_at` and is never typed anywhere. This
+    # is the *promise* for one order, which on-time rate needs a boundary against and
+    # the procurement calendar needs to say what is due to arrive. Nothing derives it;
+    # `confirm()` fills it from the winning quotation's promised `lead_time_days` when
+    # the PO came through an RFQ, and it stays null when nobody promised anything —
+    # in which case on-time rate for that receipt is excluded rather than assumed met.
+    expected_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+
     lines: Mapped[list[PurchaseOrderLine]] = relationship(
         back_populates="order",
         cascade="all, delete-orphan",

@@ -262,6 +262,15 @@ def _build_map() -> dict[str, tuple[Reference, ...]]:
             Reference(SupplierQuotation, "rfq_id", "quotation", "quotations",
                       label="quotation_no"),
         ),
+        # Part 4 (R5.1). A product↔supplier link is a *preference*, not a live
+        # document, so it deliberately does NOT appear under "product" or "supplier"
+        # above: retiring a supplier you no longer buy from must not be blocked by
+        # the fact that you once recorded you could. The link soft-deletes with the
+        # one helper and the mapping screen simply stops offering it.
+        #
+        # Nothing points AT a link, hence the empty tuple — and it is declared rather
+        # than omitted, because R3.7 treats a missing entry as "not yet considered".
+        "product_supplier": (),
         # Deliberately empty — nothing reads these live. Present so a missing entry
         # reads as "not yet considered" rather than "considered, nothing to guard".
         "manufacturer": (),

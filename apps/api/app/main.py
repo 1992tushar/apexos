@@ -47,7 +47,7 @@ _ADDITIVE_COLUMNS: dict[str, dict[str, str]] = {
     # Part 3 C2. `create_all` builds new TABLES but never ALTERs an existing one, so
     # these two would be missing on any DB seeded before C2 — including the dev
     # `apexos.db` that has been carried since Part 1.
-    "purchase_order": {"confirmed_at": "DATETIME"},
+    "purchase_order": {"confirmed_at": "DATETIME", "expected_date": "DATE"},
     "goods_receipt": {"purchase_order_revision_id": "CHAR(32)"},
 }
 

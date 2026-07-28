@@ -118,6 +118,16 @@ NATURAL_KEYS: dict[str, tuple[NaturalKey, ...]] = {
     ),
     # `tax_rate` is deliberately absent: its `code` is NOT unique because every slab
     # version reuses it (R3.6). Two rows with the same code are the point.
+    # Part 4 (R5.1): one link per product+supplier. Both are UUID columns, so the
+    # case-insensitive comparison the master keys use would be meaningless here.
+    "product_supplier": (
+        NaturalKey(
+            ("product_id", "supplier_id"),
+            "supplier for this product",
+            field="supplier_id",
+            case_insensitive=False,
+        ),
+    ),
     "uom_conversion": (
         NaturalKey(("from_uom_id", "to_uom_id"), "unit pair", field="from_uom_id"),
     ),

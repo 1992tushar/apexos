@@ -8,6 +8,7 @@ from __future__ import annotations
 import uuid
 from collections.abc import Sequence
 from dataclasses import replace
+from decimal import Decimal
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -19,16 +20,20 @@ from app.db.references import ensure_unreferenced
 from app.db.soft_delete import soft_delete
 from app.modules.activity.service import ActivityService
 from app.modules.config.models import BusinessUnit
+from app.modules.products.models import Product
 from app.modules.suppliers.listing import SUPPLIER_LIST
-from app.modules.suppliers.models import Supplier, SupplierEvaluation
+from app.modules.suppliers.models import ProductSupplier, Supplier, SupplierEvaluation
 from app.modules.suppliers.repository import SupplierRepository
 from app.modules.suppliers.schemas import (
+    ProductSupplierRead,
+    ProductSupplierUpsert,
     SupplierCreate,
     SupplierEvaluationCreate,
     SupplierEvaluationRead,
     SupplierRead,
     SupplierUpdate,
 )
+from app.modules.suppliers.vendor import VendorIntelService
 
 
 class SupplierService:
@@ -149,6 +154,196 @@ class SupplierService:
             summary=f"Supplier {supplier.name} updated",
         )
         return self._to_read(supplier)
+
+
+class ProductSupplierService:
+    """The product↔supplier mapping (R5.1) and its MOQ (R5.5).
+
+    The writer half of Part 4. `VendorIntelService` is the read half and stays
+    read-only (G15) — score, lead time and on-time rate are never written here.
+    """
+
+    def __init__(self, db: Session) -> None:
+        self.db = db
+        self.activity = ActivityService(db)
+
+    def _get(self, link_id: uuid.UUID) -> ProductSupplier:
+        link = self.db.scalar(
+            select(ProductSupplier).where(
+                ProductSupplier.id == link_id, ProductSupplier.deleted_at.is_(None)
+            )
+        )
+        if link is None:
+            raise NotFoundError(f"Product-supplier link {link_id} not found")
+        return link
+
+    def links_for_product(self, product_id: uuid.UUID) -> list[ProductSupplier]:
+        """Preferred first, then by supplier name — the order the screen shows."""
+        return list(
+            self.db.scalars(
+                select(ProductSupplier)
+                .join(Supplier, Supplier.id == ProductSupplier.supplier_id)
+                .where(
+                    ProductSupplier.product_id == product_id,
+                    ProductSupplier.deleted_at.is_(None),
+                )
+                .order_by(ProductSupplier.is_preferred.desc(), Supplier.name.asc())
+            )
+        )
+
+    def list_for_product(self, product_id: uuid.UUID) -> list[ProductSupplierRead]:
+        """The vendor comparison for one product (R5.1, R5.12).
+
+        Each row carries the supplier's *rendered* intelligence — "unknown" where
+        there is no history, never a stand-in number (G11/R5.11).
+        """
+        intel = VendorIntelService(self.db)
+        out: list[ProductSupplierRead] = []
+        for link in self.links_for_product(product_id):
+            supplier = self.db.get(Supplier, link.supplier_id)
+            out.append(
+                ProductSupplierRead(
+                    id=link.id,
+                    product_id=link.product_id,
+                    supplier_id=link.supplier_id,
+                    supplier_code=supplier.code if supplier else None,
+                    supplier_name=supplier.name if supplier else None,
+                    is_preferred=link.is_preferred,
+                    moq=link.moq,
+                    note=link.note,
+                    score=intel.score(link.supplier_id).display,
+                    lead_time=intel.lead_time(link.supplier_id).display,
+                    on_time_rate=intel.on_time_rate(link.supplier_id).display,
+                )
+            )
+        return out
+
+    def moq(self, product_id: uuid.UUID, supplier_id: uuid.UUID) -> Decimal | None:
+        """The agreed minimum for one product+supplier — what R4.5's grid shows (R5.5)."""
+        return self.db.scalar(
+            select(ProductSupplier.moq).where(
+                ProductSupplier.product_id == product_id,
+                ProductSupplier.supplier_id == supplier_id,
+                ProductSupplier.deleted_at.is_(None),
+            )
+        )
+
+    def preferred_supplier_id(self, product_id: uuid.UUID) -> uuid.UUID | None:
+        """Who to buy this from by default — the recommendation engine reads this."""
+        return self.db.scalar(
+            select(ProductSupplier.supplier_id).where(
+                ProductSupplier.product_id == product_id,
+                ProductSupplier.is_preferred.is_(True),
+                ProductSupplier.deleted_at.is_(None),
+            )
+        )
+
+    def upsert(
+        self, payload: ProductSupplierUpsert, *, actor_id: uuid.UUID | None
+    ) -> ProductSupplierRead:
+        """Create or amend one link. Idempotent on (product, supplier)."""
+        existing = self.db.scalar(
+            select(ProductSupplier).where(
+                ProductSupplier.product_id == payload.product_id,
+                ProductSupplier.supplier_id == payload.supplier_id,
+                ProductSupplier.deleted_at.is_(None),
+            )
+        )
+        product = self.db.get(Product, payload.product_id)
+        supplier = self.db.get(Supplier, payload.supplier_id)
+        if product is None:
+            raise NotFoundError(f"Product {payload.product_id} not found")
+        if supplier is None:
+            raise NotFoundError(f"Supplier {payload.supplier_id} not found")
+
+        if existing is None:
+            # The one duplicate check (R2.9/R3.8) — the key is in app.db.duplicates.
+            ensure_unique(
+                self.db,
+                ProductSupplier,
+                {"product_id": payload.product_id, "supplier_id": payload.supplier_id},
+            )
+            link = ProductSupplier(
+                product_id=payload.product_id,
+                supplier_id=payload.supplier_id,
+                is_preferred=False,
+                moq=payload.moq,
+                note=payload.note,
+                created_by=actor_id,
+            )
+            self.db.add(link)
+            self.db.flush()
+            verb, phrase = "linked", "can be bought from"
+        else:
+            link = existing
+            link.moq = payload.moq
+            link.note = payload.note
+            link.updated_by = actor_id
+            self.db.flush()
+            verb, phrase = "updated", "supply terms updated for"
+
+        # Exactly one activity row for the whole verb (G5) — `_set_preferred` below
+        # is called inline and deliberately does NOT log a second one.
+        if payload.is_preferred:
+            self._set_preferred(link)
+        self.activity.log(
+            actor_id=actor_id,
+            verb=verb,
+            entity_type="product_supplier",
+            entity_id=link.id,
+            summary=f"{product.name} {phrase} {supplier.name}",
+            data={"moq": str(link.moq) if link.moq is not None else None,
+                  "is_preferred": link.is_preferred},
+        )
+        return self.list_one(link.id)
+
+    def list_one(self, link_id: uuid.UUID) -> ProductSupplierRead:
+        link = self._get(link_id)
+        rows = [r for r in self.list_for_product(link.product_id) if r.id == link_id]
+        return rows[0]
+
+    def _set_preferred(self, link: ProductSupplier) -> None:
+        """One preferred supplier per product — demote the others.
+
+        Not a logged verb of its own; the caller owns the single activity row (G5).
+        """
+        others = self.db.scalars(
+            select(ProductSupplier).where(
+                ProductSupplier.product_id == link.product_id,
+                ProductSupplier.id != link.id,
+                ProductSupplier.is_preferred.is_(True),
+                ProductSupplier.deleted_at.is_(None),
+            )
+        )
+        for other in others:
+            other.is_preferred = False
+        link.is_preferred = True
+        self.db.flush()
+
+    def set_preferred(
+        self, link_id: uuid.UUID, *, actor_id: uuid.UUID | None
+    ) -> ProductSupplierRead:
+        """Make this supplier the preferred one for its product (R5.1)."""
+        link = self._get(link_id)
+        self._set_preferred(link)
+        product = self.db.get(Product, link.product_id)
+        supplier = self.db.get(Supplier, link.supplier_id)
+        self.activity.log(
+            actor_id=actor_id,
+            verb="preferred",
+            entity_type="product_supplier",
+            entity_id=link.id,
+            summary=(
+                f"{supplier.name if supplier else 'Supplier'} set as preferred for "
+                f"{product.name if product else 'product'}"
+            ),
+        )
+        return self.list_one(link.id)
+
+    def delete(self, link_id: uuid.UUID, *, actor_id: uuid.UUID | None) -> None:
+        """Unlink a supplier from a product. The one soft-delete helper (R1.1)."""
+        link = self._get(link_id)
+        soft_delete(self.db, link, actor_id=actor_id, label="Product-supplier link")
 
 
 class VendorEvaluationService:
