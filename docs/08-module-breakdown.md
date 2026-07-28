@@ -71,7 +71,7 @@ Spine service call-chain (the golden path):
 ```
 SalesOrderService.create()      → activity: sales_order.created
 SalesOrderService.confirm()     → activity: sales_order.confirmed
-FulfillmentService.ship()       → InventoryService.post_movement(OUT)
+FulfillmentService.ship()       → InventoryService.record_movement(OUT)
                                   → activity: fulfillment.shipped, stock.moved
 InvoiceService.issue()          → TaxService.compute(); activity: invoice.issued
                                   → (bridge) QuickBooksSyncService.push_invoice()  [optional]
@@ -174,7 +174,7 @@ Bill mirrors Invoice; Payable mirrors Receivable).
   - `VendorEvaluationService.score()` — quality/price/reliability scorecard.
   - `PurchaseOrderService.create/confirm()` — snapshots `purchase_price` onto lines.
   - `GoodsReceiptService.receive()` — **emits `stock_movement` IN** via
-    `InventoryService.post_movement()`; partial receipts allowed.
+    `InventoryService.record_movement()`; partial receipts allowed.
   - `BillService.enter()` — hands off to Finance (`BillService.issue()`).
 - **Depends on:** Org/Config (`supplier_type`, `warehouse`), Products (`product`),
   Pricing (`purchase_price`), Inventory (post IN movement), Finance (bill).
@@ -215,7 +215,7 @@ Bill mirrors Invoice; Payable mirrors Receivable).
     Confirmed and reserves nothing (stock is decremented at ship, not order — D3 keeps it simple).
   - `SalesOrderService.cancel()`.
   - `FulfillmentService.ship()` — creates `fulfillment` + lines, **emits one `stock_movement`
-    per line (reason `SALE`, `ref_type=fulfillment`)** through `InventoryService.post_movement()`,
+    per line (reason `SALE`, `ref_type=fulfillment`)** through `InventoryService.record_movement()`,
     then hands the shipped quantities to `InvoiceService.issue()`.
 - **Depends on:** Customers (`customer`, credit check), Products (`product`), Pricing
   (`resolve`), Org/Config (`business_unit`, `tax_rate`), Inventory (post OUT movement),
@@ -232,15 +232,16 @@ Bill mirrors Invoice; Payable mirrors Receivable).
 - **Owns:** `stock_movement` (`→product`, `→warehouse`, `qty_delta`, `reason`, `ref_type`,
   `ref_id`), `stock_balance` (materialized/derived per product per warehouse).
 - **Services:**
-  - `InventoryService.post_movement(product, warehouse, qty_delta, reason, ref)` — the only
-    writer of `stock_movement`; one row per movement, sign encodes IN(+)/OUT(−).
+  - `InventoryService.record_movement(*, product_id, warehouse_id, qty_delta, reason,
+    ref_type=None, ref_id=None, unit_cost_minor=None, actor_id=None)` — all keyword-only; the
+    only writer of `stock_movement`; one row per movement, sign encodes IN(+)/OUT(−).
   - `InventoryService.balance(product, warehouse)` — sum of `qty_delta` (or read the
     materialized `stock_balance`).
   - `StockAdjustmentService.adjust()` — manual correction with reason (`ADJUSTMENT`, `COUNT`).
   - `StockBalanceProjection.refresh()` — rebuilds/refreshes the derived `stock_balance`.
 - **Depends on:** Org/Config (`warehouse`), Products (`product`). Called by Sales & Procurement.
 - **Emits:** `stock.moved`, `stock.adjusted`.
-- **Phase:** **Phase 1** for `post_movement` + `balance` (the spine's OUT movement + on-hand
+- **Phase:** **Phase 1** for `record_movement` + `balance` (the spine's OUT movement + on-hand
   tile). Multi-warehouse transfers, cycle counts → **Phase 2**.
 
 ### 2.9 Finance

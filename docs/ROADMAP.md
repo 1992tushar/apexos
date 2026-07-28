@@ -452,7 +452,7 @@ UI: extend /purchase-orders and /procurement; add requisition, RFQ and compariso
 for speed — keyboard-first entry, product search-as-you-type, sensible defaults from history, bulk
 line entry. Reuse the part 2 table/filter/pagination macros; do not hand-roll list markup.
 
-Ledger discipline: goods receipt posts stock IN through the existing InventoryService.post_movement
+Ledger discipline: goods receipt posts stock IN through the existing InventoryService.record_movement
 (the ONLY stock writer). Receipts and revisions are append-only.
 
 HANDOFF TO PART 4 (this is a requirement, R4.11): persist the timestamps part 4 needs — PO confirm
@@ -565,7 +565,7 @@ and it is needed only for the on-hand VALUE figure. Margin does not depend on it
 is selling − buying off the purchase price snapshotted onto the line. Requirements R6.7, R6.8 and R6.9
 are struck; R6.16 (weighted average) replaces them.
 
-WHAT EXISTS: app/modules/inventory (stock_movement ledger, post_movement as the single writer,
+WHAT EXISTS: app/modules/inventory (stock_movement ledger, record_movement as the single writer,
 derived balances), multi-warehouse + transfer/adjust/count from an earlier phase. Web pages:
 /inventory, /warehouse. Extend; do not rebuild. Balances stay DERIVED from the ledger — never a
 stored mutable quantity.
@@ -588,7 +588,7 @@ BUILD:
 5. Operations: cycle count (count sheet → variance → adjustment), stock adjustment with a mandatory
    reason, warehouse transfer (two movements with in-transit between them, so stock is never
    invisible mid-flight). A count that matches produces NO adjustment movement; a variance produces
-   exactly ONE. All operations write through InventoryService.post_movement — the single writer.
+   exactly ONE. All operations write through InventoryService.record_movement — the single writer.
 6. Inventory health, all explainable: ABC analysis (state the class boundaries), dead stock radar
    (state the window), fast/slow moving, reorder suggestions, low-stock alerts. Each must show the
    numbers it reasoned from and link to the affected records.
@@ -610,7 +610,7 @@ fast mover, and enough movement history for ABC classes and weighted-average cos
 Do NOT seed batches or expiry dates — they no longer exist.
 
 Add tests: reservation reduces available but not on-hand, release restores available, weighted-average
-cost against hand-computed values, ageing bucket boundaries, bin→rack→warehouse rollup, post_movement
+cost against hand-computed values, ageing bucket boundaries, bin→rack→warehouse rollup, record_movement
 is still the only stock writer, variance produces exactly one adjustment, zero-variance produces none,
 adjustment requires a reason, transfer sits in-transit then lands, ABC boundaries, dead-stock window
 boundary, and R7.13 (reorder suggestion identical to part 4's engine).
@@ -701,7 +701,7 @@ gaps are at the two ends: QUOTATION (before the order) and RETURNS / CREDIT NOTE
 BUILD:
 1. Quotation: create, revise (versioned, append-only — prior versions readable verbatim), send,
    expire, and convert to a sales order in ONE action carrying the quoted prices forward.
-2. Returns and credit notes: a return posts stock IN through InventoryService.post_movement and
+2. Returns and credit notes: a return posts stock IN through InventoryService.record_movement and
    raises a credit note against the invoice. APPEND-ONLY — never edit the original invoice; a test
    must assert the invoice is unchanged after a return. Partial returns allowed, leaving a correct
    DERIVED returnable quantity. The credit note reduces the receivable through the ledger, not by

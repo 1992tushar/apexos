@@ -134,7 +134,7 @@ Rules that bind every feature (from the foundation):
 | 6.1 | Stock balances list | Derived `stock_balance` per product per warehouse (read-only) | P0 | Phase 1 | 🔵 |
 | 6.2 | On-hand value tile source | Feeds the Dashboard on-hand value tile | P0 | Phase 1 | 🔵 |
 | 6.3 | Movements ledger | `stock_movement` append-only ledger with reason/ref filters | P0 | Phase 1 | 🔵 |
-| 6.4 | Post movement (internal) | `InventoryService.post_movement()` — the only writer; IN(+)/OUT(−) | P0 | Phase 1 | 🔵 |
+| 6.4 | Post movement (internal) | `InventoryService.record_movement()` — the only writer; IN(+)/OUT(−) | P0 | Phase 1 | 🔵 |
 | 6.5 | Product-in-warehouse detail | Movement history, on-hand, incoming/outgoing for one SKU/warehouse | P1 | Phase 2 | |
 | 6.6 | Stock adjustment | `StockAdjustmentService.adjust()` with reason (`ADJUSTMENT`, `COUNT`) | P1 | Phase 2 | |
 | 6.7 | Low-stock signals | Threshold-based low-stock flags feeding the attention strip | P1 | Phase 2 | |

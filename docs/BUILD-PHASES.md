@@ -43,7 +43,7 @@ BUILD (backend, mirror the Sales module structure model/repository/service/route
    (append never overwrite). PricingService.resolve for purchase; MarginService.gp(line).
 3. Procurement: purchase_order (→supplier, →business_unit), purchase_order_line (→product),
    goods_receipt, goods_receipt_line. PurchaseOrderService.create/confirm (snapshot purchase_price
-   onto lines); GoodsReceiptService.receive → InventoryService.post_movement(IN) (reuse the existing
+   onto lines); GoodsReceiptService.receive → InventoryService.record_movement(IN) (reuse the existing
    inventory writer; partial receipts allowed).
 4. Finance (buy side): bill (→supplier, →purchase_order), bill_line; PaymentService already exists —
    extend for direction=out + payment_allocation to bills; PayableProjection.
@@ -90,7 +90,7 @@ GOAL: operational depth + full self-service configuration.
 BUILD:
 1. Warehouse / Inventory widen: multi-warehouse support, StockTransferService (move stock between
    warehouses = two stock_movements), StockAdjustmentService.adjust (reason ADJUSTMENT/COUNT), and a
-   cycle-count flow. All go through the existing InventoryService.post_movement (the only stock
+   cycle-count flow. All go through the existing InventoryService.record_movement (the only stock
    writer). Balances stay derived from the ledger.
 2. Settings (full Org/Config UI): CRUD screens for business_unit, brand, category (with reparent +
    →business_unit rollup), uom + uom_conversion (validate non-zero, non-cyclic factors),

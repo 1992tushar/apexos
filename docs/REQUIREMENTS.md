@@ -65,7 +65,7 @@ These are not re-stated per part. A PR that violates one is not done, regardless
 | G5 | Every state-changing service verb MUST write exactly **one** `activity_log` row inside the same transaction as the state change. | One test per new verb asserting the row count is exactly 1 and the verb name matches `<entity>.<past_tense>` | P0 |
 | G6 | Noun-lists (`customer_type`, `supplier_type`, `procurement_model`, …) MUST be rows, never hardcoded enums. | No new Python enum for a business noun; adding a value requires no code change | P0 |
 | G7 | Derived quantities (stock balance, receivable, payable, running balance, back-order qty, available stock, returnable qty) MUST be derived from the ledger, never stored as a mutable number. | Model review; a test proving the derived value tracks after a new ledger entry | P0 |
-| G8 | `InventoryService.post_movement` MUST remain the only writer of `stock_movement`. | Test asserting no other module inserts `stock_movement` rows | P0 |
+| G8 | `InventoryService.record_movement` MUST remain the only writer of `stock_movement`. | Test asserting no other module inserts `stock_movement` rows | P0 |
 | G9 | Web pages MUST call services directly, never over HTTP. | Route review — no HTTP client in `app/web/` | P0 |
 | G10 | Web POST routes SHOULD carry the authorization guard from R1.4. | Spot-check on review. **Demoted from MUST/P0 by D-B** — with one user the guard is a no-op; the mechanism existing is what matters, exhaustive enforcement is ceremony | P1 |
 | G11 | Every score, alert, recommendation and forecast MUST render its inputs, its formula, its data window, and links to the records it reasoned from. Where it cannot be computed, it MUST say "unknown" — never a misleading default such as 0 or 50. | Screen review; a test asserting a non-empty explanation and ≥1 linked record per output; a test for the insufficient-data path | P0 |
@@ -167,7 +167,7 @@ warehouses, units of measure + conversions, tax masters, customers, suppliers.
 | R4.5 | A side-by-side vendor comparison MUST show price, lead time, MOQ and score per quoting supplier. | Screen review | P0 |
 | R4.6 | Quotation history per product + supplier MUST be viewable. | Screen review | P1 |
 | R4.7 | A confirmed PO MUST NOT be mutated in place. Changes create a new **revision** with a reason and an `activity_log` row; prior revisions stay readable verbatim. | Test: revise, then read version 1 unchanged | P0 |
-| R4.8 | Partial receipt MUST be supported, posting stock IN through `InventoryService.post_movement` (G8). | Test | P0 |
+| R4.8 | Partial receipt MUST be supported, posting stock IN through `InventoryService.record_movement` (G8). | Test | P0 |
 | R4.9 | Back-order (open) quantity MUST be **derived** as ordered − received (G7) and visible on the PO. | Test after a partial receipt; screen shows it | P0 |
 | R4.10 | A receipt MUST record which PO revision it was received against, and receipt against a superseded revision MUST be handled explicitly, not silently accepted. | Test | P0 |
 | R4.11 | PO confirm and each receipt MUST persist their timestamps so part 4 can MEASURE lead time rather than have it typed in. | Field review; part 4 consumes them | P0 |
@@ -228,7 +228,7 @@ reason so the omission is a recorded decision, not an oversight.
 | R6.12 | `/inventory` and `/warehouse` MUST gain stock-by-location and ageing views, using part 2's macros. | Screen review | P0 |
 | R6.13 | Screens SHOULD use plain labels and avoid jargon. **Relaxed from MUST by D-B** — no untrained staff use the system, but plain language remains the house style. | Review against `17-design-system.md` | P1 |
 | R6.14 | Seed MUST include two warehouses with racks and bins, a reservation against a confirmed order, and enough movement history for non-trivial weighted-average cost. It MUST NOT seed batches or expiry dates (D-A). | Fresh-DB boot | P0 |
-| R6.15 | Tests MUST cover: reservation reduces available but not on-hand, release restores available, ageing boundaries, bin→rack→warehouse rollup, and that `post_movement` is still the sole stock writer (G8). | `pytest -q` | P0 |
+| R6.15 | Tests MUST cover: reservation reduces available but not on-hand, release restores available, ageing boundaries, bin→rack→warehouse rollup, and that `record_movement` is still the sole stock writer (G8). | `pytest -q` | P0 |
 | R6.16 | Cost basis MUST be **weighted average** computed from movement history, and is needed only for the on-hand **value** figure. Margin MUST NOT depend on it (see R11.6). *Added by D-A, replacing R6.9.* | Test against hand-computed values | P0 |
 
 ---
@@ -244,7 +244,7 @@ reason so the omission is a recorded decision, not an oversight.
 | R7.3 | A count with a variance MUST produce exactly ONE adjustment movement and one `activity_log` row. | Test | P0 |
 | R7.4 | Stock adjustment MUST require a reason (feature 6.6). | Test rejecting a blank reason | P0 |
 | R7.5 | Warehouse transfer MUST be two movements with the in-transit state between them, so stock is never invisible mid-flight. | Test: transfer then receive | P0 |
-| R7.6 | All operations MUST write through `InventoryService.post_movement` (G8). | Test | P0 |
+| R7.6 | All operations MUST write through `InventoryService.record_movement` (G8). | Test | P0 |
 | R7.7 | ABC analysis MUST be reported with its class boundaries stated. | Boundary test; screen shows the thresholds | P0 |
 | R7.8 | A dead-stock radar MUST report items with no movement in a stated window. | Boundary test | P0 |
 | R7.9 | Fast/slow moving classification MUST show the window and the numbers behind it. | Screen review | P1 |
@@ -289,7 +289,7 @@ entry fast. The middle — order → fulfillment → invoice → payment — alr
 | R9.1 | Quotations MUST support create, revise, send and expire. | Walk the flow | P0 |
 | R9.2 | Quotation revisions MUST be versioned and append-only, with prior versions readable verbatim. | Test | P0 |
 | R9.3 | Quotation → sales order MUST be ONE action, carrying quoted prices forward. | Test asserting prices match | P0 |
-| R9.4 | A return MUST post stock IN through `InventoryService.post_movement` (G8). | Test | P0 |
+| R9.4 | A return MUST post stock IN through `InventoryService.record_movement` (G8). | Test | P0 |
 | R9.5 | A return MUST raise a credit note against the invoice. The original invoice MUST NOT be mutated (G4, feature 11.15). | Test asserting the invoice is unchanged after the return | P0 |
 | R9.6 | Partial returns MUST be supported, leaving a correct derived returnable quantity (G7). | Test | P0 |
 | R9.7 | A credit note MUST reduce the receivable through the ledger, not by mutation. | Test on the receivable projection | P0 |
@@ -502,4 +502,5 @@ decision, not an oversight:
 | Date | Version | Change |
 |---|---|---|
 | 2026-07-28 | 1.0 | Register created for the 15-part split; `06-feature-list.md` phase column superseded; deferred items made explicit |
+| 2026-07-28 | 1.2 | Corrected the stock-writer's name throughout: the method is `InventoryService.record_movement`, not `post_movement`, which has never existed in the codebase. Named wrongly in 18 places across 5 docs, including the **G8, R4.8, R6.15, R7.6 and R9.4 acceptance criteria** — P0 gates naming a method no session could call. No requirement changed meaning; `record_movement` is what all 6 callers use |
 | 2026-07-28 | 1.1 | Product decisions D-A..D-D applied. Re-cut to 12 parts (requirement IDs deliberately NOT renumbered). R6.7/R6.8/R6.9 struck; R6.16 added; R6.10, R6.14, R11.6 rewritten. R2.6/R2.7 demoted to P2. G10, R1.5, R14.13, R14.14 demoted; R6.13, R7.12, R14.2, R14.4 relaxed. R9.12 raised to P0. G17, R3.13, R10.14, R14.20 added as explicit do-not-build guards. §17 rewritten: five deferred items are now **cut**, with the reason per item |
