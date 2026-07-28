@@ -182,9 +182,22 @@ def filesize(n: int | None) -> str:
     return f"{size:.1f} TB"
 
 
+def bps(value: Any) -> str:
+    """Integer basis points as a percentage: 1800 → "18%", 250 → "2.5%".
+
+    GST rates are stored as `rate_bps` (integer, G1's no-float rule applies to money
+    but the same reasoning keeps rates exact). Integer arithmetic only.
+    """
+    if value is None:
+        return "—"
+    whole, fraction = divmod(int(value), 100)
+    return f"{whole}%" if not fraction else f"{whole}.{fraction:02d}".rstrip("0") + "%"
+
+
 templates.env.filters.update(
     money=money,
     number=number,
+    bps=bps,
     fmt_date=fmt_date,
     fmt_datetime=fmt_datetime,
     time_ago=time_ago,
@@ -193,6 +206,9 @@ templates.env.filters.update(
     filesize=filesize,
 )
 templates.env.globals.update(
+    # Lets the `cell` macro render a column with no `ListView` around it — a detail
+    # page shows the same columns as a `<dl>`.
+    cell_value=lambda row, key: getattr(row, key, None),
     NAV_ITEMS=NAV_ITEMS,
     SECTION_LABELS=SECTION_LABELS,
     APP_NAME=settings.app_name,

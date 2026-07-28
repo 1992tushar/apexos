@@ -15,9 +15,15 @@ from app.db.listing import Column, Filter, ListSpec, model_options, static_optio
 from app.modules.config.models import Brand, Category
 from app.modules.products.models import Product
 
-PRODUCT_STATUSES = static_options(
-    ("active", "Active"), ("draft", "Draft"), ("discontinued", "Discontinued")
+# The status lifecycle (R3.9). One definition: the filter's options and the set the
+# service will accept come from the same place.
+PRODUCT_STATUS_CHOICES: tuple[tuple[str, str], ...] = (
+    ("active", "Active"),
+    ("draft", "Draft"),
+    ("discontinued", "Discontinued"),
 )
+PRODUCT_STATUSES_ALLOWED = frozenset(value for value, _ in PRODUCT_STATUS_CHOICES)
+PRODUCT_STATUSES = static_options(*PRODUCT_STATUS_CHOICES)
 
 PRODUCT_LIST = ListSpec(
     entity="product",

@@ -288,6 +288,11 @@ def export_text(column: Column, row: Any) -> str:
         return ""
     if column.kind == "money":
         return minor_to_text(raw)
+    if column.kind == "bool":
+        return "active" if raw else "inactive"
+    if column.kind == "bps":
+        # Basis points as a plain decimal percentage, integer arithmetic (1800 → 18.00).
+        return f"{int(raw) // 100}.{int(raw) % 100:02d}"
     if isinstance(raw, Decimal):
         # A `Numeric(18,4)` quantity arrives as "40.0000"; the file should carry the
         # number, not the column's scale. No grouping — this cell is parsed, not read.

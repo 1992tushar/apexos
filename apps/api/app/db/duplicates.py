@@ -71,6 +71,56 @@ NATURAL_KEYS: dict[str, tuple[NaturalKey, ...]] = {
         NaturalKey(("code",), "customer code", db_unique=True),
         NaturalKey(("name", "city"), "name and city", field="name"),
     ),
+    "supplier": (
+        NaturalKey(("code",), "supplier code", db_unique=True),
+        NaturalKey(("name", "city"), "name and city", field="name"),
+    ),
+    # --- config masters (R3.8) -------------------------------------------------
+    # Every one of these has `code` UNIQUE in the schema, so a soft-deleted row still
+    # holds it and `db_unique=True` is what makes the message say so instead of letting
+    # the INSERT fail. `name` is a second, live-rows-only key: two brands called "Aura"
+    # with different codes is a data-entry slip, not a business fact.
+    "business_unit": (
+        NaturalKey(("code",), "business unit code", db_unique=True),
+        NaturalKey(("name",), "name"),
+    ),
+    "brand": (
+        NaturalKey(("code",), "brand code", db_unique=True),
+        NaturalKey(("name",), "name"),
+    ),
+    "manufacturer": (
+        NaturalKey(("code",), "manufacturer code", db_unique=True),
+        NaturalKey(("name", "city"), "name and city", field="name"),
+    ),
+    "procurement_model": (
+        NaturalKey(("code",), "procurement model code", db_unique=True),
+        NaturalKey(("name",), "name"),
+    ),
+    "uom": (
+        NaturalKey(("code",), "unit code", db_unique=True),
+        NaturalKey(("name",), "name"),
+    ),
+    "customer_type": (
+        NaturalKey(("code",), "customer type code", db_unique=True),
+        NaturalKey(("name",), "name"),
+    ),
+    "supplier_type": (
+        NaturalKey(("code",), "supplier type code", db_unique=True),
+        NaturalKey(("name",), "name"),
+    ),
+    "warehouse": (
+        NaturalKey(("code",), "warehouse code", db_unique=True),
+        NaturalKey(("name",), "name"),
+    ),
+    "category": (
+        NaturalKey(("code",), "category code", db_unique=True),
+        NaturalKey(("name", "parent_category_id"), "name under this parent", field="name"),
+    ),
+    # `tax_rate` is deliberately absent: its `code` is NOT unique because every slab
+    # version reuses it (R3.6). Two rows with the same code are the point.
+    "uom_conversion": (
+        NaturalKey(("from_uom_id", "to_uom_id"), "unit pair", field="from_uom_id"),
+    ),
 }
 
 

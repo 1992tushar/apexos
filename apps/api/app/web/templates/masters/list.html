@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+{% block title %}{{ master.title }}{% endblock %}
+{% block content %}
+{# One template for every config master (R3.2). Everything specific to one of them
+   comes from `master` — the registry entry in app/web/pages/masters.py. #}
+{% call ui.page_header(master.title, master.blurb) %}
+  <a class="btn" href="/settings">← Settings</a>
+{% endcall %}
+
+<div class="master-tabs">
+  {% for m in masters %}
+    <a class="chip{{ ' chip-on' if m.slug == master.slug else '' }}" href="/masters/{{ m.slug }}">{{ m.title }}</a>
+  {% endfor %}
+</div>
+
+{% if master.fields %}
+<div class="card mt" id="new">
+  <div class="card-title">New {{ master.label | lower }}</div>
+  <form method="post" action="/masters/{{ master.slug }}">
+    <div class="form-grid">
+      {% for f in master.fields %}
+      <div class="field">
+        <label>{{ f.label }}</label>
+        <input name="{{ f.name }}" type="{{ f.kind }}"
+               {% if f.step %}step="{{ f.step }}" min="0"{% endif %}
+               {% if f.required %}required{% endif %} />
+      </div>
+      {% endfor %}
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-primary" type="submit">Add {{ master.label | lower }}</button>
+    </div>
+  </form>
+</div>
+{% endif %}
+
+{{ ui.list_toolbar(view) }}
+{% if view.rows %}
+  {% call(row) ui.list_table(view) %}
+    <a class="btn btn-sm" href="/masters/{{ master.slug }}/{{ row.id }}">View</a>
+    {% if master.toggleable %}
+      <form method="post" class="inline-form"
+            action="/masters/{{ master.slug }}/{{ row.id }}/status?active={{ 0 if row.is_active else 1 }}">
+        <button class="btn btn-sm" type="submit">{{ "Deactivate" if row.is_active else "Activate" }}</button>
+      </form>
+    {% endif %}
+    {% if master.deletable %}
+      {{ ui.delete_button("/masters/" ~ master.slug ~ "/" ~ row.id ~ "/delete", row.name,
+         "It is refused if anything still in play uses it, and the refusal says what.") }}
+    {% endif %}
+  {% endcall %}
+{% else %}
+  {{ ui.list_empty(view, "None yet. Add the first one above.") }}
+{% endif %}
+{{ ui.pagination(view) }}
+{% endblock %}

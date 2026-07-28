@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+{% block title %}{{ c.name }}{% endblock %}
+{% block content %}
+{% call ui.page_header(c.name, "Category · " ~ c.code) %}
+  <a class="btn" href="/categories">← All categories</a>
+  {{ ui.delete_button("/categories/" ~ c.id ~ "/delete", c.name,
+     "Refused while it still has sub-categories or products, and the refusal says which.") }}
+{% endcall %}
+
+<div class="grid grid-3 mt">
+  {{ ui.stat("Products", c.product_count | number) }}
+  {{ ui.stat("Parent", c.parent_name or "Top level") }}
+  {{ ui.stat("Procurement model", c.procurement_model_name or "—") }}
+</div>
+
+<div class="card mt">
+  <div class="section-title">Details</div>
+  <dl class="kv">
+    <dt>Status</dt><dd>{{ ui.badge("active" if c.is_active else "inactive") }}</dd>
+    <dt>Sort order</dt><dd>{{ c.sort_order }}</dd>
+  </dl>
+</div>
+
+<div class="mt">{{ ui.history_panel(history) }}</div>
+{% endblock %}

@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import uuid
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.modules.config.models import SupplierType
@@ -36,26 +36,8 @@ class SupplierRepository:
             select(func.count()).select_from(Supplier).where(Supplier.deleted_at.is_(None))
         ) or 0
 
-    def search(self, *, search: str | None, page: int, page_size: int) -> tuple[list[Supplier], int]:
-        base = select(Supplier).where(Supplier.deleted_at.is_(None))
-        if search:
-            like = f"%{search.lower()}%"
-            base = base.where(
-                or_(
-                    func.lower(Supplier.name).like(like),
-                    func.lower(Supplier.code).like(like),
-                    func.lower(func.coalesce(Supplier.city, "")).like(like),
-                )
-            )
-        total = self.db.scalar(select(func.count()).select_from(base.subquery())) or 0
-        rows = list(
-            self.db.scalars(
-                base.order_by(Supplier.created_at.desc())
-                .offset((page - 1) * page_size)
-                .limit(page_size)
-            )
-        )
-        return rows, total
+    # No `search()` here: paginated/filtered/sorted reads go through the one query
+    # helper in `app.db.listing`, driven by `suppliers/listing.py`'s spec (R2.4).
 
     def supplier_type_name(self, supplier_type_id: uuid.UUID) -> str | None:
         return self.db.scalar(

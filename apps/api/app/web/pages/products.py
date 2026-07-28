@@ -16,7 +16,7 @@ from app.core.database import get_db
 from app.core.security import Actor
 from app.modules.activity.service import ActivityService
 from app.modules.config.service import ConfigService
-from app.modules.products.listing import PRODUCT_LIST
+from app.modules.products.listing import PRODUCT_LIST, PRODUCT_STATUS_CHOICES
 from app.modules.products.schemas import ProductCreate
 from app.modules.products.service import ProductService
 from app.web.core import form_action, render
@@ -51,6 +51,7 @@ def product_detail(request: Request, product_id: uuid.UUID, db: Session = Depend
         request,
         "products/detail.html",
         p=product,
+        statuses=PRODUCT_STATUS_CHOICES,
         history=ActivityService(db).history("product", product_id),
     )
 
@@ -96,6 +97,24 @@ def create_product(
         db, work, back="/products",
         success=("/products", "Product created"),
         err="Could not create product",
+    )
+
+
+@router.post("/products/{product_id}/status")
+def set_product_status(
+    request: Request,
+    product_id: uuid.UUID,
+    status: str = Form(...),
+    db: Session = Depends(get_db),
+    actor: Actor = Depends(require_web_permission("product.update")),
+):
+    """Move a product through its lifecycle (R3.9); refused if open work reads it."""
+    return form_action(
+        db,
+        lambda: ProductService(db).set_status(product_id, status, actor_id=actor.id),
+        back=f"/products/{product_id}",
+        success=(f"/products/{product_id}", f"Product marked {status}"),
+        err="Could not change the product's status",
     )
 
 

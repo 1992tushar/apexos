@@ -9,6 +9,7 @@ from app.core.security import Actor
 from app.modules.config.schemas import SettingUpsert, TaxRateSlabCreate
 from app.modules.config.service import ConfigService, SettingService, TaxRateService
 from app.web.core import form_action, redirect, render
+from app.web.pages.masters import MASTERS
 from app.web.security import require_web_permission
 
 router = APIRouter()
@@ -18,18 +19,16 @@ _MASTER_TYPES = {"business_unit", "brand", "uom", "customer_type", "supplier_typ
 
 @router.get("/settings")
 def settings_index(request: Request, db: Session = Depends(get_db)):
-    cfg = ConfigService(db)
+    """The hub: links to each master's own screen, plus the typed settings.
+
+    The master lists themselves moved to `/masters/<slug>` in Part 2 C3 — see that
+    module's docstring for why they could not stay eight cards on one URL.
+    """
     return render(
         request,
         "settings/index.html",
-        business_units=cfg.business_units(),
-        brands=cfg.brands(),
-        uoms=cfg.uoms(),
-        customer_types=cfg.customer_types(),
-        supplier_types=cfg.supplier_types(),
-        warehouses=cfg.warehouses(),
-        tax_rates=cfg.tax_rates(),
-        settings=cfg.settings(),
+        master_pages=MASTERS,
+        settings=ConfigService(db).settings(),
     )
 
 

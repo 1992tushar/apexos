@@ -2,7 +2,7 @@
 {% import "_macros.html" as ui %}
 {% block title %}Suppliers{% endblock %}
 {% block content %}
-{% call ui.page_header("Suppliers", total ~ " total") %}
+{% call ui.page_header("Suppliers", view.total ~ " total") %}
   <a class="btn" href="#new">+ New supplier</a>
 {% endcall %}
 
@@ -28,34 +28,14 @@
   </form>
 </div>
 
-{% if suppliers %}
-<div class="table-wrap">
-  <table>
-    <thead>
-      <tr>
-        <th>Code</th><th>Name</th><th>Type</th><th>City</th>
-        <th class="num">Score</th><th class="num">Payable</th><th>Status</th><th>Actions</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for s in suppliers %}
-      <tr>
-        <td class="mono">{{ s.code }}</td>
-        <td><a class="row-link" href="/suppliers/{{ s.id }}">{{ s.name }}</a></td>
-        <td>{{ s.supplier_type_name or "—" }}</td>
-        <td>{{ s.city or "—" }}</td>
-        <td class="num">{{ s.latest_score or "—" }}/5</td>
-        <td class="num">{{ s.outstanding_minor | money }}</td>
-        <td>{{ ui.badge(s.status) }}</td>
-        <td class="row-actions">
-          {{ ui.delete_button("/suppliers/" ~ s.id ~ "/delete", s.name) }}
-        </td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-</div>
+{{ ui.list_toolbar(view) }}
+{% if view.rows %}
+  {% call(row) ui.list_table(view) %}
+    {{ ui.delete_button("/suppliers/" ~ row.id ~ "/delete", row.name,
+       "Refused while an open purchase order still reads it.") }}
+  {% endcall %}
 {% else %}
-  {{ ui.empty("No suppliers yet. Add your first one above.") }}
+  {{ ui.list_empty(view, "No suppliers yet. Add your first one above.") }}
 {% endif %}
+{{ ui.pagination(view) }}
 {% endblock %}

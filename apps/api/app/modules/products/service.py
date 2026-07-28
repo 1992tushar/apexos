@@ -9,16 +9,18 @@ from datetime import UTC, datetime
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.core.errors import NotFoundError
+from app.core.errors import NotFoundError, ValidationError
 from app.db.duplicates import ensure_unique
 from app.db.listing import ListParams, query_page
+from app.db.references import ensure_unreferenced
 from app.db.soft_delete import soft_delete
+from app.modules.activity.history import CHANGES_KEY, field_changes
 from app.modules.activity.service import ActivityService
 from app.modules.config.models import BusinessUnit
 from app.modules.inventory.service import InventoryService
 from app.modules.pricing.models import PurchasePrice, SellingPrice
 from app.modules.pricing.service import PricingService
-from app.modules.products.listing import PRODUCT_LIST
+from app.modules.products.listing import PRODUCT_LIST, PRODUCT_STATUSES_ALLOWED
 from app.modules.products.models import Product
 from app.modules.products.repository import ProductRepository
 from app.modules.products.schemas import ProductCreate, ProductRead
@@ -96,7 +98,47 @@ class ProductService:
         product = self.repo.get(product_id)
         if product is None:
             raise NotFoundError(f"Product {product_id} not found")
+        # An *open* order still reads this product at receipt or dispatch; a closed one
+        # snapshotted what it needed. The refusal names the documents (R3.7).
+        ensure_unreferenced(self.db, product, action="delete", label="Product")
         soft_delete(self.db, product, actor_id=actor_id, label="Product")
+
+    def set_status(self, product_id: uuid.UUID, status: str, *, actor_id: uuid.UUID | None):
+        """Move a product through Active / Draft / Discontinued (R3.9).
+
+        Retiring one that open work still reads is refused and says which documents are
+        in the way — the same guard as deletion, because hiding a product from every
+        picker breaks an open order just as thoroughly (R3.7).
+        """
+        if status not in PRODUCT_STATUSES_ALLOWED:
+            raise ValidationError(
+                f"Unknown product status '{status}'. "
+                f"Use one of: {', '.join(sorted(PRODUCT_STATUSES_ALLOWED))}."
+            )
+        product = self.repo.get(product_id)
+        if product is None:
+            raise NotFoundError(f"Product {product_id} not found")
+        if product.status == status:
+            return self._to_read(product)
+        if status != "active":
+            ensure_unreferenced(
+                self.db, product, action=f"mark {status}", label="Product"
+            )
+        # Captured before the assignment — `field_changes` reads the row's current value.
+        changes = field_changes(product, {"status": status})
+        before = product.status
+        product.status = status
+        product.updated_by = actor_id
+        self.db.flush()
+        self.activity.log(
+            actor_id=actor_id,
+            verb="status_changed",
+            entity_type="product",
+            entity_id=product.id,
+            summary=f"Product {product.name} moved from {before} to {status}",
+            data={CHANGES_KEY: changes} if changes else None,
+        )
+        return self._to_read(product)
 
     def create(self, payload: ProductCreate, *, actor_id: uuid.UUID | None) -> ProductRead:
         sku = payload.sku_code or f"SKU-{self.repo.count_ever() + 1:05d}"

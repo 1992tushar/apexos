@@ -58,7 +58,7 @@ class Column:
 
     key: str
     label: str
-    kind: str = "text"  # text | mono | money | number | date | datetime | badge | link
+    kind: str = "text"  # text | mono | money | number | date | datetime | badge | bool | link
     sort: str | None = None
     href: str | None = None  # for kind="link", e.g. "/customers/{id}"
     export: bool = True
@@ -174,6 +174,18 @@ def static_options(*pairs: tuple[str, str]) -> Callable[[Session], Sequence[tupl
         return pairs
 
     return _options
+
+
+def active_options(
+    active: str = "Active", inactive: str = "Inactive"
+) -> Callable[[Session], Sequence[tuple[str, str]]]:
+    """A `Filter.options` provider for an `is_active` boolean column.
+
+    Pair with `coerce="bool"`, which reads `1/true/yes/on` as true. Every config master
+    carries `is_active` rather than a status string, so this is the status filter for
+    all of them.
+    """
+    return static_options(("1", active), ("0", inactive))
 
 
 def model_options(

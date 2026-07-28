@@ -244,3 +244,14 @@ a.th-sort:hover { color: var(--text); }
 .chart-bar { flex: 1; background: var(--accent); border-radius: 6px 6px 0 0; min-height: 2px; position: relative; }
 .chart-bar span { position: absolute; top: -18px; left: 0; right: 0; text-align: center; font-size: 11px; color: var(--muted); }
 .chart-label { text-align: center; font-size: 11px; color: var(--muted); margin-top: 6px; }
+
+/* Master screens (Part 2 C3): the tab strip between the config masters, and the
+   inline activate/deactivate form that sits beside the delete button in a row. */
+.master-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+.master-tabs .chip { text-decoration: none; }
+.chip-on { border-color: var(--accent); color: var(--text); }
+.inline-form { display: inline; }
+.row-actions .inline-form + form, .row-actions .btn + .inline-form { margin-left: 6px; }
+.tree { list-style: none; margin: 0; padding: 0; }
+.tree-item { display: flex; align-items: center; gap: 10px; padding: 5px 0; border-bottom: 1px solid var(--line); }
+.tree-item:last-child { border-bottom: 0; }

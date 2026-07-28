@@ -27,7 +27,20 @@
   <div class="card">
     <div class="section-title">Sourcing</div>
     <dl class="kv">
-      <dt>Status</dt><dd>{{ ui.badge(p.status) }}</dd>
+      <dt>Status</dt>
+      <dd>
+        {{ ui.badge(p.status) }}
+        {# The lifecycle (R3.9). Retiring a product that open work still reads is
+           refused, and the flash names the documents in the way (R3.7). #}
+        <form method="post" action="/products/{{ p.id }}/status" class="inline-form">
+          <select name="status" aria-label="Status">
+            {% for value, label in statuses %}
+              <option value="{{ value }}"{% if value == p.status %} selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+          <button class="btn btn-sm" type="submit">Apply</button>
+        </form>
+      </dd>
       <dt>Procurement model</dt><dd>{{ p.procurement_model_name or "—" }}</dd>
       <dt>Launch phase</dt><dd>{{ p.launch_phase or "—" }}</dd>
     </dl>

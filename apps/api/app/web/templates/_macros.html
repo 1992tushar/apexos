@@ -61,16 +61,21 @@
    edit here (R2.2).
    ========================================================================== #}
 
-{# One table cell, rendered by its column's `kind`. #}
+{# One table cell, rendered by its column's `kind`. `view` may be none — a detail page
+   renders the same columns as a `<dl>` with no list around them (see masters/detail.html),
+   and the kind switch below must not be written twice. #}
 {% macro cell(view, row, col) %}
-{%- set value = view.value(row, col) -%}
+{%- set value = view.value(row, col) if view else cell_value(row, col.key) -%}
 {%- if col.kind == "badge" -%}{{ badge(value) }}
+{%- elif col.kind == "bool" -%}{{ badge("active" if value else "inactive") }}
+{%- elif col.kind == "bps" -%}{{ value | bps }}
 {%- elif col.kind == "money" -%}{{ value | money }}
 {%- elif col.kind == "number" -%}{{ value | number }}
 {%- elif col.kind == "date" -%}{{ value | fmt_date }}
 {%- elif col.kind == "datetime" -%}{{ value | fmt_datetime }}
 {%- elif col.kind == "link" -%}
-  <a class="row-link" href="{{ view.href(col, row) }}">{{ value if value not in (None, "") else "—" }}</a>
+  {%- if view -%}<a class="row-link" href="{{ view.href(col, row) }}">{{ value if value not in (None, "") else "—" }}</a>
+  {%- else -%}{{ value if value not in (None, "") else "—" }}{%- endif -%}
 {%- else -%}{{ value if value not in (None, "") else "—" }}
 {%- endif -%}
 {% endmacro %}

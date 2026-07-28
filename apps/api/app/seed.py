@@ -8,7 +8,7 @@ stock are only written when a product is first created, and the demo sales order
 """
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from decimal import Decimal
 
 from sqlalchemy import func, select
@@ -29,12 +29,15 @@ from app.modules.config.models import (  # noqa: E402
     BusinessUnit,
     Category,
     CustomerType,
+    Manufacturer,
     ProcurementModel,
     SupplierType,
     TaxRate,
     Uom,
     Warehouse,
 )
+from app.modules.config.schemas import TaxRateSlabCreate  # noqa: E402
+from app.modules.config.service import MASTER_LABELS, TaxRateService  # noqa: E402
 from app.modules.crm.models import (  # noqa: E402
     Lead,
     Opportunity,
@@ -131,6 +134,31 @@ PRODUCTS = [
     ("APX-GB-007", "Heavy Duty Garbage Bag 30x50", "30x50", "PACK", 14000, 9800, "GB", "APX"),
     ("APX-GB-008", "Heavy Duty Garbage Bag 36x48", "36x48", "PACK", 16000, 11200, "GB", "APX"),
     ("APX-GB-009", "Biodegradable Garbage Bag 24x32", "24x32 Bio", "PACK", 12000, 8400, "GB", "APX"),
+]
+
+# (code, name, parent_code) — the second level of the tree (R3.10). Products stay on the
+# top-level categories, so a sub-category is a real "no products yet" row: deleting it is
+# allowed, deleting its parent is not.
+SUBCATEGORIES = [
+    ("TIS1", "Toilet Rolls", "TIS"),
+    ("TIS2", "Hand Towels", "TIS"),
+    ("TIS3", "Napkins & Facial", "TIS"),
+    ("GB1", "Bin Liners", "GB"),
+    ("GB2", "Heavy Duty Sacks", "GB"),
+    ("GB3", "Biodegradable", "GB"),
+    ("CC1", "Floor Care", "CC"),
+    ("CC2", "Washroom Chemicals", "CC"),
+    ("FSD1", "Cups & Plates", "FSD"),
+    ("FSD2", "Cutlery & Straws", "FSD"),
+    ("GLV1", "Hand Protection", "GLV"),
+    ("GA1", "Bath Amenities", "GA"),
+]
+
+# Third level under two of the above, so the tree is genuinely multi-level.
+SUB_SUBCATEGORIES = [
+    ("TS2A", "M-Fold", "TIS2"),
+    ("TS2B", "C-Fold", "TIS2"),
+    ("CC1A", "Neutral pH", "CC1"),
 ]
 
 DEMO_CUSTOMERS = [
@@ -283,6 +311,7 @@ def run() -> dict:
             },
         )
         actor_id = founder.id
+        activity = ActivityService(db)
 
         # --- org / config ------------------------------------------------
         bu, _ = get_or_create(
@@ -305,6 +334,18 @@ def run() -> dict:
         ]:
             p, _ = get_or_create(db, ProcurementModel, code=code, defaults={"name": name, "created_by": actor_id})
             pmodels[code] = p
+
+        # Contract manufacturing partners (R3.1). Nothing references these yet — they
+        # exist so the master is maintainable ahead of the sourcing work that will.
+        for code, name, city in [
+            ("MFR-PW", "PaperWings Mills", "Sanaswadi"),
+            ("MFR-KC", "Kaveri Chemicals", "Hyderabad"),
+            ("MFR-GP", "Gujarat Polyfilms", "Vadodara"),
+        ]:
+            get_or_create(
+                db, Manufacturer, code=code,
+                defaults={"name": name, "city": city, "created_by": actor_id},
+            )
 
         uoms = {}
         for code, name in [("PACK", "Pack"), ("ROLL", "Roll"), ("CASE", "Case"), ("PIECE", "Piece")]:
@@ -339,10 +380,40 @@ def run() -> dict:
         ]:
             t, _ = get_or_create(
                 db, TaxRate, code=code,
-                defaults={"name": name, "rate_bps": bps, "created_by": actor_id},
+                defaults={
+                    "name": name,
+                    "rate_bps": bps,
+                    # An explicit fiscal-year start rather than "today": a slab revised
+                    # later needs a window that comes after this one (R3.6).
+                    "valid_from": date(2025, 4, 1),
+                    "created_by": actor_id,
+                },
             )
             tax_rates[code] = t
         gst18 = tax_rates["GST_18"]
+
+        # A second version of one slab (R3.10), through the service that owns the
+        # versioning so history is appended rather than authored: GST on this line moved
+        # 12% → 5%, and the 12% row stays readable with its own validity window (R3.6).
+        slab_versions = db.scalar(
+            select(func.count()).select_from(TaxRate).where(TaxRate.code == "GST_12")
+        )
+        if slab_versions == 1:
+            TaxRateService(db).set_slab(
+                TaxRateSlabCreate(
+                    code="GST_12", name="GST 5% (revised)", rate_bps=500,
+                    valid_from=date(2026, 4, 1),
+                ),
+                actor_id=actor_id,
+            )
+        # Repair any slab whose window closed before it opened — the artifact of a
+        # database seeded on a day later than the revision above, back when these rows
+        # took their `valid_from` from `current_date`. A demo with a window running
+        # backwards teaches the founder to distrust the dates.
+        for slab in db.scalars(select(TaxRate).where(TaxRate.valid_to.is_not(None))):
+            if slab.valid_from >= slab.valid_to:
+                slab.valid_from = date(2025, 4, 1)
+        db.flush()
 
         # --- categories --------------------------------------------------
         categories = {}
@@ -359,12 +430,29 @@ def run() -> dict:
             )
             categories[code] = cat
 
+        # Two more levels (R3.10): a category tree is only exercised by a tree.
+        for level in (SUBCATEGORIES, SUB_SUBCATEGORIES):
+            for i, (code, name, parent_code) in enumerate(level):
+                parent = categories[parent_code]
+                child, _ = get_or_create(
+                    db, Category, code=code,
+                    defaults={
+                        "name": name,
+                        # A child rolls up to its parent's business unit (R3.4).
+                        "business_unit_id": parent.business_unit_id,
+                        "parent_category_id": parent.id,
+                        "procurement_model_id": parent.procurement_model_id,
+                        "sort_order": i,
+                        "created_by": actor_id,
+                    },
+                )
+                categories[code] = child
+
         # --- products + prices + opening stock ---------------------------
         # The named rows first (other seed steps order and invoice them by SKU),
         # then the generated catalogue that makes pagination real (R2.13).
         inventory = InventoryService(db)
-        activity = ActivityService(db)
-        catalogue = [(*row, "active") for row in PRODUCTS] + bulk_products()
+        catalogue =[(*row, "active") for row in PRODUCTS] + bulk_products()
         for i, (sku, name, spec, uom_code, sell, buy, cat_code, brand_code, status) in enumerate(
             catalogue
         ):
@@ -719,6 +807,34 @@ def run() -> dict:
                 ),
                 actor_id=actor_id,
             )
+
+        # --- master change history (last, so it catches every row) ---------
+        # Every config master gets its `created` line (R2.10, G14, R3.1's audit column).
+        # Most of these rows are written with `get_or_create` rather than through
+        # `ConfigService`, so nothing logged them. This runs at the end because later
+        # sections add masters too (the Phase B warehouse), and `record_creation` is
+        # idempotent — it skips any row that already has activity of its own.
+        for entity_type, model in (
+            ("business_unit", BusinessUnit),
+            ("brand", Brand),
+            ("manufacturer", Manufacturer),
+            ("procurement_model", ProcurementModel),
+            ("uom", Uom),
+            ("customer_type", CustomerType),
+            ("supplier_type", SupplierType),
+            ("warehouse", Warehouse),
+            ("tax_rate", TaxRate),
+            ("category", Category),
+        ):
+            label = MASTER_LABELS.get(entity_type, entity_type)
+            for row in list(db.scalars(select(model).where(model.deleted_at.is_(None)))):
+                record_creation(
+                    db, activity,
+                    entity_type=entity_type,
+                    entity_id=row.id,
+                    summary=f"{label} {row.name} ({row.code}) created",
+                    actor_id=actor_id,
+                )
 
         db.commit()
 

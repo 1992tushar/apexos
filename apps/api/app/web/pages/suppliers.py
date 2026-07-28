@@ -8,10 +8,13 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.security import Actor
+from app.modules.activity.service import ActivityService
 from app.modules.config.service import ConfigService
+from app.modules.suppliers.listing import SUPPLIER_LIST
 from app.modules.suppliers.schemas import SupplierCreate, SupplierEvaluationCreate
 from app.modules.suppliers.service import SupplierService, VendorEvaluationService
 from app.web.core import form_action, render
+from app.web.listing import csv_response_from_request, view_from_request, wants_csv
 from app.web.security import require_web_permission
 
 router = APIRouter()
@@ -19,14 +22,14 @@ router = APIRouter()
 
 @router.get("/suppliers")
 def list_suppliers(request: Request, db: Session = Depends(get_db)):
-    rows, total = SupplierService(db).list(search=None, page=1, page_size=200)
-    types = ConfigService(db).supplier_types()
+    project = SupplierService(db).to_read_many
+    if wants_csv(request):
+        return csv_response_from_request(request, db, SUPPLIER_LIST, project=project)
     return render(
         request,
         "suppliers/list.html",
-        suppliers=rows,
-        total=total,
-        types=types,
+        view=view_from_request(request, db, SUPPLIER_LIST, project=project),
+        types=ConfigService(db).supplier_types(),
     )
 
 
@@ -68,8 +71,13 @@ def create_supplier(
 def supplier_detail(request: Request, supplier_id: uuid.UUID, db: Session = Depends(get_db)):
     # A missing supplier raises NotFoundError → the web error handler renders error.html.
     sup = SupplierService(db).get(supplier_id)
-    evals = VendorEvaluationService(db).evaluations(supplier_id)
-    return render(request, "suppliers/detail.html", sup=sup, evals=evals)
+    return render(
+        request,
+        "suppliers/detail.html",
+        sup=sup,
+        evals=VendorEvaluationService(db).evaluations(supplier_id),
+        history=ActivityService(db).history("supplier", supplier_id),
+    )
 
 
 @router.post("/suppliers/{supplier_id}/delete")

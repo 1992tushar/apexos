@@ -247,8 +247,11 @@ def test_category_with_children_is_refused(db):
         CategoryCreate(code="DMC2", name="Doomed Child", parent_category_id=parent.id),
         actor_id=None,
     )
-    with pytest.raises(ConflictError, match="subcategor"):
+    # Part 2 C3 moved this refusal onto the shared reference map, which also names the
+    # blocking row — "which sub-category" is the actionable half (R3.7).
+    with pytest.raises(ConflictError, match="sub-category") as raised:
         svc.delete(parent.id, actor_id=None)
+    assert "Doomed Child" in str(raised.value)
 
 
 def test_category_with_products_is_refused(db):

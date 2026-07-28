@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from app.core.errors import NotFoundError
 from app.db.duplicates import ensure_unique
 from app.db.listing import ListParams, query_page
+from app.db.references import ensure_unreferenced
 from app.db.soft_delete import soft_delete
 from app.modules.activity.history import CHANGES_KEY, field_changes
 from app.modules.activity.service import ActivityService
@@ -81,6 +82,9 @@ class CustomerService:
         customer = self.repo.get(customer_id)
         if customer is None:
             raise NotFoundError(f"Customer {customer_id} not found")
+        # An open sales order still reads the customer; an invoice snapshotted what it
+        # needed, which is why R1.7's "delete a customer with an invoice" still works.
+        ensure_unreferenced(self.db, customer, action="delete", label="Customer")
         soft_delete(self.db, customer, actor_id=actor_id, label="Customer")
 
     def create(self, payload: CustomerCreate, *, actor_id: uuid.UUID | None) -> CustomerRead:

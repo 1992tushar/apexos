@@ -2,7 +2,7 @@
 {% import "_macros.html" as ui %}
 {% block title %}Categories{% endblock %}
 {% block content %}
-{% call ui.page_header("Categories", cats | length ~ " total") %}
+{% call ui.page_header("Categories", view.total ~ " total") %}
   <a class="btn" href="#new">+ New category</a>
 {% endcall %}
 
@@ -32,42 +32,41 @@
   </form>
 </div>
 
-{% if cats %}
-<div class="table-wrap">
-  <table>
-    <thead>
-      <tr>
-        <th>Code</th><th>Name</th><th>Parent</th><th class="num">Sort</th><th>Status</th>
-        <th>Move</th><th>Actions</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for cat in cats %}
-      <tr>
-        <td class="mono">{{ cat.code }}</td>
-        <td>{{ cat.name }}</td>
-        <td>{{ parent_names[cat.parent_category_id | string] if cat.parent_category_id else "Top level" }}</td>
-        <td class="num">{{ cat.sort_order }}</td>
-        <td>{{ ui.badge("active" if cat.is_active else "inactive") }}</td>
-        <td>
-          <form method="post" action="/categories/{{ cat.id }}/reparent" class="inline-form">
-            <select name="parent_category_id">
-              <option value="">Top level</option>
-              {% for c in cats %}{% if c.id != cat.id %}<option value="{{ c.id }}">{{ c.code }} — {{ c.name }}</option>{% endif %}{% endfor %}
-            </select>
-            <button class="btn btn-sm" type="submit">Move</button>
-          </form>
-        </td>
-        <td class="row-actions">
-          {{ ui.delete_button("/categories/" ~ cat.id ~ "/delete", cat.name,
-             "Only possible while it has no subcategories and no products.") }}
-        </td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+{# The tree (R3.4): where each category sits and which business unit it rolls up to.
+   The list below it is the same rows with search, filters, sorting and export. #}
+<div class="card mt">
+  <div class="card-title">Tree</div>
+  {% if tree %}
+  <ul class="tree">
+    {% for depth, cat, bu_name in tree %}
+      <li class="tree-item" style="padding-left: {{ depth * 22 }}px">
+        <span class="mono">{{ cat.code }}</span>
+        <a class="row-link" href="/categories/{{ cat.id }}">{{ cat.name }}</a>
+        {% if not cat.is_active %}{{ ui.badge("inactive") }}{% endif %}
+        <span class="muted">{{ bu_name or "no business unit" }}</span>
+      </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+    {{ ui.empty("No categories yet.") }}
+  {% endif %}
 </div>
+
+{{ ui.list_toolbar(view) }}
+{% if view.rows %}
+  {% call(row) ui.list_table(view) %}
+    <form method="post" action="/categories/{{ row.id }}/reparent" class="inline-form">
+      <select name="parent_category_id" aria-label="Move under">
+        <option value="">Top level</option>
+        {% for c in cats %}{% if c.id != row.id %}<option value="{{ c.id }}">{{ c.code }} — {{ c.name }}</option>{% endif %}{% endfor %}
+      </select>
+      <button class="btn btn-sm" type="submit">Move</button>
+    </form>
+    {{ ui.delete_button("/categories/" ~ row.id ~ "/delete", row.name,
+       "Refused while it still has sub-categories or products, and the refusal says which.") }}
+  {% endcall %}
 {% else %}
-  {{ ui.empty("No categories yet. Add your first one above.") }}
+  {{ ui.list_empty(view, "No categories yet. Add your first one above.") }}
 {% endif %}
+{{ ui.pagination(view) }}
 {% endblock %}

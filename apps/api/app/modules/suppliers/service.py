@@ -6,14 +6,20 @@ appends an immutable scorecard row and records the domain event (D10).
 from __future__ import annotations
 
 import uuid
+from collections.abc import Sequence
+from dataclasses import replace
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.core.errors import ConflictError, NotFoundError
+from app.core.errors import NotFoundError
+from app.db.duplicates import ensure_unique
+from app.db.listing import ListParams, query_page
+from app.db.references import ensure_unreferenced
 from app.db.soft_delete import soft_delete
 from app.modules.activity.service import ActivityService
 from app.modules.config.models import BusinessUnit
+from app.modules.suppliers.listing import SUPPLIER_LIST
 from app.modules.suppliers.models import Supplier, SupplierEvaluation
 from app.modules.suppliers.repository import SupplierRepository
 from app.modules.suppliers.schemas import (
@@ -59,9 +65,18 @@ class SupplierService:
             created_at=supplier.created_at,
         )
 
+    def to_read_many(self, rows: Sequence[Supplier]) -> list[SupplierRead]:
+        """The projector the list page passes to `view_from_request(project=...)`."""
+        return [self._to_read(s) for s in rows]
+
     def list(self, *, search: str | None, page: int, page_size: int):
-        rows, total = self.repo.search(search=search, page=page, page_size=page_size)
-        return [self._to_read(s) for s in rows], total
+        """One page of suppliers through the one query helper (R2.4)."""
+        result = query_page(
+            self.db,
+            replace(SUPPLIER_LIST, page_size=page_size),
+            ListParams(q=search or "", page=page),
+        )
+        return self.to_read_many(result.rows), result.total
 
     def get(self, supplier_id: uuid.UUID) -> SupplierRead:
         supplier = self.repo.get(supplier_id)
@@ -78,12 +93,17 @@ class SupplierService:
         supplier = self.repo.get(supplier_id)
         if supplier is None:
             raise NotFoundError(f"Supplier {supplier_id} not found")
+        # An open purchase order still reads this supplier; a closed one snapshotted
+        # what it needed (R3.7).
+        ensure_unreferenced(self.db, supplier, action="delete", label="Supplier")
         soft_delete(self.db, supplier, actor_id=actor_id, label="Supplier")
 
     def create(self, payload: SupplierCreate, *, actor_id: uuid.UUID | None) -> SupplierRead:
         code = payload.code or self.repo.next_code()
-        if self.db.scalar(select(Supplier.id).where(Supplier.code == code)):
-            raise ConflictError(f"Supplier code {code} already exists")
+        # The one duplicate check (R2.9, R3.8) — keys live in `app.db.duplicates`.
+        ensure_unique(
+            self.db, Supplier, {"code": code, "name": payload.name, "city": payload.city}
+        )
         supplier = Supplier(
             code=code,
             name=payload.name,

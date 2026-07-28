@@ -8,9 +8,12 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.security import Actor
+from app.modules.activity.service import ActivityService
+from app.modules.config.listing import CATEGORY_LIST
 from app.modules.config.schemas import CategoryCreate
 from app.modules.config.service import CategoryService, ConfigService
 from app.web.core import form_action, render
+from app.web.listing import csv_response_from_request, view_from_request, wants_csv
 from app.web.security import require_web_permission
 
 router = APIRouter()
@@ -18,15 +21,33 @@ router = APIRouter()
 
 @router.get("/categories")
 def list_categories(request: Request, db: Session = Depends(get_db)):
-    cats = ConfigService(db).categories()
-    pmodels = ConfigService(db).procurement_models()
-    parent_names = {str(c.id): c.name for c in cats}
+    categories = CategoryService(db)
+    if wants_csv(request):
+        return csv_response_from_request(
+            request, db, CATEGORY_LIST, project=categories.to_read_many
+        )
+    config = ConfigService(db)
     return render(
         request,
         "categories/list.html",
-        cats=cats,
-        pmodels=pmodels,
-        parent_names=parent_names,
+        view=view_from_request(
+            request, db, CATEGORY_LIST, project=categories.to_read_many
+        ),
+        # The whole tree, not just this page of it — reparenting needs every category
+        # in the target dropdown, and R3.4 asks for the tree on screen.
+        tree=categories.tree(),
+        cats=config.categories(),
+        pmodels=config.procurement_models(),
+    )
+
+
+@router.get("/categories/{category_id}")
+def category_detail(request: Request, category_id: uuid.UUID, db: Session = Depends(get_db)):
+    return render(
+        request,
+        "categories/detail.html",
+        c=CategoryService(db).get(category_id),
+        history=ActivityService(db).history("category", category_id),
     )
 
 

@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+{% block title %}{{ row.name }}{% endblock %}
+{% block content %}
+{# Generic master detail: the fields come from the same `ListSpec` columns the list
+   renders, so a new column shows up here too (R2.2). #}
+{% call ui.page_header(row.name, master.label ~ " · " ~ row.code) %}
+  <a class="btn" href="/masters/{{ master.slug }}">← All {{ master.title | lower }}</a>
+  {% if master.deletable %}
+    {{ ui.delete_button("/masters/" ~ master.slug ~ "/" ~ row.id ~ "/delete", row.name,
+       "It is refused if anything still in play uses it, and the refusal says what.") }}
+  {% endif %}
+{% endcall %}
+
+<div class="card mt">
+  <div class="section-title">Details</div>
+  <dl class="kv">
+    {% for col in master.spec.columns %}
+      <dt>{{ col.label }}</dt><dd>{{ ui.cell(none, row, col) }}</dd>
+    {% endfor %}
+  </dl>
+</div>
+
+<div class="mt">{{ ui.history_panel(history) }}</div>
+{% endblock %}

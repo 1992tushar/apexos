@@ -42,6 +42,23 @@ class Brand(Base, EntityMixin):
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
 
 
+class Manufacturer(Base, EntityMixin):
+    """Who physically makes a product (contract manufacturing, R3.1).
+
+    A plain code/name master like `Brand`. Nothing references it yet — products carry
+    `brand_id`, not `manufacturer_id` — so it exists to be maintained ahead of the
+    sourcing work that will read it, and its relationship-integrity entry in
+    `app/db/references.py` is deliberately empty.
+    """
+
+    __tablename__ = "manufacturer"
+
+    code: Mapped[str] = mapped_column(String(16), nullable=False, unique=True)
+    name: Mapped[str] = mapped_column(String(120), nullable=False)
+    city: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+
+
 class ProcurementModel(Base, EntityMixin):
     __tablename__ = "procurement_model"
 
