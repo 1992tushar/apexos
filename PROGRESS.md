@@ -168,7 +168,7 @@ delete, web authz) plus the migration strategy written down.
 
 - [x] **C1** WS1 — test suite → commit `edf51ea`
 - [x] **C2** WS2 — centralized web error handling → commit `edf51ea`
-- [x] **C3** WS3 soft delete + WS4 web authz guard + WS5 migration strategy → this commit
+- [x] **C3** WS3 soft delete + WS4 web authz guard + WS5 migration strategy → commit `9670314`
 
 **Requirements passed: R1.1–R1.10, all of them** (§2 of `docs/REQUIREMENTS.md`). R1.1–R1.10 were all
 marked outstanding at the start of C3 because WS1/WS2 predated the register, so C3 verified the whole
