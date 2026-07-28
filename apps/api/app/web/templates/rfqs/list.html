@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+{% import "_preorder.html" as pre %}
+{% block title %}RFQs{% endblock %}
+{% block content %}
+{% call ui.page_header("Requests for quotation", view.total ~ " total") %}
+  <a class="btn" href="#new">+ New RFQ</a>
+{% endcall %}
+
+<div class="card" id="new">
+  <div class="card-title">Issue an RFQ</div>
+  <p class="muted">Ask several suppliers the same question at once, then compare price,
+     lead time and MOQ side by side. An RFQ can start from a requisition or, as here, ad hoc.</p>
+  <form method="post" action="/rfqs">
+    <div class="form-grid">
+      <div class="field"><label>Quotes due by</label><input name="due_date" type="date" /></div>
+      <div class="field full"><label>Note</label><input name="note" placeholder="What the suppliers should know" /></div>
+    </div>
+    {{ pre.supplier_checklist(suppliers) }}
+    {{ pre.line_grid(products, rows) }}
+    <div class="form-actions"><button class="btn btn-primary" type="submit">Issue RFQ</button></div>
+  </form>
+</div>
+
+{{ ui.list_toolbar(view) }}
+{% if view.rows %}
+  {{ ui.list_table(view) }}
+{% else %}
+  {{ ui.list_empty(view, "No RFQs yet. Issue the first one above.") }}
+{% endif %}
+{{ ui.pagination(view) }}
+{% endblock %}

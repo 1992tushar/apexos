@@ -8,7 +8,7 @@ stock are only written when a product is first created, and the demo sales order
 """
 from __future__ import annotations
 
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 
 from sqlalchemy import func, select
@@ -67,10 +67,22 @@ from app.modules.notifications.models import Notification  # noqa: E402
 from app.modules.notifications.schemas import NotificationCreate  # noqa: E402
 from app.modules.notifications.service import NotificationService  # noqa: E402
 from app.modules.pricing.models import PurchasePrice, SellingPrice  # noqa: E402
-from app.modules.procurement.models import PurchaseOrder  # noqa: E402
+from app.modules.procurement.models import (  # noqa: E402
+    PurchaseOrder,
+    PurchaseRequisition,
+    Rfq,
+)
+from app.modules.procurement.preorder import (  # noqa: E402
+    RequisitionService,
+    RfqService,
+)
 from app.modules.procurement.schemas import (  # noqa: E402
     PurchaseOrderCreate,
     PurchaseOrderLineCreate,
+    QuotationCreate,
+    QuotationLineInput,
+    RequisitionCreate,
+    RequisitionLineCreate,
 )
 from app.modules.procurement.service import (  # noqa: E402
     GoodsReceiptService,
@@ -637,6 +649,117 @@ def run() -> dict:
                 actor_id=actor_id,
             )
 
+        # --- Part 3 C1: the pre-order flow (R4.15) -------------------------
+        # Three requisitions on purpose, so /requisitions shows every state the
+        # screen can be in: one still awaiting approval, one approved and already a
+        # PO, and one approved and out as an RFQ with two quotes back to compare.
+        preorder_result = None
+        if (db.scalar(select(func.count()).select_from(PurchaseRequisition)) or 0) == 0:
+            requisitions = RequisitionService(db)
+            rfqs = RfqService(db)
+            gb1 = db.scalar(select(Product).where(Product.sku_code == "APX-GB-001"))
+            tis3 = db.scalar(select(Product).where(Product.sku_code == "AUR-TIS-003"))
+            today = datetime.now(UTC).date()
+
+            # 1. Awaiting approval — the one the founder lands on with a decision to make.
+            pending_req = requisitions.create(
+                RequisitionCreate(
+                    needed_by=today + timedelta(days=21),
+                    note="Warehouse running low ahead of the festive season",
+                    lines=[
+                        RequisitionLineCreate(product_id=gb1.id, qty=Decimal("400")),
+                        RequisitionLineCreate(product_id=tis3.id, qty=Decimal("120")),
+                    ],
+                ),
+                actor_id=actor_id,
+            )
+
+            # 2. Approved and converted straight to a PO — price already settled.
+            direct_req = requisitions.create(
+                RequisitionCreate(
+                    needed_by=today + timedelta(days=10),
+                    note="Repeat buy, price already agreed with PaperWings",
+                    lines=[RequisitionLineCreate(product_id=tis3.id, qty=Decimal("60"))],
+                ),
+                actor_id=actor_id,
+            )
+            requisitions.approve(
+                direct_req.id,
+                reason="Within the monthly consumables budget",
+                actor_id=actor_id,
+            )
+            req_po = requisitions.convert_to_po(
+                direct_req.id, supplier_id=paperwings.id, actor_id=actor_id
+            )
+
+            # 3. Approved, out as an RFQ, two quotes in — the comparison screen's data.
+            #    Deliberately not symmetric: the cheaper unit price comes with the
+            #    slower lead time and a higher MOQ, so the screen has a real trade-off
+            #    to show rather than one obviously-best column.
+            quote_req = requisitions.create(
+                RequisitionCreate(
+                    needed_by=today + timedelta(days=45),
+                    note="New line — no agreed price yet, ask the market",
+                    lines=[RequisitionLineCreate(product_id=gb1.id, qty=Decimal("1000"))],
+                ),
+                actor_id=actor_id,
+            )
+            requisitions.approve(
+                quote_req.id, reason="Volume justifies going out to quote", actor_id=actor_id
+            )
+            second_supplier = suppliers["SUPP-0002"]
+            rfq = requisitions.convert_to_rfq(
+                quote_req.id,
+                supplier_ids=[paperwings.id, second_supplier.id],
+                due_date=today + timedelta(days=14),
+                actor_id=actor_id,
+            )
+            gb_buy = db.scalar(
+                select(PurchasePrice.price_minor).where(
+                    PurchasePrice.product_id == gb1.id, PurchasePrice.supplier_id.is_(None)
+                )
+            ) or 10000
+            rfqs.capture_quote(
+                rfq.id,
+                QuotationCreate(
+                    supplier_id=paperwings.id,
+                    lead_time_days=7,
+                    valid_until=today + timedelta(days=30),
+                    note="Ex-works Pune, pallet quantities",
+                    lines=[
+                        QuotationLineInput(
+                            product_id=gb1.id,
+                            unit_price_minor=int(gb_buy * 1.02) or gb_buy,
+                            moq=Decimal("500"),
+                        )
+                    ],
+                ),
+                actor_id=actor_id,
+            )
+            rfqs.capture_quote(
+                rfq.id,
+                QuotationCreate(
+                    supplier_id=second_supplier.id,
+                    lead_time_days=18,
+                    valid_until=today + timedelta(days=45),
+                    note="Cheaper per unit but a longer lead time and a bigger minimum",
+                    lines=[
+                        QuotationLineInput(
+                            product_id=gb1.id,
+                            unit_price_minor=int(gb_buy * 0.94) or gb_buy,
+                            moq=Decimal("1000"),
+                        )
+                    ],
+                ),
+                actor_id=actor_id,
+            )
+            preorder_result = {
+                "awaiting_approval": pending_req.requisition_no,
+                "converted_to_po": f"{direct_req.requisition_no} → {req_po.po_no}",
+                "rfq": rfq.rfq_no,
+                "quotes": len(rfqs.get(rfq.id).quotations),
+            }
+
         # --- one completed spine order (create -> confirm -> fulfill -> invoice) + partial payment
         existing_orders = db.scalar(select(func.count()).select_from(SalesOrder)) or 0
         order_result = None
@@ -881,11 +1004,15 @@ def run() -> dict:
                     "balance_minor": bill_detail.balance_minor,
                     "due_date": str(bill.due_date),
                 }
+        if preorder_result is not None:
+            summary["preorder"] = preorder_result
         summary["counts"] = {
             "products": db.scalar(select(func.count()).select_from(Product)) or 0,
             "customers": db.scalar(select(func.count()).select_from(Customer)) or 0,
             "suppliers": db.scalar(select(func.count()).select_from(Supplier)) or 0,
             "purchase_orders": db.scalar(select(func.count()).select_from(PurchaseOrder)) or 0,
+            "requisitions": db.scalar(select(func.count()).select_from(PurchaseRequisition)) or 0,
+            "rfqs": db.scalar(select(func.count()).select_from(Rfq)) or 0,
             "bills": db.scalar(select(func.count()).select_from(Bill)) or 0,
             "warehouses": db.scalar(select(func.count()).select_from(Warehouse)) or 0,
             "tasks": db.scalar(select(func.count()).select_from(Task)) or 0,

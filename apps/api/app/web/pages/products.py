@@ -16,6 +16,7 @@ from app.core.database import get_db
 from app.core.security import Actor
 from app.modules.activity.service import ActivityService
 from app.modules.config.service import ConfigService
+from app.modules.procurement.preorder import RfqService
 from app.modules.products.listing import PRODUCT_LIST, PRODUCT_STATUS_CHOICES
 from app.modules.products.schemas import ProductCreate
 from app.modules.products.service import ProductService
@@ -53,6 +54,8 @@ def product_detail(request: Request, product_id: uuid.UUID, db: Session = Depend
         p=product,
         statuses=PRODUCT_STATUS_CHOICES,
         history=ActivityService(db).history("product", product_id),
+        # Every price a supplier has quoted for this SKU (R4.6). A pure read.
+        quote_history=RfqService(db).quotation_history(product_id),
     )
 
 

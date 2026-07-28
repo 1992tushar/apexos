@@ -46,6 +46,29 @@ def _round_minor(value: Decimal) -> int:
     return int(value.quantize(Decimal("1")))
 
 
+def default_business_unit(db: Session) -> uuid.UUID:
+    """The BU a document falls back to when neither the payload nor the party names one."""
+    bu = db.scalar(select(BusinessUnit.id).where(BusinessUnit.deleted_at.is_(None)).limit(1))
+    if bu is None:
+        raise NotFoundError("No business unit configured; run the seed first.")
+    return bu
+
+
+def tax_bps_for(db: Session, product: Product) -> int:
+    """The product's default GST rate in basis points, or 0 if it has none.
+
+    Module-level because the pre-order half (`preorder.py`) prices quotation lines
+    the same way a PO line is priced; one lookup, so a quote and the PO it becomes
+    can never disagree about the tax rate.
+    """
+    if product.default_tax_rate_id is None:
+        return 0
+    return (
+        db.scalar(select(TaxRate.rate_bps).where(TaxRate.id == product.default_tax_rate_id))
+        or 0
+    )
+
+
 class PurchaseOrderService:
     def __init__(self, db: Session) -> None:
         self.db = db
@@ -55,12 +78,7 @@ class PurchaseOrderService:
 
     # -- helpers ---------------------------------------------------------
     def _default_bu(self) -> uuid.UUID:
-        bu = self.db.scalar(
-            select(BusinessUnit.id).where(BusinessUnit.deleted_at.is_(None)).limit(1)
-        )
-        if bu is None:
-            raise NotFoundError("No business unit configured; run the seed first.")
-        return bu
+        return default_business_unit(self.db)
 
     def _product(self, product_id: uuid.UUID) -> Product:
         product = self.db.scalar(
@@ -71,14 +89,7 @@ class PurchaseOrderService:
         return product
 
     def _tax_bps(self, product: Product) -> int:
-        if product.default_tax_rate_id is None:
-            return 0
-        return (
-            self.db.scalar(
-                select(TaxRate.rate_bps).where(TaxRate.id == product.default_tax_rate_id)
-            )
-            or 0
-        )
+        return tax_bps_for(self.db, product)
 
     # -- reads -----------------------------------------------------------
     def list(self, *, status: str | None, page: int, page_size: int):

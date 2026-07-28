@@ -47,5 +47,36 @@
   </div>
 </div>
 
+{# Quotation history per product + supplier (R4.6). Newest first, so "what did
+   PaperWings last want for this?" is one glance rather than opening old RFQs. #}
+<div class="card mt">
+  <div class="section-title">Quoted prices</div>
+  {% if quote_history %}
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>Quoted</th><th>Supplier</th><th class="num">Unit price</th>
+            <th class="num">MOQ</th><th class="num">Lead time</th><th>RFQ</th><th>Status</th></tr>
+      </thead>
+      <tbody>
+        {% for q in quote_history %}
+        <tr>
+          <td>{{ q.quoted_on | fmt_date }}</td>
+          <td>{{ q.supplier_name or "—" }}</td>
+          <td class="num">{{ q.unit_price_minor | money }}</td>
+          <td class="num">{{ q.moq | number if q.moq is not none else "—" }}</td>
+          <td class="num">{{ (q.lead_time_days ~ " days") if q.lead_time_days is not none else "unknown" }}</td>
+          <td class="mono">{{ q.rfq_no or "—" }}</td>
+          <td>{{ ui.badge(q.status) }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+    {{ ui.empty("Never quoted. Issue an RFQ to find out what suppliers want for it.") }}
+  {% endif %}
+</div>
+
 <div class="mt">{{ ui.history_panel(history) }}</div>
 {% endblock %}

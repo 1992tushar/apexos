@@ -255,3 +255,21 @@ a.th-sort:hover { color: var(--text); }
 .tree { list-style: none; margin: 0; padding: 0; }
 .tree-item { display: flex; align-items: center; gap: 10px; padding: 5px 0; border-bottom: 1px solid var(--line); }
 .tree-item:last-child { border-bottom: 0; }
+
+/* Pre-order screens (Part 3 C1): the vendor comparison grid, and the supplier
+   checklist an RFQ is issued from. `.best` marks the winning cell in a row or
+   column — every tied cell, since picking one arbitrarily would read as advice. */
+.compare tfoot td { border-top: 1px solid var(--border); padding: 10px 14px; }
+.compare tfoot tr:first-child td { border-top: 2px solid var(--border); }
+.compare td.best { background: var(--ok-bg); }
+.tag {
+  display: inline-block; margin-left: 6px; padding: 1px 7px; border-radius: 999px;
+  font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em;
+  background: var(--ok-bg); color: var(--ok-fg); vertical-align: middle;
+}
+.check-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 8px 18px; margin-top: 8px;
+}
+.check { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+.check input { width: auto; margin: 0; }

@@ -1,0 +1,180 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+{% import "_preorder.html" as pre %}
+{% block title %}{{ rfq.rfq_no }}{% endblock %}
+{% block content %}
+{% call ui.page_header(rfq.rfq_no, rfq.note) %}
+  <a class="btn" href="/rfqs">← All RFQs</a>
+{% endcall %}
+
+<div class="mt">
+  {{ ui.badge(rfq.status) }}
+  {% if rfq.requisition_no %}
+    <span class="muted">from</span>
+    <a class="row-link" href="/requisitions/{{ rfq.purchase_requisition_id }}">{{ rfq.requisition_no }}</a>
+  {% endif %}
+</div>
+
+<div class="card mt">
+  <div class="section-title">What we asked for</div>
+  {{ pre.doc_lines(rfq.lines) }}
+  <dl class="kv mt">
+    <dt>Issued</dt><dd>{{ rfq.issued_at | fmt_datetime }}</dd>
+    <dt>Quotes due</dt><dd>{{ rfq.due_date | fmt_date }}</dd>
+  </dl>
+</div>
+
+{# --- the side-by-side comparison (R4.5): lines down, suppliers across ------ #}
+<div class="card mt">
+  <div class="section-title">Vendor comparison</div>
+  {% set cmp = rfq.comparison %}
+  {% if cmp.columns %}
+  <div class="table-wrap">
+    <table class="compare">
+      <thead>
+        <tr>
+          <th>Line</th>
+          {% for col in cmp.columns %}
+          <th>
+            {{ col.supplier_name or "—" }}
+            <div class="mono muted">{{ col.quotation_no }}</div>
+          </th>
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for ln in cmp.lines %}
+        <tr>
+          <td>
+            <div class="mono">{{ ln.sku_code or "—" }}</div>
+            <div class="muted">{{ ln.product_name or "—" }} × {{ ln.qty | number }}</div>
+          </td>
+          {% for col in cmp.columns %}
+            {% set cell = col.cells.get(ln.product_id) %}
+            <td class="num{% if cell and cell.is_cheapest %} best{% endif %}">
+              {% if cell and cell.unit_price_minor is not none %}
+                {{ cell.unit_price_minor | money }}
+                {% if cell.is_cheapest %}<span class="tag">cheapest</span>{% endif %}
+                <div class="muted">MOQ {{ cell.moq | number if cell.moq is not none else "—" }}</div>
+              {% else %}
+                <span class="muted">not quoted</span>
+              {% endif %}
+            </td>
+          {% endfor %}
+        </tr>
+        {% endfor %}
+      </tbody>
+      <tfoot>
+        <tr>
+          <td>Lead time</td>
+          {% for col in cmp.columns %}
+          <td class="num{% if col.is_fastest %} best{% endif %}">
+            {% if col.lead_time_days is not none %}
+              {{ col.lead_time_days }} days{% if col.is_fastest %} <span class="tag">fastest</span>{% endif %}
+            {% else %}<span class="muted">unknown</span>{% endif %}
+          </td>
+          {% endfor %}
+        </tr>
+        <tr>
+          <td>Score</td>
+          {% for col in cmp.columns %}
+          <td class="num"><span class="muted">{{ col.score or "unknown" }}</span></td>
+          {% endfor %}
+        </tr>
+        <tr>
+          <td><strong>Total</strong></td>
+          {% for col in cmp.columns %}
+          <td class="num{% if col.is_cheapest_total %} best{% endif %}">
+            <strong>{{ col.total_minor | money }}</strong>
+            {% if col.is_cheapest_total %}<span class="tag">lowest</span>{% endif %}
+          </td>
+          {% endfor %}
+        </tr>
+        {% if rfq.status == "issued" %}
+        <tr>
+          <td></td>
+          {% for col in cmp.columns %}
+          <td class="num">
+            <form method="post" action="/rfqs/{{ rfq.id }}/award">
+              <input type="hidden" name="quotation_id" value="{{ col.quotation_id }}" />
+              <button class="btn btn-sm btn-primary" type="submit">Award</button>
+            </form>
+          </td>
+          {% endfor %}
+        </tr>
+        {% endif %}
+      </tfoot>
+    </table>
+  </div>
+  <p class="muted mt">{{ cmp.score_note }}</p>
+  {% if cmp.invited_not_quoted %}
+    <p class="muted">Still waiting on: {{ cmp.invited_not_quoted | join(", ") }}.</p>
+  {% endif %}
+  {% else %}
+    {{ ui.empty("No quotations yet. Capture the first one below.") }}
+    {% if cmp.invited_not_quoted %}
+      <p class="muted">Asked: {{ cmp.invited_not_quoted | join(", ") }}.</p>
+    {% endif %}
+  {% endif %}
+</div>
+
+{% if rfq.awarded_quotation_id %}
+<div class="card mt">
+  <div class="section-title">Awarded</div>
+  <dl class="kv">
+    {% for q in rfq.quotations if q.id == rfq.awarded_quotation_id %}
+    <dt>Supplier</dt><dd>{{ q.supplier_name or "—" }}</dd>
+    <dt>Quotation</dt><dd class="mono">{{ q.quotation_no }}</dd>
+    <dt>Total</dt><dd>{{ q.total_minor | money }}</dd>
+    {% if q.po_no %}
+    <dt>Purchase order</dt>
+    <dd><a class="row-link" href="/purchase-orders/{{ q.purchase_order_id }}">{{ q.po_no }}</a></dd>
+    {% endif %}
+    {% endfor %}
+  </dl>
+</div>
+{% endif %}
+
+{% if rfq.status == "issued" and pending %}
+<div class="card mt">
+  <div class="section-title">Capture a quotation</div>
+  <p class="muted">Enter what one supplier came back with. Quantities are the RFQ's, so the
+     comparison stays like-for-like; leave a line's price blank if they did not quote it.</p>
+  <form method="post" action="/rfqs/{{ rfq.id }}/quotes">
+    <div class="form-grid">
+      <div class="field"><label>Supplier</label>
+        <select name="supplier_id" required>
+          {% for s in pending %}<option value="{{ s.supplier_id }}">{{ s.supplier_name }}</option>{% endfor %}
+        </select></div>
+      <div class="field"><label>Lead time (days)</label>
+        <input name="lead_time_days" type="number" min="0" step="1" /></div>
+      <div class="field"><label>Valid until</label><input name="valid_until" type="date" /></div>
+      <div class="field full"><label>Note</label><input name="note" /></div>
+    </div>
+    <div class="table-wrap mt">
+      <table>
+        <thead>
+          <tr><th>SKU</th><th>Product</th><th class="num">Qty</th>
+              <th class="num">Unit price (₹)</th><th class="num">MOQ</th></tr>
+        </thead>
+        <tbody>
+          {% for ln in rfq.lines %}
+          <tr>
+            <td class="mono">{{ ln.sku_code or "—" }}<input type="hidden" name="product_id" value="{{ ln.product_id }}" /></td>
+            <td>{{ ln.product_name or "—" }}</td>
+            <td class="num">{{ ln.qty | number }}</td>
+            <td class="num"><input name="unit_price_rupees" type="number" step="0.01" min="0"
+                   {% if loop.first %}autofocus{% endif %} /></td>
+            <td class="num"><input name="moq" type="number" step="0.01" min="0" /></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="form-actions"><button class="btn btn-primary" type="submit">Capture quotation</button></div>
+  </form>
+</div>
+{% endif %}
+
+<div class="mt">{{ ui.history_panel(history, "RFQ history") }}</div>
+{% endblock %}

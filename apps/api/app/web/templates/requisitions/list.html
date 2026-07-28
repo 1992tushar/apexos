@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+{% import "_preorder.html" as pre %}
+{% block title %}Requisitions{% endblock %}
+{% block content %}
+{% call ui.page_header("Requisitions", view.total ~ " total") %}
+  <a class="btn" href="#new">+ New requisition</a>
+{% endcall %}
+
+<div class="card" id="new">
+  <div class="card-title">Raise a requisition</div>
+  <p class="muted">What do we need? Price and supplier come later — approve it first,
+     then convert it to a purchase order or ask several suppliers for a quote.</p>
+  <form method="post" action="/requisitions">
+    <div class="form-grid">
+      <div class="field"><label>Needed by</label><input name="needed_by" type="date" /></div>
+      <div class="field full"><label>Note</label><input name="note" placeholder="Why this is needed" /></div>
+    </div>
+    {{ pre.line_grid(products, rows, autofocus=true) }}
+    <div class="form-actions"><button class="btn btn-primary" type="submit">Raise requisition</button></div>
+  </form>
+</div>
+
+{{ ui.list_toolbar(view) }}
+{% if view.rows %}
+  {{ ui.list_table(view) }}
+{% else %}
+  {{ ui.list_empty(view, "No requisitions yet. Raise the first one above.") }}
+{% endif %}
+{{ ui.pagination(view) }}
+{% endblock %}

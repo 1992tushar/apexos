@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+{% import "_preorder.html" as pre %}
+{% block title %}{{ req.requisition_no }}{% endblock %}
+{% block content %}
+{% call ui.page_header(req.requisition_no, req.note) %}
+  <a class="btn" href="/requisitions">← All requisitions</a>
+{% endcall %}
+
+<div class="mt">{{ ui.badge(req.status) }}</div>
+
+<div class="card mt">
+  <div class="section-title">Lines</div>
+  {{ pre.doc_lines(req.lines) }}
+</div>
+
+<div class="detail-grid mt">
+  <div class="card">
+    <div class="section-title">Request</div>
+    <dl class="kv">
+      <dt>Needed by</dt><dd>{{ req.needed_by | fmt_date }}</dd>
+      <dt>Note</dt><dd>{{ req.note or "—" }}</dd>
+    </dl>
+  </div>
+  <div class="card">
+    <div class="section-title">Approval</div>
+    {% if req.approved_at %}
+    <dl class="kv">
+      <dt>Decision</dt><dd>{{ ui.badge(req.status if req.status != "converted" else "approved") }}</dd>
+      <dt>By</dt><dd>{{ req.approved_by_name or "—" }}</dd>
+      <dt>When</dt><dd>{{ req.approved_at | fmt_datetime }}</dd>
+      <dt>Reason</dt><dd>{{ req.approval_reason or "—" }}</dd>
+    </dl>
+    {% else %}
+      {{ ui.empty("Awaiting approval.") }}
+    {% endif %}
+  </div>
+</div>
+
+{% if req.status == "requested" %}
+<div class="card mt">
+  <div class="section-title">Decide</div>
+  <p class="muted">A reason is required either way — the approval is on the record.</p>
+  <form method="post" action="/requisitions/{{ req.id }}/approve">
+    <div class="form-grid">
+      <div class="field full"><label>Reason</label>
+        <input name="reason" required placeholder="Why this is approved" autofocus /></div>
+    </div>
+    <div class="form-actions"><button class="btn btn-primary" type="submit">Approve</button></div>
+  </form>
+  <form method="post" action="/requisitions/{{ req.id }}/reject" class="mt">
+    <div class="form-grid">
+      <div class="field full"><label>Reason to reject</label>
+        <input name="reason" required placeholder="Why this is refused" /></div>
+    </div>
+    <div class="form-actions"><button class="btn" type="submit">Reject</button></div>
+  </form>
+</div>
+{% endif %}
+
+{% if req.status == "approved" %}
+<div class="detail-grid mt">
+  <div class="card">
+    <div class="section-title">Convert to a purchase order</div>
+    <p class="muted">Use this when the supplier and price are already settled. Line prices
+       come from the supplier's purchase price.</p>
+    <form method="post" action="/requisitions/{{ req.id }}/convert-to-po">
+      <div class="form-grid">
+        <div class="field full"><label>Supplier</label>
+          <select name="supplier_id" required>
+            {% for s in suppliers %}<option value="{{ s.id }}">{{ s.name }}</option>{% endfor %}
+          </select></div>
+      </div>
+      <div class="form-actions"><button class="btn btn-primary" type="submit">Create PO</button></div>
+    </form>
+  </div>
+  <div class="card">
+    <div class="section-title">Ask for quotes instead</div>
+    <p class="muted">Issue an RFQ to several suppliers and compare what comes back.</p>
+    <form method="post" action="/requisitions/{{ req.id }}/convert-to-rfq">
+      <div class="form-grid">
+        <div class="field"><label>Quotes due by</label><input name="due_date" type="date" /></div>
+      </div>
+      {{ pre.supplier_checklist(suppliers) }}
+      <div class="form-actions"><button class="btn" type="submit">Issue RFQ</button></div>
+    </form>
+  </div>
+</div>
+{% endif %}
+
+{% if req.status == "converted" %}
+<div class="card mt">
+  <div class="section-title">Became</div>
+  <dl class="kv">
+    {% if req.po_no %}
+    <dt>Purchase order</dt>
+    <dd><a class="row-link" href="/purchase-orders/{{ req.purchase_order_id }}">{{ req.po_no }}</a></dd>
+    {% endif %}
+    {% if req.rfq_no %}
+    <dt>RFQ</dt><dd><a class="row-link" href="/rfqs/{{ req.rfq_id }}">{{ req.rfq_no }}</a></dd>
+    {% endif %}
+  </dl>
+</div>
+{% endif %}
+
+<div class="mt">{{ ui.history_panel(history, "Requisition history") }}</div>
+{% endblock %}

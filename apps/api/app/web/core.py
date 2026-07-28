@@ -39,6 +39,8 @@ NAV_ITEMS: list[dict[str, str]] = [
     {"label": "Inventory", "href": "/inventory", "section": "work"},
     {"label": "Warehouse", "href": "/warehouse", "section": "work"},
     {"label": "Procurement", "href": "/procurement", "section": "work"},
+    {"label": "Requisitions", "href": "/requisitions", "section": "work"},
+    {"label": "RFQs", "href": "/rfqs", "section": "work"},
     {"label": "Purchase Orders", "href": "/purchase-orders", "section": "work"},
     {"label": "Suppliers", "href": "/suppliers", "section": "work"},
     {"label": "Finance", "href": "/finance", "section": "work"},
@@ -151,10 +153,15 @@ def time_ago(value: Any) -> str:
 def status_class(status: Any) -> str:
     """Map a status string to a semantic badge class (see app.css)."""
     s = str(status or "").lower()
+    # Pre-order statuses (Part 3) join the same buckets: a requisition awaiting a
+    # decision reads as "warning" like a draft, a decided one as "positive". Without
+    # this every pre-order badge renders grey and the screen tells the founder nothing.
     positive = {"active", "paid", "confirmed", "received", "billed", "completed",
-                "fulfilled", "invoiced", "won", "done", "success"}
+                "fulfilled", "invoiced", "won", "done", "success",
+                "approved", "converted", "awarded", "quoted"}
     warning = {"draft", "pending", "partial", "partially_paid", "open", "new",
-               "qualified", "proposal", "in_progress", "todo", "sent"}
+               "qualified", "proposal", "in_progress", "todo", "sent",
+               "requested", "issued", "invited"}
     negative = {"cancelled", "canceled", "overdue", "lost", "inactive",
                 "failed", "rejected", "void"}
     if s in positive:

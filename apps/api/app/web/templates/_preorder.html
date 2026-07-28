@@ -1,0 +1,71 @@
+{# ==========================================================================
+   Pre-order form + document pieces, shared by the four requisition/RFQ
+   templates. Not a second list table (R2.1) — `list_table` in `_macros.html`
+   renders a *ListView*; these render one document's own lines, the way
+   purchase_orders/detail.html does.
+   ========================================================================== #}
+
+{# One <datalist> for the whole page instead of a <select> per row: six rows of a
+   311-product dropdown is ~1900 <option> elements, and it cannot be typed into.
+   With a datalist the founder types "TIS" and picks — search-as-you-type with no
+   JavaScript (R4.12). The input submits the SKU, which the route resolves. #}
+{% macro product_datalist(products, id="product-options") %}
+<datalist id="{{ id }}">
+  {% for p in products %}<option value="{{ p.sku_code }}">{{ p.name }}</option>{% endfor %}
+</datalist>
+{% endmacro %}
+
+{# Bulk line entry (R4.12): several blank rows at once, blanks ignored on submit.
+   Tab moves SKU → qty → next SKU, so a whole requisition is typed without the mouse. #}
+{% macro line_grid(products, rows, autofocus=false, title="Lines") %}
+{{ product_datalist(products) }}
+<div class="section-title mt">{{ title }}</div>
+<p class="muted">Type part of a SKU and pick from the list. Leave rows blank to skip them.</p>
+<div class="table-wrap">
+  <table>
+    <thead><tr><th>Product (SKU)</th><th class="num">Qty</th></tr></thead>
+    <tbody>
+      {% for i in rows %}
+      <tr>
+        <td>
+          <input list="product-options" name="product_code" placeholder="SKU"
+                 {% if autofocus and loop.first %}autofocus{% endif %} />
+        </td>
+        <td class="num"><input name="qty" type="number" step="0.01" min="0" /></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endmacro %}
+
+{# A document's own lines, read-only: product + quantity. #}
+{% macro doc_lines(lines) %}
+<div class="table-wrap">
+  <table>
+    <thead><tr><th>#</th><th>SKU</th><th>Product</th><th class="num">Qty</th></tr></thead>
+    <tbody>
+      {% for ln in lines %}
+      <tr>
+        <td class="muted">{{ ln.line_no }}</td>
+        <td class="mono">{{ ln.sku_code or "—" }}</td>
+        <td>{{ ln.product_name or "—" }}</td>
+        <td class="num">{{ ln.qty | number }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endmacro %}
+
+{# Suppliers to ask, as checkboxes — an RFQ goes to several at once (R4.3). #}
+{% macro supplier_checklist(suppliers, label="Ask these suppliers") %}
+<div class="section-title mt">{{ label }}</div>
+<div class="check-grid">
+  {% for s in suppliers %}
+  <label class="check">
+    <input type="checkbox" name="supplier_ids" value="{{ s.id }}" /> {{ s.name }}
+  </label>
+  {% endfor %}
+</div>
+{% endmacro %}

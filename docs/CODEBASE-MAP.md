@@ -18,6 +18,7 @@
 | Build or change a list screen | `app/modules/<feature>/listing.py` (the spec — usually the only file you touch), then `app/db/listing.py` / `app/web/listing.py` for the contracts | Any individual page module "for an example" — the usage block at the top of the list-macro section is the example |
 | Add a master to the uniform treatment | `app/web/pages/masters.py` — a `MasterPage(...)` registry entry is the whole screen (~6 lines) | Writing a page module; nine masters already share one |
 | Add a master with its own domain page | `app/modules/products/listing.py` + `app/web/pages/products.py` — the reference pair (~80 lines total) | Re-deriving the pattern from the machinery; copy the pair and change the config |
+| Work on the buy side | `app/modules/procurement/preorder.py` for requisition/RFQ/quotation, `service.py` for PO → receive → bill. The two halves are independent | The other half. That seam exists so you only read one |
 | Block deleting/deactivating something in use | `app/db/references.py` — `REFERENCES` is the policy | Writing a count query in a service; that is what this replaced |
 | Delete something | `app/db/soft_delete.py` (its docstring is the contract) | Per-module delete code — there isn't any, by design |
 | Prevent duplicates | `app/db/duplicates.py` — `NATURAL_KEYS` is the config | — |
@@ -133,6 +134,13 @@ document *line* so the message quotes the document number.
 considered", and silently permits deleting something live depends on. Deletion and deactivation ask the
 same question, deliberately.
 
+**A `Reference` names a column by string, so a wrong one fails at *check* time, not import time.** The
+`warehouse` entry named `PurchaseOrder.warehouse_id`, which does not exist — a purchase order carries no
+warehouse, the goods receipt does — so from Part 2 C3 until Part 3 C1 every warehouse deactivation died
+with `AttributeError` instead of refusing. Fixed by reaching the warehouse through `GoodsReceipt` with
+`via=Via(PurchaseOrder, ...)`. When adding an entry, exercise it (`blocking_references(db, row)`) rather
+than only reading it; `tests/test_preorder.py` now does for warehouses.
+
 ### `app/db/soft_delete.py` — the delete write path (R1.1)
 
 **`soft_delete(db, instance, *, actor_id, label=None)` is the only thing in the codebase that assigns
@@ -214,6 +222,26 @@ presentation.** A bad id therefore renders the error page, not a stack trace (R1
 **Derived, never stored:** stock balances, receivables/payables, back-order quantities, running
 balances (G7). If you're adding a mutable counter for something computable, re-read G7.
 
+**A domain module may split its service file by *flow*, not by layer.** `procurement/` has two:
+`service.py` (PurchaseOrderService + GoodsReceiptService — create → confirm → receive → bill) and
+`preorder.py` (RequisitionService + RfqService — everything in front of the PO). The repository does
+the same: `ProcurementRepository` and `PreorderRepository`. The test is whether a session working on
+one half needs to read the other; here it doesn't, and that is the only justification. Shared
+primitives move to module level rather than being reached across classes — `default_business_unit`,
+`tax_bps_for` and `_round_minor` in `service.py` are called by `preorder.py`, so a quotation and the
+PO it becomes cannot disagree about tax. **Do not split a module that has no such seam.**
+
+**Conversion between documents calls the target's service; it never rebuilds it** (G16).
+`RequisitionService.convert_to_po` and `RfqService.award` both assemble a `PurchaseOrderCreate` and
+hand it to `PurchaseOrderService.create`, so document numbering, price snapshotting, tax and totals
+have one implementation. A conversion writes one `activity_log` row on the *source* document; the
+target service writes its own on the target.
+
+**Where a number can't be computed yet, render "unknown"** (G11). The vendor comparison shows a `score`
+of `None` and a `score_note` saying part 4 owns scoring — never a placeholder 0 or 50 that reads as
+computed. Best-in-row/column marking (`is_cheapest`, `is_fastest`) is computed in the service, not the
+template, and marks **every** tied entry: silently picking one would be advice the data doesn't support.
+
 ---
 
 ## Seed (`app/seed.py`)
@@ -223,9 +251,9 @@ balances (G7). If you're adding a mutable counter for something computable, re-r
 
 reference data → founder user → org/config → categories → products + prices + opening stock →
 demo customers + credit policies → demo suppliers → one complete buy loop (PO → confirm → receive →
-bill → partial payment) → one complete sell loop (order → confirm → fulfill → invoice → partial
-payment) → second warehouse + transfer, tasks, a document → pipeline stages, leads, opportunity,
-competitors.
+bill → partial payment) → **the pre-order flow (3 requisitions + 1 RFQ with 2 quotes)** → one complete
+sell loop (order → confirm → fulfill → invoice → partial payment) → second warehouse + transfer,
+tasks, a document → pipeline stages, leads, opportunity, competitors.
 
 Two passes run **last**, after every section: the master change-history backfill
 (`record_creation` over the ten master tables) and the tax-slab window repair. Later sections create
@@ -239,6 +267,12 @@ Status, stock and credit are deliberately uneven (draft/discontinued rows, zero-
 credit-limit-zero account, accounts with no credit policy) so filters and empty states have something
 to bite on (G14). `record_creation()` gives the *named* masters their `created` history line, since
 `get_or_create` bypasses the services that would have logged it.
+
+**The pre-order section seeds every state a screen can be in**, not one happy row: a requisition still
+awaiting approval (so `/requisitions` has a decision to make), one approved and converted to a PO, and
+one approved and out as an RFQ with two quotes back. The two quotes are deliberately asymmetric — the
+cheaper unit price carries the slower lead time and the higher MOQ — so the comparison screen shows a
+real trade-off rather than one obviously-best column (R4.15, G14).
 
 **Don't read the file end to end to add rows** — read the one section.
 
@@ -263,6 +297,7 @@ to bite on (G14). `record_creation()` gives the *named* masters their `created` 
 | `test_list_macros.py` | R2.1/R2.2: each macro renders against a real `ListView` |
 | `test_master_pages.py` | R2.11: the machinery through the real `/products` and `/customers` pages — search/filter/sort/pagination, export matching the screen, duplicate rejection as a flash, history panel |
 | `test_masters.py` | R3.1–R3.12: the same capabilities parametrised over **every** master in the registry, plus category reparent/tree, UoM factors, tax-slab versioning, and relationship integrity naming its blockers |
+| `test_preorder.py` | R4.1–R4.6: requisition request/approve/reject/convert (to PO and to RFQ), RFQ issue to many suppliers, quote capture and its guards, the comparison's cheapest/fastest marking, award → PO at the quoted price, quotation history, and the `REFERENCES` entry per new model |
 
 Run `pytest -q`, never verbose.
 
@@ -283,6 +318,12 @@ should wire them onto `ListSpec` rather than raising the page size again.
 **`/categories` renders a full parent dropdown per row** (~90 KB at 24 categories). Fine now, quadratic
 later: a category picker that loads once and is reused, or a reparent form on the detail page only, is
 the fix when it stops being fine.
+
+**`/purchase-orders/new` still repeats a 311-option `<select>` per line row** (~1,900 `<option>`s) and
+cannot be typed into. The pre-order forms solved this with one shared `<datalist>` and a SKU input —
+`product_datalist` / `line_grid` in `templates/_preorder.html`, resolved by `_lines()` in
+`web/pages/preorder.py`, which names an unknown SKU back rather than dropping the row. **Part 3 C2 owns
+porting the PO entry screen to it** (R4.12).
 
 ---
 

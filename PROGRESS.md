@@ -38,7 +38,7 @@ python -m app.seed          # creates apexos.db with demo data
 Then verify the baseline before writing any code:
 
 ```bash
-python -m pytest -q                  # count is in the CURRENT WORK block below (186 at Part 2 C2)
+python -m pytest -q                  # count is in the CURRENT WORK block below (293 at Part 3 C1)
 python -m ruff check app/ tests/     # expect exactly 38 pre-existing findings — 39 is a regression
 python -m uvicorn app.main:app --port 8000   # http://localhost:8000/ — click through every nav page
 ```
@@ -62,63 +62,70 @@ updating the resume block — a starter that still names last part's baseline co
 than none, because the next session will trust it. Keep it short: the binding lists live in the resume
 block, and the prompt's job is to point at them and name the numbers.
 
-#### ▶ NEXT SESSION PROMPT — Part 3, checkpoint C1
+#### ▶ NEXT SESSION PROMPT — Part 3, checkpoint C2 (the last one in Part 3)
 
 ```
 Continue the ApexOS build. Do this in order:
 
 1. git checkout main && git pull origin main && git fetch origin --tags
-   (tags don't come down with a plain pull, and the delta command below needs part-02-done)
 
-2. Read the "▶ CURRENT WORK" block at the top of PROGRESS.md. Part 2 is COMPLETE and tagged
-   part-02-done — that block's job now is the handoff: the "Read for the next part (Part 3)"
-   list names your edit set, "Call, don't read" carries verified signatures so you don't open
-   those modules, and "Do NOT read" is binding. The last two sessions each burned a third of
-   their budget re-deriving context that is already written down there.
+2. Read the "▶ CURRENT WORK" block at the top of PROGRESS.md — specifically the
+   "Part 3 — Procurement" section. C1 is done and committed. That block names your edit set
+   ("Read for C2"), carries verified signatures ("Call, don't read") so you don't open those
+   modules, and lists what NOT to read. It is binding: C1 spent a third of its budget on
+   context that is now written down there.
 
-3. Read docs/REQUIREMENTS.md §1 (global invariants G1–G17) and §5 (R4.x — Part 3's acceptance
-   contract). NOT optional: the invariants you must not break — integer minor units, exactly one
-   activity_log row per state change, derived-never-stored, append-only ledgers, InventoryService
-   as the only writer of stock_movement — are not in the files you're editing.
+3. Read docs/REQUIREMENTS.md §1 (global invariants G1–G17) and §5 (R4.x). Your checkpoint is
+   R4.7–R4.12 — the ones still open. NOT optional: the invariants you must not break —
+   integer minor units, exactly one activity_log row per state change, derived-never-stored,
+   append-only ledgers, InventoryService as the only writer of stock_movement — are not in
+   the files you're editing.
 
-4. Run `git diff part-02-done..HEAD --stat` for the delta (should be empty at session start —
-   if it isn't, someone committed after the tag; read it before you plan). For Part 2's shape,
-   `git show --stat de73c23` and `git show --stat 5a1f89e`, not a tree walk.
+4. `git show --stat HEAD` for C1's shape (one commit, ~20 files). Not a tree walk.
 
-5. Open docs/ROADMAP.md → the PROMPT for Part 3 (Procurement: pre-order → PO depth, Phase 2)
-   and follow it from C1. Its SESSION PROTOCOL block says what this session should finish —
-   2 checkpoints, one per session. Read the "Reading diet" section in the standing rules once:
-   it explains orientation vs continuity vs working context, and which you may spend tokens on.
-   Also read docs/08-module-breakdown.md § Procurement — the one design § for this domain.
-
-6. Verify the baseline before writing code (from apps/api, venv activated):
-     python -m pytest -q                  # expect 251 passed
+5. Verify the baseline before writing code (from apps/api, venv activated):
+     python -m pytest -q                  # expect 293 passed
      python -m ruff check app/ tests/     # expect EXACTLY 38 findings — 39 is a regression
-   If either is off, stop and report. 38 is the verified pre-existing count (32 E501, 4 F841,
-   1 B007, 1 E402, all in untouched modules). It was 39 until C2 deleted a long line with
-   CustomerRepository.search. Parts 1–2 added ~5600 lines with zero new findings; that's the bar.
+   If either is off, stop and report. 38 is the pre-existing count (32 E501, 4 F841, 1 B007,
+   1 E402, all in untouched modules). C1 added ~2,600 lines with zero new findings; that's the bar.
 
-7. Part 3 is DOMAIN depth, not screen work. Do not re-read the list machinery — PurchaseOrderService
-   already covers create → confirm → receive → bill with the status vocabulary
-   draft / confirmed / partially_received / received. Read those methods before adding a verb that
-   exists (G16). Two things Part 3 inherits and must not break:
-     - Every new model owes app/db/references.py an entry, even an empty tuple. A missing table
-       silently permits deleting something live work depends on (R3.7).
-     - If you add a status to the PO or SO vocabulary, decide whether it counts as "open" in
-       REFERENCES.live_statuses. A new state that quietly stops blocking is R3.7 regressing.
-   Extend app/seed.py for any new screen (G14) — the seed's two trailing passes (master history
-   backfill, tax-slab repair) run last in run(); add new sections before them.
+6. C2 is PO DEPTH. Build, in this order:
+     - R4.7 PO revisions: a confirmed PO is never mutated in place. A revision is a new
+       version with a reason and one activity_log row; version 1 stays readable verbatim.
+     - R4.11 timestamps FIRST if you touch confirm: PurchaseOrder has no `confirmed_at` and
+       part 4 must MEASURE lead time, not have it typed in. GoodsReceipt.received_at already
+       exists. This is a handoff requirement — do not defer it.
+     - R4.9 back-order qty DERIVED as ordered − received (G7). `qty_received` already accrues
+       on the line; the open quantity is a computed property, NEVER a stored counter.
+     - R4.10 a receipt records which revision it was received against, and a receipt against a
+       SUPERSEDED revision is handled explicitly — not silently accepted.
+     - R4.12 port /purchase-orders/new onto the datalist picker C1 built (see "Call, don't
+       read" for `product_datalist` / `line_grid` / `_lines`). It currently repeats a
+       311-option <select> six times and cannot be typed into.
+   R4.8 (partial receipt through InventoryService.post_movement) already works — read
+   GoodsReceiptService.receive before adding a verb that exists (G16).
 
-8. Work on main. No branches, no PRs. Commit when the checkpoint is done.
+7. Two things C2 inherits and must not break:
+     - Every new model owes app/db/references.py an entry, even an empty tuple (R3.7). If a
+       revision is a new table, it owes one. And exercise it — `blocking_references(db, row)`
+       — don't just read it: a Reference names its column by STRING, so a wrong one raises
+       AttributeError at check time. C1 fixed exactly that bug in the warehouse entry.
+     - If you add a status to the PO vocabulary, decide whether it counts as "open" in
+       REFERENCES `open_po`. A new state that quietly stops blocking is R3.7 regressing.
+   Extend app/seed.py (G14): R4.15 still needs "a revised PO, and a partial receipt with an
+   outstanding back order". The pre-order section is already there; add to it or after it, but
+   BEFORE the two trailing passes (master history backfill, tax-slab repair) that run last.
+
+8. Work on main. No branches, no PRs. Commit when the checkpoint is done. When every P0/P1 in
+   §5 passes, tag it: git tag part-03-done && git push origin part-03-done.
 
 9. BEFORE you run low on context, update the "▶ CURRENT WORK" block: checkpoints with commit
    SHAs, requirement IDs passed and outstanding, gotchas, mid-part decisions, and the four
-   delta lines — Changed since / Read for the next checkpoint / Call, don't read (copy
-   signatures from source, never from memory) / Do NOT read. Then rewrite the "▶ NEXT SESSION
-   PROMPT" above for wherever the next session starts, including its baseline test and ruff
-   counts. Then commit and push.
-   If the checkpoint changed the SHAPE of anything — new shared machinery, a new pattern —
-   amend docs/CODEBASE-MAP.md in the same session. A stale map is worse than none.
+   delta lines — Changed since / Read for the next part / Call, don't read (copy signatures
+   from source, never from memory) / Do NOT read. Then rewrite the "▶ NEXT SESSION PROMPT"
+   above for Part 4, including its baseline test and ruff counts. Then commit and push.
+   If the checkpoint changed the SHAPE of anything, amend docs/CODEBASE-MAP.md in the same
+   session. A stale map is worse than none.
 
 Use pytest -q, never verbose. Don't re-read files you just edited.
 ```
@@ -130,6 +137,178 @@ Use pytest -q, never verbose. Don't re-read files you just edited.
 finish the part". Start each session fresh (`/clear` or a new window) rather than continuing a long
 one. And if a session ends messy, the recovery is `git log --oneline -5` plus the resume block, not
 re-reading the design docs.
+
+## Part 3 — Procurement: pre-order → PO depth · **IN FLIGHT** · on `main`
+
+- [x] **C1** requisition (request → approve → convert) + RFQ + quote capture + comparison →
+      commit `PENDING-C1`
+- [ ] **C2** PO revisions + partial receipt + back orders + receipt-against-revision
+
+**Verify loop at C1 close:** 293 tests passing (251 + 42); `ruff check app/ tests/` at **38** findings
+(the standing baseline), **zero new**; app boots on `--port 8015` against a fresh seeded DB; all 21 web
+routes 200 including the new `/requisitions`, `/requisitions/{id}`, `/rfqs`, `/rfqs/{id}`; the
+approve → convert-to-PO walk done through the real POST routes; deleting a referenced warehouse now
+refuses with a message naming the blockers instead of raising `AttributeError`.
+
+**Requirements passed at C1:**
+
+| ID | How it was verified |
+|---|---|
+| R4.1 | `RequisitionService` — `create` (status `requested`) → `approve`/`reject` → `convert_to_po` / `convert_to_rfq`. Walked in the booted app: an empty reason refuses, a reason approves, the approved screen offers both conversion paths, and a second conversion refuses with *"REQ-202607-00001 has already been converted"*. |
+| R4.2 | `approve`/`reject` write `approved_by` / `approved_at` / `approval_reason` on the row **and** exactly one `activity_log` row. Tests assert the row count is exactly 1 for the verb and 2 in total for the requisition, and that a blank reason raises `ValidationError`. |
+| R4.3 | `RfqService.issue` takes `supplier_ids` and writes one `rfq_supplier` row each (status `invited`); the same supplier listed twice is one invitation (tested). Reachable ad hoc from `/rfqs` or from a requisition via `convert_to_rfq`. |
+| R4.4 | `capture_quote` prices lines in integer minor units with tax as bps off the line subtotal, defaults each qty to the RFQ line's so the comparison is like-for-like, marks the invitation `quoted`, and accepts a supplier who was never invited (adding them) rather than losing a real quote. A second quote from the same supplier refuses (D3 — a revised price is a new RFQ). |
+| R4.5 | `comparison()` returns the grid: RFQ lines down, quoting suppliers across, with unit price + MOQ per cell and lead time + total + score per column. `is_cheapest` / `is_cheapest_total` / `is_fastest` are computed in the service, not the template, and mark **every** tied entry. Verified on the booted screen: ₹32.90 (cheapest, MOQ 1,000, 18 days) against ₹35.70 (fastest, 7 days, MOQ 500) — a real trade-off, not one dominant column. |
+| R4.6 | `quotation_history(product_id, supplier_id=None)` + a "Quoted prices" panel on `/products/{id}` and `GET /products/{id}/quotations`. Tests: both suppliers' prices appear, the supplier filter narrows it, and a never-quoted product returns `[]`. |
+| R4.13 | `REQUISITION_LIST` / `RFQ_LIST` in `app/modules/procurement/listing.py` + `view_from_request`. Tests assert markers only the shared macros emit (`list-toolbar`, `sort-arrow`, `pagination-count`) and that the CSV export row count equals the filtered on-screen total while an unfiltered export is strictly larger. |
+| R4.14 | Not built, deliberately, and **visibly**: every comparison column's `score` is `None`, rendered "unknown", with a `score_note` naming part 4 and what to compare instead. A test asserts no column ever carries a score. This is G11 — a placeholder 0 or 50 would read as computed. |
+| R4.15 | Partly: the seed leaves a requisition **awaiting approval**, one **approved and converted to a PO**, and an **RFQ with 2 quotes**. The revised PO and the partial receipt with an outstanding back order are C2's. |
+| R4.16 | Partly: `tests/test_preorder.py` (42 tests) covers requisition→PO conversion, approval writing exactly one row, and the RFQ→quote comparison pick. Revision-preserves-history, back-order arithmetic and receipt-against-a-superseded-revision are C2's. |
+
+**Requirements outstanding (all C2):** R4.7 (PO revisions, append-only), R4.9 (back-order qty derived),
+R4.10 (receipt against a specific/superseded revision), R4.11 (**persist `confirmed_at` — part 4 must
+measure lead time**; `GoodsReceipt.received_at` already exists), R4.12 (port `/purchase-orders/new` onto
+C1's datalist picker), plus the C2 halves of R4.15 and R4.16. R4.8 already passes from Part 1's
+`GoodsReceiptService.receive` — read it before rebuilding it.
+
+### ▶ A pre-existing bug C1 found and fixed
+
+`REFERENCES["warehouse"]` named `PurchaseOrder.warehouse_id` — **a column that does not exist.** A
+purchase order carries no warehouse; the goods receipt chooses one. Because `Reference` names its column
+by *string*, this failed at check time, not import time: from Part 2 C3 until now, deleting or
+deactivating **any** warehouse raised `AttributeError` and 500'd rather than refusing. Part 2's C3 notes
+claim R3.7 passes, and for the other twelve masters it does — the warehouse row of the R3.1 matrix
+("movements, open POs") did not.
+
+Fixed by reaching the warehouse through the receipt: `Reference(GoodsReceipt, "warehouse_id", …,
+via=Via(PurchaseOrder, …, open_po))`. Now refuses with *"Cannot delete warehouse Pune Main — it is still
+used by 274 stock movements (…, and 271 more)"*. **The lesson for C2: exercise a new `REFERENCES` entry
+with `blocking_references(db, row)`; reading it is not enough.**
+
+**New files at C1:** `app/modules/procurement/preorder.py` (the pre-order services),
+`app/modules/procurement/listing.py`, `app/web/pages/preorder.py`,
+`app/web/templates/_preorder.html`, `app/web/templates/requisitions/{list,detail}.html`,
+`app/web/templates/rfqs/{list,detail}.html`, `tests/test_preorder.py`.
+
+**Changed at C1:** `procurement/{models,repository,schemas,router,service}.py` ·
+`db/references.py` · `web/core.py` (2 nav entries + pre-order statuses in `status_class`) ·
+`web/pages/products.py` + `templates/products/detail.html` (the R4.6 panel) · `web/static/app.css`
+(`.compare`, `.tag`, `.check-grid`) · `seed.py` (+~100, the pre-order section) ·
+`docs/CODEBASE-MAP.md`.
+
+**Read for C2 (PO revisions + receipts)** — these and nothing else:
+- `docs/REQUIREMENTS.md` §5, rows R4.7–R4.12 only.
+- **The edit set:** `app/modules/procurement/service.py` (452 lines — `PurchaseOrderService` +
+  `GoodsReceiptService`, the whole of C2's domain work) · `app/modules/procurement/models.py`
+  (`PurchaseOrder`, `PurchaseOrderLine`, `GoodsReceipt`) · `schemas.py` (the PO half, top ~110 lines) ·
+  `app/web/pages/purchase_orders.py` (134 lines) + `templates/purchase_orders/{detail,new}.html` ·
+  `app/db/references.py` if a revision is a new table · `seed.py`'s pre-order section (for the
+  revised PO + partial receipt) · `tests/test_purchase_flow.py`.
+- **Do NOT read `preorder.py`, `listing.py`, `web/pages/preorder.py` or the requisition/RFQ
+  templates.** C1's half is finished and C2 does not touch it. The seam between `service.py` and
+  `preorder.py` exists precisely so you can skip ~700 lines; the three functions you might want from
+  it are in "Call, don't read" below.
+
+**Call, don't read** — verified signatures from C1, copied from source:
+
+```python
+# app/modules/procurement/service.py — module level, already used by preorder.py
+default_business_unit(db) -> uuid.UUID          # raises NotFoundError if none seeded
+tax_bps_for(db, product) -> int                 # the product's default GST rate in bps, or 0
+_round_minor(value: Decimal) -> int             # the one money rounding step (G1)
+
+# app/modules/procurement/preorder.py — C2 needs only these
+RequisitionService(db).convert_to_po(req_id, *, supplier_id, actor_id) -> PurchaseOrderDetail
+RfqService(db).award(rfq_id, quotation_id, *, actor_id) -> PurchaseOrderDetail
+#   BOTH build a PurchaseOrderCreate and call PurchaseOrderService.create. If C2 changes that
+#   signature or what create() does with unit_price_minor, these two are the callers to check.
+RfqService(db).quotation_history(product_id, *, supplier_id=None, limit=50)
+#   -> list[QuotationHistoryRow]; a pure read (G15), already on /products/{id}
+
+# app/modules/procurement/repository.py
+PreorderRepository(db).products_by_id(ids) -> dict[uuid, Product]   # one query for a whole page
+PreorderRepository(db).supplier_names(ids) -> dict[uuid, str]
+#   ProcurementRepository is unchanged — .get/.add/.search/.receipts_for/.receipt_rows/.pending_count
+
+# app/web/templates/_preorder.html — the R4.12 picker to port /purchase-orders/new onto
+{% import "_preorder.html" as pre %}
+pre.line_grid(products, rows, autofocus=false, title="Lines")
+#   emits ONE <datalist id="product-options"> + N rows of
+#   <input list="product-options" name="product_code"> + <input name="qty">
+#   (a <select> per row is ~1,900 <option>s at 311 products and cannot be typed into)
+pre.doc_lines(lines)               # a document's own lines, read-only: line_no/sku/name/qty
+pre.supplier_checklist(suppliers)  # name="supplier_ids" checkboxes
+
+# app/web/pages/preorder.py — the resolver that goes with line_grid
+_lines(db, product_code: list[str], qty: list[str]) -> list[tuple[uuid.UUID, Decimal]]
+#   skips blank rows; raises ValidationError NAMING an unknown SKU rather than dropping the row.
+#   Copy it or import it — do not write a second SKU resolver.
+```
+
+Everything from Part 2's signature block below still holds (`ListSpec`, `view_from_request`,
+`ensure_unreferenced`, `soft_delete`, `ensure_unique`, `ActivityService.history`).
+
+**Gotchas C1 hit, for C2:**
+- **`status_class` in `web/core.py` decides badge colour from a status *string*.** A status not in its
+  `positive`/`warning`/`negative` sets renders grey, silently. Every pre-order badge was grey until C1
+  added `requested`/`issued`/`invited` → warn and `approved`/`converted`/`awarded`/`quoted` → ok.
+  **A new PO status needs a bucket, or the screen stops telling the founder anything.**
+- **A list page with a bulk-entry form has TWO `<tbody>`s.** The Part 2 test idiom
+  `assert html.count("<tbody>") == 1` is wrong on these pages. Assert markers only the shared macros
+  emit (`sort-arrow`, `pagination-count`, `list-toolbar`) instead, and remember an **empty** list
+  renders no table at all — so read the row total from the paginator (`Showing 1–25 of N`), not by
+  counting `<tr>`.
+- **`ListSpec.columns` read the projected row.** `RequisitionListRow.line_count` / `qty_total` /
+  `outcome` exist only on the projection, so they carry no `sort=`. The projector fetches the
+  aggregates for the **whole page in two queries** (`requisition_line_aggregates`,
+  `requisition_outcomes`) — do not add a per-row query in a projector.
+- **`APEXOS_DATABASE_URL` is NOT the env var.** It is `DATABASE_URL` (see `conftest.py`). Seeding with
+  the wrong name silently writes to the real `apexos.db` and you will "verify" against stale data.
+  Point both the seed and uvicorn at the same fresh file: `export DATABASE_URL="sqlite:///./fresh.db"`.
+- **Deleting a scratch `.db` fails while uvicorn holds it** (Windows: *Device or resource busy*). Stop
+  the process first — `pkill` does not exist in this shell; use PowerShell `Get-CimInstance
+  Win32_Process | Where CommandLine -like '*<port>*' | Stop-Process -Force`.
+- **`uuid.UUID` in a Pydantic response model serialises to a string**, so an API test comparing a
+  `supplier_id` from JSON must compare against `str(supplier.id)`.
+- **A `Body(..., embed=True)` param is how the JSON API takes a lone scalar** (`reason`,
+  `supplier_id`, `quotation_id`) without inventing a one-field schema.
+- Port 8000 may be occupied on this machine; C1 used `--port 8015`.
+
+**Decisions made in C1 (do not silently reverse):**
+1. **`procurement/` splits its services by flow, not by layer.** `service.py` = PO → confirm →
+   receive → bill; `preorder.py` = requisition → RFQ → quotation. Same for the repository
+   (`ProcurementRepository` / `PreorderRepository`). The justification is the reading diet, and it is
+   the only one that counts: C2 works on the PO half and never opens the pre-order half, saving ~700
+   lines of context. A shared primitive moves to **module level** in `service.py` rather than being
+   reached across classes — hence `default_business_unit` / `tax_bps_for`, both called by `preorder.py`
+   so a quotation and the PO it becomes cannot disagree about tax. **This is not licence to split a
+   module with no such seam.**
+2. **Conversion calls the target's service; it never rebuilds it (G16).** Requisition→PO and
+   award→PO both assemble a `PurchaseOrderCreate` and call `PurchaseOrderService.create`. The
+   requisition carries **no price** — it is a request, so `create` resolves the supplier price. An
+   award passes the **quoted** `unit_price_minor` explicitly, which is the whole point of quoting.
+3. **A conversion writes one row on the *source*; the target service writes its own on the target.**
+   `convert_to_po` logs `purchase_requisition.converted` and `create` logs `purchase_order.created` —
+   two entities, one row each, so G5 holds without either service knowing about the other's log.
+4. **Losing quotations are left exactly as received.** Marking them "rejected" would be a state change
+   per supplier with no decision behind it (and N rows to log). `Rfq.awarded_quotation_id` records
+   which one won; the others stay `received` and readable. A test asserts the loser is untouched.
+5. **A supplier cannot revise a quote in place** — `capture_quote` refuses a second quote from the same
+   supplier and says *"A revised price is a new RFQ, not an edit (D3)."* Same reasoning as the tax-slab
+   versioning in Part 2 C3.
+6. **`lead_time_days` on a quotation is what the supplier *promised* and is never overwritten from a
+   receipt.** Part 4 measures the actual lead time from `confirmed_at`/`received_at` (R4.11) and the
+   gap between promise and delivery is the signal — writing the measurement back would destroy it.
+7. **A requisition/RFQ is "open" while it can still change what it reads.** `open_req = ("requested",
+   "approved")`, `open_rfq = ("issued",)` in `references.py`. A **converted** requisition no longer
+   blocks retiring its product — same reasoning as R1.7 for a confirmed invoice; there is a test for
+   each direction.
+8. **The product picker submits a SKU, not an id.** A `<datalist>` is the only no-JS way to get
+   search-as-you-type (R4.12), and it submits display text. `_lines()` resolves it in one query and
+   **names an unknown SKU back to the user** — a free-text picker that silently drops a typo'd row is
+   the one failure mode this must not have.
+
+---
 
 ## Part 2 — Master data & shared machinery · **COMPLETE** · on `main` · tagged `part-02-done`
 
@@ -163,8 +342,12 @@ R3.13 is a "do not build" and was not built.
 | Units of measure | `/masters/units` | ✅ | 1 | ✅ | 25 | ✅ | ✅ | ✅ | ✅ | ✅ | factor | products, conversions | code + name |
 | Customer types | `/masters/customer-types` | ✅ | 1 | ✅ | 25 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | customers, leads | code + name |
 | Supplier types | `/masters/supplier-types` | ✅ | 1 | ✅ | 25 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | suppliers | code + name |
-| Warehouses | `/masters/warehouses` | ✅ | 2 | ✅ | 25 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | movements, open POs | code + name |
+| Warehouses | `/masters/warehouses` | ✅ | 2 | ✅ | 25 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | movements, open POs ¹ | code + name |
 | Tax slabs | `/masters/tax-slabs` | ✅ | 1 | ✅ | 25 | ✅ | ✅ | ✅ | ⛔ versioned | ✅ | ✅ | products | n/a — code reuse **is** a version |
+
+¹ **This cell was broken until Part 3 C1** — the reference named `PurchaseOrder.warehouse_id`, a column
+that does not exist, so every warehouse deactivation raised `AttributeError` instead of refusing. See
+"A pre-existing bug C1 found and fixed" in the Part 3 section above. The other twelve rows were fine.
 
 Two deliberate non-✅s. **Tax slabs are not deletable** (`deletable=False` in the registry): a slab is a
 version record, and R3.6 forbids editing history — a rate change appends. **Manufacturers have no

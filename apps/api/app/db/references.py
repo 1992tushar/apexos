@@ -156,7 +156,17 @@ def _build_map() -> dict[str, tuple[Reference, ...]]:
     from app.modules.crm.models import Lead
     from app.modules.customers.models import Customer
     from app.modules.inventory.models import StockMovement
-    from app.modules.procurement.models import PurchaseOrder, PurchaseOrderLine
+    from app.modules.procurement.models import (
+        GoodsReceipt,
+        PurchaseOrder,
+        PurchaseOrderLine,
+        PurchaseRequisition,
+        PurchaseRequisitionLine,
+        Rfq,
+        RfqLine,
+        RfqSupplier,
+        SupplierQuotation,
+    )
     from app.modules.products.models import Product
     from app.modules.sales.models import SalesOrder, SalesOrderLine
     from app.modules.suppliers.models import Supplier
@@ -164,8 +174,14 @@ def _build_map() -> dict[str, tuple[Reference, ...]]:
     # A document is open while it can still change what it reads from a master.
     open_po = ("draft", "confirmed", "partially_received")
     open_so = ("draft", "confirmed", "partially_fulfilled")
+    # A requisition is open until it has been converted or rejected; an RFQ until it
+    # is awarded or closed. Both still read the product they name (R4.1/R4.3).
+    open_req = ("requested", "approved")
+    open_rfq = ("issued",)
     via_po = Via(PurchaseOrder, "purchase_order_id", "po_no", open_po)
     via_so = Via(SalesOrder, "sales_order_id", "order_no", open_so)
+    via_req = Via(PurchaseRequisition, "purchase_requisition_id", "requisition_no", open_req)
+    via_rfq = Via(Rfq, "rfq_id", "rfq_no", open_rfq)
 
     def on_product(column: str) -> Reference:
         return Reference(Product, column, "product", "products")
@@ -187,8 +203,13 @@ def _build_map() -> dict[str, tuple[Reference, ...]]:
         "warehouse": (
             Reference(StockMovement, "warehouse_id", "stock movement", "stock movements",
                       label="id"),
-            Reference(PurchaseOrder, "warehouse_id", "open purchase order",
-                      "open purchase orders", label="po_no", live_statuses=open_po),
+            # A goods receipt names the warehouse the stock landed in, so a warehouse
+            # is live while any PO it received against is still open. Reached through
+            # the receipt, not the PO: a purchase order carries no warehouse of its
+            # own (the receipt chooses one), and naming a column the model does not
+            # have is an AttributeError the moment someone retires a warehouse.
+            Reference(GoodsReceipt, "warehouse_id", "open purchase order",
+                      "open purchase orders", via=via_po),
         ),
         "business_unit": (
             Reference(Category, "business_unit_id", "category", "categories"),
@@ -211,6 +232,12 @@ def _build_map() -> dict[str, tuple[Reference, ...]]:
                       "open purchase orders", via=via_po),
             Reference(SalesOrderLine, "product_id", "open sales order",
                       "open sales orders", via=via_so),
+            # Pre-order work reads the product again when it converts (R4.1/R4.3), so
+            # retiring it underneath an unconverted requisition or a live RFQ would
+            # break the conversion. A converted requisition is history and does not.
+            Reference(PurchaseRequisitionLine, "product_id", "open requisition",
+                      "open requisitions", via=via_req),
+            Reference(RfqLine, "product_id", "open RFQ", "open RFQs", via=via_rfq),
         ),
         "customer": (
             Reference(SalesOrder, "customer_id", "open sales order", "open sales orders",
@@ -219,12 +246,32 @@ def _build_map() -> dict[str, tuple[Reference, ...]]:
         "supplier": (
             Reference(PurchaseOrder, "supplier_id", "open purchase order",
                       "open purchase orders", label="po_no", live_statuses=open_po),
+            # An invited supplier on a live RFQ is still being waited on. A quotation
+            # already received is history — it snapshotted its own prices (R1.7).
+            Reference(RfqSupplier, "supplier_id", "open RFQ", "open RFQs", via=via_rfq),
+        ),
+        # --- pre-order documents ---------------------------------------------
+        # A requisition or RFQ is itself referenced only by what it produced, and a
+        # produced PO is the record — deleting the request does not unmake the order.
+        # Declared explicitly so the next part finds the decision, not a gap (R3.7).
+        "purchase_requisition": (
+            Reference(Rfq, "purchase_requisition_id", "open RFQ", "open RFQs",
+                      label="rfq_no", live_statuses=open_rfq),
+        ),
+        "rfq": (
+            Reference(SupplierQuotation, "rfq_id", "quotation", "quotations",
+                      label="quotation_no"),
         ),
         # Deliberately empty — nothing reads these live. Present so a missing entry
         # reads as "not yet considered" rather than "considered, nothing to guard".
         "manufacturer": (),
         "setting": (),
         "uom_conversion": (),
+        "purchase_requisition_line": (),
+        "rfq_line": (),
+        "rfq_supplier": (),
+        "supplier_quotation": (),
+        "supplier_quotation_line": (),
     }
 
 

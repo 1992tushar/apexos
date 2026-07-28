@@ -3,6 +3,13 @@
 `purchase_order` → `goods_receipt` (stock IN) mirrors `sales_order` →
 `fulfillment` (stock OUT). `purchase_order_line.qty_received` tracks partial
 receipts against the ordered quantity.
+
+Part 3 adds the **pre-order** half in front of the PO: a requisition is the
+request ("we need this"), an RFQ asks suppliers what they would charge, and a
+quotation is one supplier's answer. Both paths converge on `purchase_order` —
+a requisition converts straight to a PO when the price is already known, or via
+an RFQ when it is not. Nothing here re-implements the PO; conversion calls
+`PurchaseOrderService.create`.
 """
 from __future__ import annotations
 
@@ -104,3 +111,180 @@ class GoodsReceiptLine(Base, EntityMixin):
     qty: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
 
     receipt: Mapped[GoodsReceipt] = relationship(back_populates="lines")
+
+
+# ---------------------------------------------------------------------------
+# Pre-order: requisition → (RFQ → quotations) → purchase order
+# ---------------------------------------------------------------------------
+
+
+class PurchaseRequisition(Base, EntityMixin, BusinessUnitMixin):
+    """"We need this" — a request, before anyone has agreed a price.
+
+    `created_by` (EntityMixin) is the requester; approval is a separate actor and
+    reason, recorded here rather than only in the log so the screen can show who
+    signed off without replaying activity (R4.2 keeps the log row as well).
+    """
+
+    __tablename__ = "purchase_requisition"
+
+    requisition_no: Mapped[str] = mapped_column(String(24), nullable=False, unique=True)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="requested")
+    needed_by: Mapped[date | None] = mapped_column(Date, nullable=True)
+    note: Mapped[str | None] = mapped_column(String(400), nullable=True)
+
+    approved_by: Mapped[uuid.UUID | None] = mapped_column(Uuid(), nullable=True)
+    approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    approval_reason: Mapped[str | None] = mapped_column(String(400), nullable=True)
+
+    # Where the request went. Exactly one is set once status is 'converted'.
+    purchase_order_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(), ForeignKey("purchase_order.id"), nullable=True
+    )
+    rfq_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(), ForeignKey("rfq.id"), nullable=True
+    )
+
+    lines: Mapped[list[PurchaseRequisitionLine]] = relationship(
+        back_populates="requisition",
+        cascade="all, delete-orphan",
+        order_by="PurchaseRequisitionLine.line_no",
+    )
+
+
+class PurchaseRequisitionLine(Base, EntityMixin):
+    __tablename__ = "purchase_requisition_line"
+
+    purchase_requisition_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(), ForeignKey("purchase_requisition.id", ondelete="CASCADE"), nullable=False
+    )
+    product_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(), ForeignKey("product.id"), nullable=False
+    )
+    qty: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
+    line_no: Mapped[int] = mapped_column(SmallInteger, nullable=False, default=1)
+
+    requisition: Mapped[PurchaseRequisition] = relationship(back_populates="lines")
+
+
+class Rfq(Base, EntityMixin, BusinessUnitMixin):
+    """A request for quotation, issued to several suppliers at once (R4.3).
+
+    `purchase_requisition_id` is nullable because an RFQ may be raised ad hoc —
+    the founder asking the market a question without a requisition behind it.
+    """
+
+    __tablename__ = "rfq"
+
+    rfq_no: Mapped[str] = mapped_column(String(24), nullable=False, unique=True)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="issued")
+    issued_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    due_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    note: Mapped[str | None] = mapped_column(String(400), nullable=True)
+
+    purchase_requisition_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(), ForeignKey("purchase_requisition.id"), nullable=True
+    )
+    # Set when a quotation wins the comparison; the PO it produced is on the quote.
+    awarded_quotation_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(), nullable=True)
+
+    lines: Mapped[list[RfqLine]] = relationship(
+        back_populates="rfq", cascade="all, delete-orphan", order_by="RfqLine.line_no"
+    )
+    suppliers: Mapped[list[RfqSupplier]] = relationship(
+        back_populates="rfq", cascade="all, delete-orphan"
+    )
+
+
+class RfqLine(Base, EntityMixin):
+    __tablename__ = "rfq_line"
+
+    rfq_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(), ForeignKey("rfq.id", ondelete="CASCADE"), nullable=False
+    )
+    product_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(), ForeignKey("product.id"), nullable=False
+    )
+    qty: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
+    line_no: Mapped[int] = mapped_column(SmallInteger, nullable=False, default=1)
+
+    rfq: Mapped[Rfq] = relationship(back_populates="lines")
+
+
+class RfqSupplier(Base, EntityMixin):
+    """One supplier this RFQ was issued to, and whether they came back."""
+
+    __tablename__ = "rfq_supplier"
+
+    rfq_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(), ForeignKey("rfq.id", ondelete="CASCADE"), nullable=False
+    )
+    supplier_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(), ForeignKey("supplier.id"), nullable=False
+    )
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="invited")
+
+    rfq: Mapped[Rfq] = relationship(back_populates="suppliers")
+
+
+class SupplierQuotation(Base, EntityMixin, BusinessUnitMixin):
+    """One supplier's answer to an RFQ: prices, lead time, MOQ per line.
+
+    `lead_time_days` is what the supplier *promised*. Part 4 measures the actual
+    lead time from PO confirm and receipt timestamps (R4.11) and may disagree —
+    that comparison is the point, so this stays a quoted figure and is never
+    overwritten from a receipt.
+    """
+
+    __tablename__ = "supplier_quotation"
+
+    quotation_no: Mapped[str] = mapped_column(String(24), nullable=False, unique=True)
+    rfq_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(), ForeignKey("rfq.id"), nullable=False
+    )
+    supplier_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(), ForeignKey("supplier.id"), nullable=False
+    )
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="received")
+    quoted_on: Mapped[date] = mapped_column(
+        Date, nullable=False, server_default=func.current_date()
+    )
+    valid_until: Mapped[date | None] = mapped_column(Date, nullable=True)
+    lead_time_days: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    note: Mapped[str | None] = mapped_column(String(400), nullable=True)
+
+    subtotal_minor: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
+    tax_minor: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
+    total_minor: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
+
+    # The PO this quotation became, once it won the comparison.
+    purchase_order_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(), ForeignKey("purchase_order.id"), nullable=True
+    )
+
+    lines: Mapped[list[SupplierQuotationLine]] = relationship(
+        back_populates="quotation",
+        cascade="all, delete-orphan",
+        order_by="SupplierQuotationLine.line_no",
+    )
+
+
+class SupplierQuotationLine(Base, EntityMixin):
+    __tablename__ = "supplier_quotation_line"
+
+    supplier_quotation_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(), ForeignKey("supplier_quotation.id", ondelete="CASCADE"), nullable=False
+    )
+    product_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(), ForeignKey("product.id"), nullable=False
+    )
+    qty: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
+    unit_price_minor: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    moq: Mapped[Decimal | None] = mapped_column(Numeric(18, 4), nullable=True)
+    tax_rate_bps: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    line_subtotal_minor: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
+    line_tax_minor: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
+    line_total_minor: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
+    line_no: Mapped[int] = mapped_column(SmallInteger, nullable=False, default=1)
+
+    quotation: Mapped[SupplierQuotation] = relationship(back_populates="lines")
