@@ -69,11 +69,11 @@ Continue the ApexOS build. Do this in order:
 1. git checkout main && git pull origin main && git fetch origin --tags
    (tags don't come down with a plain pull, and the delta command below needs part-03-done)
 
-2. Read the "▶ CURRENT WORK" block at the top of PROGRESS.md. Part 3 is COMPLETE and tagged
-   part-03-done. That block's job now is the handoff: "Read for the next part (Part 4)" names
-   your edit set, "Call, don't read" carries verified signatures so you don't open those
-   modules, and "Do NOT read" is binding. Part 3's two sessions each had this and it is why
-   C2 fit in one.
+2. Read the "▶ CURRENT WORK" block at the top of PROGRESS.md, and in particular the
+   "▶ Part 4 — IN FLIGHT" section. Part 4 is HALF BUILT: its engine landed in cf552e3 and
+   is green. That section is your brief — the R-number table says what passes and what
+   remains, "Call, don't read" carries verified signatures for the services you are about
+   to render, and "Do NOT read" is binding.
 
 3. Read docs/REQUIREMENTS.md §1 (global invariants G1–G17) and §6 (R5.x — Part 4's acceptance
    contract). NOT optional: the invariants you must not break — integer minor units, exactly
@@ -84,8 +84,10 @@ Continue the ApexOS build. Do this in order:
    docs/STANDING-RULES.md (binding: decisions D-A..D-D, session protocol, reading diet,
    verify loop). Do NOT open docs/ROADMAP.md — it is planning only and costs ~17k tokens.
 
-4. `git diff part-03-done..HEAD --stat` for the delta (empty at session start). For Part 3's
-   shape, `git show --stat 3d0162b` (C1) and `git show --stat e62f8bb` (C2). Not a tree walk.
+4. `git show --stat cf552e3` for what Part 4's engine changed, and
+   `git diff part-03-done..HEAD --stat` for everything since Part 3 (that includes Move 0,
+   which restructured the docs and split app/seed.py — docs only plus the seed package).
+   Not a tree walk.
 
 5. Verify the baseline before writing code (from apps/api, venv activated):
      python -m pytest -q                  # expect 361 passed
@@ -100,48 +102,71 @@ Continue the ApexOS build. Do this in order:
    scoring, lead-time, on-time or price-history logic; it exists, it is tested, and G16
    makes calling it mandatory. What is left is mostly TEMPLATES plus the C2 engine.
 
-6. Part 4 is INTELLIGENCE FROM PART 3's HISTORY — arithmetic and data, no ML and no runtime
-   LLM call (G12). Two checkpoints; C1 is:
-     - R5.1 product↔supplier mapping: a preferred vendor plus alternates.
-     - R5.2 vendor score from the EXISTING `supplier_evaluation` plus on-time receipt history.
-       `SupplierRepository.latest_score(supplier_id)` and `VendorEvaluationService.score`
-       already exist — read them before building a second scorer (G16).
-     - R5.3 lead time MEASURED from `PurchaseOrder.confirmed_at` → `GoodsReceipt.received_at`.
-       C2 persisted both for exactly this. There must be NO editable lead-time input.
-       Note `SupplierQuotation.lead_time_days` is what a supplier PROMISED — never overwrite
-       it from a receipt; the promised-vs-measured gap is the point.
-     - R5.4 on-time rate with the boundary stated: received exactly on the promised date is
-       on time. Write the boundary test.
-     - R5.5 MOQ per product+supplier, surfaced in R4.5's comparison grid.
-     - R5.6 price history per product+supplier as a timeline.
-   C1 also fills R4.5's `score` column, which C1-of-part-3 deliberately left as "unknown"
-   with a SCORE_NOTE naming part 4. Replacing that placeholder is yours.
+6. FINISH C1 FIRST — it is screens over services that already exist and are tested. In order:
 
-7. G11 is the hard one this part, and it is P0 on every output: every score, rate, lead time
-   and recommendation MUST render its inputs, its formula, its data window, and links to the
-   records it reasoned from. Where history is insufficient it MUST say "unknown" — never 0,
-   never 50 (R5.11, and there is a required test for that path). Part 3 C1 set the pattern:
-   a `score=None` plus a note explaining what to compare instead.
+   a. Add an `explain_panel` macro to app/web/templates/_macros.html that renders one
+      `Explained` (app/db/explain.py): the value or "unknown", the formula, the data window,
+      the inputs with their weights, and the linked records as <a href>. ONE macro used by
+      every output — do not write per-screen markup, that is the duplication R13.1 is
+      scheduled to clean up and the whole point of building the shape early.
+      A missing input renders its `missing_reason`, not a blank or a zero.
 
-8. Three things Part 4 inherits and must not break:
-     - R5.10: own FEW OR NO new mutable entities. The product↔supplier mapping and MOQ are
-       legitimate new master data; scores, lead times and on-time rates are DERIVED (G7). Any
-       stored derivation needs a measured performance problem written into PROGRESS.md.
-     - Every new model owes app/db/references.py an entry, even an empty tuple (R3.7) — and
-       EXERCISE it with `blocking_references(db, row)` in a test. A Reference names its column
-       by STRING, so a wrong one raises AttributeError at check time, not import time. That
-       bug hid in the warehouse entry for five checkpoints.
-     - R5.9: the recommendation engine gets ONE service entry point. Parts 5 and 10 read it.
-       Two implementations of "what should I buy" is the specific failure the ordering of this
-       roadmap exists to prevent.
-   Extend the seed (G14): R5.13 needs receipt history across ≥2 suppliers so lead time and
-   on-time rate are non-trivial, plus one product below reorder level with an open PO and one
-   without. app/seed.py is now the PACKAGE app/seed/ — write app/seed/vendor.py with
-   `def seed_vendor(ctx: SeedContext)` and add ONE call in core.py's run(), before the
-   master-change-history pass (which must stay last). Read app/seed/__init__.py's docstring
-   and app/seed/preorder.py (the worked example); do NOT read core.py end to end.
+   b. R5.12 supplier detail: score + lead time + on-time rate through that macro.
+      R5.12 product detail: the vendor comparison (`ProductSupplierService.list_for_product`
+      — preferred first, alternates after) and the price timeline
+      (`VendorIntelService.price_history`). The row fields .score/.lead_time/.on_time_rate
+      are ALREADY RENDERED STRINGS and may literally be "unknown" — print them, never
+      format them as numbers.
 
-9. Work on main. No branches, no PRs. Commit when the checkpoint is done.
+   c. POST routes for the mapping: link, set-preferred, unlink. Reuse the part 2 macros and
+      the existing page patterns; carry the R1.4 authz guard like the other POSTs (G10).
+
+   d. R5.5 in R4.5's grid: app/modules/procurement/preorder.py builds QuoteComparisonColumn
+      around lines 447-508 with `score=None`. Fill it from
+      `VendorIntelService(db).score(supplier_id).display` and add the MOQ from
+      `ProductSupplierService(db).moq(product_id, supplier_id)`. Then DELETE `SCORE_NOTE`
+      (preorder.py:84) and the `score_note` plumbing — it exists only to say "part 4 will
+      do this", and leaving it is a lie on the screen. rfqs/detail.html renders both.
+
+7. THEN C2, in this order — R5.9's entry point before anything that calls it:
+
+   a. R5.9 — ONE service entry point. Suggested: app/modules/procurement/recommend.py
+        RecommendationService(db).recommend(*, product_id=None, limit=None)
+            -> list[Recommendation]
+      Parts 5 and 10 CALL this; R7.11 and R13.6 will check for a second implementation.
+      Two implementations of "what should I buy" is the specific failure this prevents.
+
+   b. R5.8 — each Recommendation carries a suggested qty and an `Explained` whose formula
+      reads like the requirement's own example: "reorder 40 of X — stock 12, reorder level
+      50, 0 on open PO, lead time 9 days measured over 6 receipts". Every recommendation
+      needs a non-empty explanation and at least one linked record (G11), and the seed has
+      both reorder cases waiting: APX-GB-004 is below reorder with nothing on order, and
+      APX-GB-003 is below reorder WITH an open PO — the engine must subtract the open
+      quantity and not double-order it.
+      Reuse, do not rebuild (G16): InventoryService.on_hand(product_id),
+      Product.reorder_level, PurchaseOrderService.open_qty(line) — a STATICMETHOD and THE
+      definition of open (R4.9/G7) — and ProductSupplierService.preferred_supplier_id.
+
+   c. R5.7 — the procurement calendar on /procurement. "Due to arrive" is confirmed and
+      partially_received POs ordered by PurchaseOrder.expected_date (added in C1); "due to
+      order" is (a)'s recommendations. A PO with no expected_date is listed as "no date
+      promised", never bucketed under today.
+
+8. Constraints that still bind:
+     - R5.10: no new mutable entity beyond the mapping + MOQ already built. Scores, lead
+       times, on-time rates and recommendations are DERIVED (G7) and stay computed.
+     - Any new model owes app/db/references.py an entry, even an empty tuple (R3.7), and
+       EXERCISE it with `blocking_references(db, row)` in a test. A Reference names its
+       column by STRING, so a wrong one raises AttributeError at check time, not import
+       time — that bug hid in the warehouse entry for five checkpoints.
+     - G11 is P0 on every output C2 adds, and R5.11's "unknown" path needs its own test.
+     - G12: arithmetic only. No ML dependency, no runtime LLM call.
+   Seed (G14): the vendor history exists (app/seed/vendor.py). If C2 needs more demo data,
+   add it THERE or in a new app/seed/<domain>.py — never by appending to core.py's run().
+
+9. Work on main. No branches, no PRs. Commit when the checkpoint is done — commit after
+   step 6 (C1 complete) and again after step 7 (C2), not once at the end. When every P0/P1
+   in REQUIREMENTS.md §6 passes: git tag part-04-done && git push origin part-04-done.
 
 10. BEFORE you run low on context, update the "▶ CURRENT WORK" block: checkpoints with commit
     SHAs, requirement IDs passed and outstanding, gotchas, mid-part decisions, and the four
