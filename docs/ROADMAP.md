@@ -194,19 +194,25 @@ no runtime LLM call for any number the product displays.
 permission UI; CSV import is P2 everywhere; QuickBooks bridge, notifications, saved views, ADR log and
 SOP index are cut. A session that finds itself building one of these has drifted — stop and ask.
 
-**Verify loop — run from `apps/api`, every part, no exceptions:**
+**Verify loop — run from `apps/api` with the venv activated, every part, no exceptions:**
 ```bash
-./.venv/Scripts/python.exe -m pytest -q                 # all green
-./.venv/Scripts/python.exe -m ruff check app/ tests/    # no new findings
-./.venv/Scripts/python.exe -m uvicorn app.main:app --port 8000
+# activate first — Windows: .venv\Scripts\Activate.ps1  ·  Linux/macOS: source .venv/bin/activate
+python -m pytest -q                 # all green
+python -m ruff check app/ tests/    # no new findings
+python -m uvicorn app.main:app --port 8000
 # then: every nav page 200s and renders; a bad id (e.g. /customers/<random-uuid>) renders error.html
 ```
+Use plain `python` with the venv active rather than a hardcoded interpreter path — the build machine
+is not guaranteed to be Windows.
 Add tests for new behaviour in `apps/api/tests/`. Then update `PROGRESS.md` and commit to `main`.
 
 **Repo/git:** personal GitHub only — `github.com/1992tushar/apexos`, personal credentials, never org
-credentials. This machine both writes and tests the code. **All work is on `main` — no feature
-branches, no PRs** (see "Git: one branch"). Commit at every checkpoint; tag `part-0N-done` when a part
-completes.
+credentials. **One machine writes AND tests the code** — the same session that implements a change runs
+pytest, ruff, and boots the app to verify it. There is no write-here/test-there split (an earlier
+two-machine workflow is retired). The stack is self-contained — SQLite file + one uvicorn process, no
+database server and no npm — so any machine with Python 3.11+ can do both. **All work is on `main` — no
+feature branches, no PRs** (see "Git: one branch"). Commit at every checkpoint; tag `part-0N-done` when
+a part completes.
 
 **Docs to read at the start of a part (skim, they're the design record):**
 `PROGRESS.md`, `docs/REQUIREMENTS.md` (**your part's sections — this is the acceptance contract**),
@@ -225,14 +231,16 @@ authoritative on features but its Phase column and several features are supersed
 You are finishing Part 1 of 12 (Phase 0 — Foundation & Architecture) of ApexOS at
 c:\Imp Data\Personal\apexos. All work happens on main — there are no feature branches and no PRs
 (see "Git: one branch" in docs/ROADMAP.md). Origin is github.com/1992tushar/apexos, personal creds
-only. This machine both writes and tests the code.
+only. The machine you are on both writes AND tests the code — you run pytest, ruff, and boot the app
+yourself; do not hand verification off to anyone.
 
 FIRST: git checkout main && git pull origin main.
 Read docs/ROADMAP.md (standing rules + the product decisions D-A..D-D), docs/REQUIREMENTS.md §2
 (requirements R1.1–R1.10 — your acceptance contract), and the memory note apexos-phase-0-foundation.
 Baseline is green:
-  cd apps/api && ./.venv/Scripts/python.exe -m pytest -q   # expect 43 passed
-  ./.venv/Scripts/python.exe -m ruff check app/ tests/     # only pre-existing E501 in untouched modules
+  cd apps/api   # with the venv activated — see the verify loop in the standing rules
+  python -m pytest -q                  # expect 43 passed
+  python -m ruff check app/ tests/     # only pre-existing E501 in untouched modules
 
 The audit already established the foundation is strong — do NOT rebuild it or add unnecessary
 abstractions. Two of five workstreams (WS1 tests, WS2 centralized web error handling) are done.

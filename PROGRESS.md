@@ -20,6 +20,31 @@ tags are the rollback points.
 **Every session ends by updating the block below, before it runs out of room.** A session that dies
 with an accurate resume block costs nothing; one that dies without it costs a re-derivation.
 
+### Fresh clone — one-time setup
+
+The build machine both writes and tests the code; there is no write-here/test-there split. The stack
+is self-contained (SQLite file + one uvicorn process, no database server, no npm), so any machine with
+**Python 3.11+** can do everything.
+
+```bash
+git clone https://github.com/1992tushar/apexos.git    # personal creds only, never org
+cd apexos/apps/api
+python -m venv .venv
+# Windows: .venv\Scripts\Activate.ps1   ·   Linux/macOS: source .venv/bin/activate
+pip install -e ".[dev]"
+python -m app.seed          # creates apexos.db with demo data
+```
+
+Then verify the baseline before writing any code:
+
+```bash
+python -m pytest -q                  # expect 43 passed
+python -m ruff check app/ tests/     # only pre-existing E501 in untouched modules
+python -m uvicorn app.main:app --port 8000   # http://localhost:8000/ — click through every nav page
+```
+
+If the baseline is not green, stop and report what failed — do not start feature work on top of it.
+
 ### ▶ How to start the next session
 
 Open a fresh Claude Code session in `c:\Imp Data\Personal\apexos` and paste **exactly this**:
@@ -299,6 +324,11 @@ The unfinished work from the 2026-07-19 session is complete. The whole stack run
 Backend audit was clean; only a non-blocking Dockerfile layer-ordering nit remains (see below).
 
 ## How to run it (verified working on this machine)
+
+> ⚠️ **SUPERSEDED — do not follow these commands.** This section predates the stack lightening:
+> Postgres, Alembic and the Next.js frontend are all gone. `alembic` is not installed and
+> `apps/web/` no longer exists. For the current one-process SQLite setup see `RUNNING.md`, or the
+> fresh-clone steps in the `▶ CURRENT WORK` section at the top of this file. Kept as historical record.
 
 **1. Bring up Postgres** (only if `pg_isready -p 5433` fails — see recipe below).
 
