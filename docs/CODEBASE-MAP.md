@@ -19,6 +19,9 @@
 | Add a master to the uniform treatment | `app/web/pages/masters.py` — a `MasterPage(...)` registry entry is the whole screen (~6 lines) | Writing a page module; nine masters already share one |
 | Add a master with its own domain page | `app/modules/products/listing.py` + `app/web/pages/products.py` — the reference pair (~80 lines total) | Re-deriving the pattern from the machinery; copy the pair and change the config |
 | Work on the buy side | `app/modules/procurement/preorder.py` for requisition/RFQ/quotation, `service.py` for PO → receive → bill. The two halves are independent | The other half. That seam exists so you only read one |
+| Show a score, rate, recommendation or forecast | `app/db/explain.py` (the shape) + the `explain_panel` macro (the rendering). Build an `Explained`; never format a number into a template | Inventing per-screen explanation markup — G11 has exactly one implementation |
+| Ask "what should I buy" | `app/modules/procurement/recommend.py` — `RecommendationService(db).recommend(*, product_id=None, limit=None)` | Writing a second reorder calculation. R5.9 makes this the only one and R7.11/R13.6 check |
+| Read a supplier's measured performance | `app/modules/suppliers/vendor.py` — `VendorIntelService` (score, lead time, on-time rate, price history). Read-only | Storing any of it; it is derived (G7, R5.10) |
 | Block deleting/deactivating something in use | `app/db/references.py` — `REFERENCES` is the policy | Writing a count query in a service; that is what this replaced |
 | Delete something | `app/db/soft_delete.py` (its docstring is the contract) | Per-module delete code — there isn't any, by design |
 | Prevent duplicates | `app/db/duplicates.py` — `NATURAL_KEYS` is the config | — |
@@ -169,6 +172,18 @@ Derived from `activity_log`. **No history table exists, and a test fails if one 
 already existed; `ActivityService.history()` reads it back with actor names; `changes_from_data`
 rehydrates. Render with the `history_panel` macro.
 
+### `app/db/explain.py` — the one explained-number shape (G11)
+
+`Explained(what, value, formula, window, inputs=(), records=(), unknown_reason=None, caveat=None)`
+plus `Input` and `SourceRecord`. `value` is the **rendered** value — services format, templates never
+compute — and `value is None` means unknown, which `Explained.unknown(...)` builds with the reason and
+still with the formula, because "here is what I would need" is the useful half of an unknown (R5.11).
+Pure: no session, no models, no queries.
+
+Rendered by exactly one macro, `explain_panel`. G11 is P0 on every score, alert, recommendation and
+forecast in the product, so **a new one builds an `Explained` and passes it to that macro** — inventing
+per-screen markup for the arithmetic is the duplication R13.1 was scheduled to clean up.
+
 ### `app/web/security.py` — web authz (R1.4)
 
 `require_web_permission(permission)` — a FastAPI dependency that renders 403 `error.html` on GET and
@@ -180,7 +195,7 @@ a roles/permissions UI on top of it — that's cut.
 
 Imported as `ui` in templates. General: `page_header`, `stat`, `badge`, `empty`, `delete_button`.
 List machinery: `list_toolbar`, `list_table`, `pagination`, `list_empty`, `cell`. History:
-`history_panel`.
+`history_panel`. Explainability: `explain_panel`.
 
 `{% call(row) ui.list_table(view) %}` is the shape that keeps a bespoke Actions column (so
 `ui.delete_button` survives) while the rest of the table stays generic. **A usage block sits at the top
@@ -220,11 +235,21 @@ presentation.** A bad id therefore renders the error page, not a stack trace (R1
 (G1).
 
 **Derived, never stored:** stock balances, receivables/payables, back-order quantities, running
-balances (G7). If you're adding a mutable counter for something computable, re-read G7.
+balances, vendor scores, measured lead times, on-time rates and purchase recommendations (G7). If
+you're adding a mutable counter for something computable, re-read G7.
 
-**A domain module may split its service file by *flow*, not by layer.** `procurement/` has two:
-`service.py` (PurchaseOrderService + GoodsReceiptService — create → confirm → receive → bill) and
-`preorder.py` (RequisitionService + RfqService — everything in front of the PO). The repository does
+**Every number that is a judgement carries its reasoning** (G11). A score, rate, recommendation or
+forecast is returned as an `Explained` (`app/db/explain.py`) and rendered by `explain_panel`, so the
+formula, the data window, each input with its weight and links to the source records are on the same
+screen as the figure. Where it cannot be computed the answer is `Explained.unknown(...)` and the screen
+says "unknown" — **never 0, never 50, never a blank**. `VendorIntelService` and `RecommendationService`
+are the two worked examples; parts 5/7/8/9/10 add more and must not invent a second shape.
+
+**A domain module may split its service file by *flow*, not by layer.** `procurement/` has three:
+`service.py` (PurchaseOrderService + GoodsReceiptService — create → confirm → receive → bill),
+`preorder.py` (RequisitionService + RfqService — everything in front of the PO) and `recommend.py`
+(RecommendationService + ProcurementCalendarService — planning, which reads all of it and writes none
+of it). The repository does
 the same: `ProcurementRepository` and `PreorderRepository`. The test is whether a session working on
 one half needs to read the other; here it doesn't, and that is the only justification. Shared
 primitives move to module level rather than being reached across classes — `default_business_unit`,
@@ -271,6 +296,8 @@ app/seed/
   helpers.py     SeedContext + get_or_create + record_creation
   catalogue.py   the static data tables + the deterministic bulk generators
   preorder.py    seed_preorder(ctx) — Part 3's section, the worked example
+  vendor.py      seed_vendor(ctx) — Part 4's: mapping + MOQ, receipt history,
+                 scorecards, price timeline, the two reorder cases, one late arrival
 ```
 
 **Adding a section:** write `app/seed/<domain>.py` exposing
@@ -306,6 +333,16 @@ one approved and out as an RFQ with two quotes back. The two quotes are delibera
 cheaper unit price carries the slower lead time and the higher MOQ — so the comparison screen shows a
 real trade-off rather than one obviously-best column (R4.15, G14).
 
+**The vendor section seeds the shape of an answer, not just data** (R5.13): three suppliers, one with
+both a scorecard and receipts (score 75, lead 4 days, on time 67%), one with receipts only (50 / 14 days
+/ 50%, so the renormalisation caveat shows), one with neither (all three "unknown"). One receipt lands
+**exactly** on the promised date, which is R5.4's boundary. Two products sit below their reorder level —
+one with an open PO so the recommendation must subtract it, one without — both mapped to a supplier so
+R5.8's sentence can name a measured lead time, and one of them with an MOQ *above* its shortfall so the
+MOQ raise is on screen. One order is deliberately overdue so the calendar's worst column is not empty.
+History is fabricated at INSERT time via `confirm(confirmed_at=…)` / `receive(received_at=…)`; the seed
+never UPDATEs a ledger row (G4).
+
 **Don't read the file end to end to add rows** — read the one section.
 
 ---
@@ -331,6 +368,9 @@ real trade-off rather than one obviously-best column (R4.15, G14).
 | `test_masters.py` | R3.1–R3.12: the same capabilities parametrised over **every** master in the registry, plus category reparent/tree, UoM factors, tax-slab versioning, and relationship integrity naming its blockers |
 | `test_preorder.py` | R4.1–R4.6: requisition request/approve/reject/convert (to PO and to RFQ), RFQ issue to many suppliers, quote capture and its guards, the comparison's cheapest/fastest marking, award → PO at the quoted price, quotation history, and the `REFERENCES` entry per new model |
 | `test_po_revisions.py` | R4.7–R4.11: revision preserves the prior version verbatim, revisions accumulate, one activity row per revise, partial receipt's back-order arithmetic, the back order derived and absent as a column, receipt-against-revision including the superseded refusal, `confirmed_at` persisted, and `blocking_references` run against a real revision |
+| `test_vendor_intel.py` | R5.1–R5.6, R5.10–R5.14: the mapping and its exclusive preferred, MOQ, lead time measured from `confirmed_at`→`received_at`, the on-time boundary (`received <= promised` is on time) and the excluded unpromised receipt, the 60/40 score and its renormalisation, price history, the unknown paths, and that no writable lead-time field exists anywhere |
+| `test_vendor_screens.py` | R5.12 + R5.5 on screen: each figure reaching its page **with** its formula, window and source records, the vendor comparison preferred-first, the price timeline, "unknown" rendering as the word, the three mapping POST verbs end to end, and the agreed MOQ reaching R4.5's grid |
+| `test_procurement_planning.py` | R5.7–R5.9: the shortfall arithmetic with every term non-zero, an open PO not double-ordered, a draft not counted as on order, the MOQ raise, the calendar's five buckets and its never-bucket-unpromised-as-today rule, R5.8's sentence, and a source walk asserting no second recommendation engine exists |
 | `_web_routes.py` | Not a test — the shared route walk both `test_web_authz.py` and `test_web_smoke.py` use. FastAPI ≥ 0.140 wraps `include_router` in `_IncludedRouter`, so a shallow walk of `.routes` sees nothing; recurse via `.original_router`. Both callers assert a floor on what they found, because the R1.5 walk silently became `[] == []` when that changed |
 
 Run `pytest -q`, never verbose.
