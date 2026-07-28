@@ -3,54 +3,74 @@
 > **This is the current roadmap.** `docs/BUILD-PHASES.md` is superseded (it describes the
 > retired Next.js + Postgres + Alembic design; its Phases A/B/C are done).
 > `PROGRESS.md` remains the source of truth for *status*; this file is the source of truth for
-> *sequence*. Each part below has a self-contained prompt to paste into a fresh Claude Code session.
+> *sequence*; `docs/REQUIREMENTS.md` is the source of truth for *acceptance*. Each part below has a
+> self-contained prompt to paste into a fresh Claude Code session.
+
+---
+
+## Product decisions that shape this plan
+
+Settled with the user on **2026-07-28**. These are the constraints; earlier docs that assume
+otherwise are wrong, not aspirational. Every cut below traces to one of these.
+
+| # | Decision | Consequence |
+|---|---|---|
+| **D-A** | **No batch/lot tracking, no expiry, no FIFO.** Simple weighted-average cost. | Inventory shrinks by roughly a third. Margin is unaffected — `MarginService.gp(line)` is `selling − buying` off the purchase price snapshotted onto the line, so it never needed a valuation layer. A cost basis is needed only for the on-hand **value** figure. Stock ageing survives (it feeds the dead-stock radar) but is derived from receipt dates and is approximate — say so on screen. |
+| **D-B** | **Single user — the founder.** No salespeople, no warehouse staff, no separate finance person. | Per-role permission UI is premature. The web authz guard is still worth building once as a mechanism, but exhaustively auditing and testing every route is ceremony. "Understandable without training" and printable floor documents relax to SHOULD. Accessibility narrows to labels and contrast. **Keyboard-first order entry gets *more* important, not less** — a solo operator does every order personally. |
+| **D-C** | **Starting fresh — no data migration.** | CSV import drops from P0 to P2 across the board. Export stays P1 (data out for Excel is a standing need). This removed a large slice of the original shared-machinery part. |
+| **D-D** | **Drop all five previously-deferred items:** QuickBooks bridge, notifications/inbox, saved views, decisions log (ADRs), SOP index. | No part owns them. `06-feature-list.md` features 11.14, 14.5, 16.15, 16.16 and X.3 are **cut, not deferred**. Reintroducing any of them is a new decision, not a backlog item. |
+
+**Why 12 parts and not 15.** The plan was split into 15 parts before these decisions. D-A, D-B and D-C
+between them removed enough work that four parts no longer justified their own branch, so the plan was
+re-cut. Requirement IDs in `REQUIREMENTS.md` deliberately kept their original prefixes — a new part
+number does not renumber a requirement, so today's Part 2 contains both `R2.x` and `R3.x`.
 
 ---
 
 ## How this is organised
 
-The remaining work is divided into **15 parts**. Parts are the unit of delivery — one branch, one
-session, one PR each. Parts map onto the nine original phases: the four single-session phases at the
-tail stay whole, and each of the five large module phases is split in two — **depth first, then the
-intelligence that reads it**.
+The remaining work is divided into **12 parts**. Parts are the unit of delivery — one branch, one
+session, one PR each.
 
 The original roadmap put the Founder Command Center at Phase 1. **It has been resequenced** so that
 procurement and inventory — the heart of the business — are built first, and every downstream module
 consumes data that already exists. This minimises rework, and the cockpit is only meaningful once
 real operational data flows into it.
 
-| Part | Title | Phase | Branch | Status |
-|---|---|---|---|---|
-| **1** | Foundation finish | 0 | `phase-0/foundation-sweep` | **in progress** — WS1, WS2 done; WS3–WS5 remaining |
-| **2** | Shared list & data machinery | 1 | `phase-1/shared-machinery` | not started |
-| **3** | Masters made uniform | 1 | `phase-1/masters-uniform` | not started |
-| **4** | Procurement: pre-order → PO depth | 2 | `phase-2/procurement-core` | not started |
-| **5** | Procurement: vendor intelligence + planning | 2 | `phase-2/vendor-intelligence` | not started |
-| **6** | Inventory: locations, states, traceability | 3 | `phase-3/inventory-core` | not started |
-| **7** | Inventory: operations + health | 3 | `phase-3/inventory-ops-health` | not started |
-| **8** | Sales: customer depth | 4 | `phase-4/customer-depth` | not started |
-| **9** | Sales: workflow completion + speed | 4 | `phase-4/sales-workflow` | not started |
-| **10** | Finance: ledgers + AR/AP | 5 | `phase-5/ledgers-arap` | not started |
-| **11** | Finance: cash, margin, GST | 5 | `phase-5/cash-margin-gst` | not started |
-| **12** | Founder Command Center | 6 | `phase-6/command-center` | not started |
-| **13** | Intelligence Layer | 7 | `phase-7/intelligence` | not started |
-| **14** | Polish & Optimization | 8 | `phase-8/polish` | not started |
-| **15** | Product Challenge | X | `phase-x/product-challenge` | not started |
+| Part | Title | Phase | Branch | Requirements | Status |
+|---|---|---|---|---|---|
+| **1** | Foundation finish | 0 | `phase-0/foundation-sweep` | R1.x | **in progress** — WS1, WS2 done; WS3–WS5 remaining |
+| **2** | Master data & shared machinery | 1 | `phase-1/master-data` | R2.x, R3.x | not started |
+| **3** | Procurement: pre-order → PO depth | 2 | `phase-2/procurement-core` | R4.x | not started |
+| **4** | Procurement: vendor intelligence + planning | 2 | `phase-2/vendor-intelligence` | R5.x | not started |
+| **5** | Inventory: locations, states, operations, health | 3 | `phase-3/inventory` | R6.x, R7.x | not started |
+| **6** | Sales: customer depth | 4 | `phase-4/customer-depth` | R8.x | not started |
+| **7** | Sales: workflow completion + speed | 4 | `phase-4/sales-workflow` | R9.x | not started |
+| **8** | Finance: ledgers, AR/AP, cash, margin, GST | 5 | `phase-5/finance` | R10.x, R11.x | not started |
+| **9** | Founder Command Center | 6 | `phase-6/command-center` | R12.x | not started |
+| **10** | Intelligence Layer | 7 | `phase-7/intelligence` | R13.x | not started |
+| **11** | Polish & Optimization | 8 | `phase-8/polish` | R14.x | not started |
+| **12** | Product Challenge | X | `phase-x/product-challenge` | R15.x | not started |
 
-Each part ends green (tests + lint + app boots + all nav pages 200), updates `PROGRESS.md`, and
-opens a PR to `main`.
+Each part ends green (tests + lint + app boots + all nav pages 200), satisfies every P0/P1
+requirement in its `REQUIREMENTS.md` sections, updates `PROGRESS.md`, and opens a PR to `main`.
 
 ### Dependencies that must not be reordered
 
-- **Part 2 is load-bearing.** If its machinery is not genuinely reusable, parts 3, 5, 7, 9, 10 and 11
-  each re-invent tables, filters and CSV handling. It is the one part worth over-investing in.
-- **Part 6 before part 9.** Sales-order reservation (part 9) needs reservation to exist as a ledger
-  concept (part 6) first. Building 9 first would produce a boolean flag that then has to be undone.
-- **Parts 12 and 13 read; they do not compute.** Both consume the projections built in parts 5, 7, 10
-  and 11. If either one starts recomputing business logic, the earlier part was left incomplete —
-  fix it there instead.
-- **Part 1 before everything.** Soft-delete (WS3) and the web authz guard (WS4) are mechanisms that
-  every later part wires into.
+- **Part 2's machinery must be built and proven before it is rolled out.** The two stages were
+  separate parts before the re-cut; merging them saved a branch cycle but not the discipline. Build
+  the table/query/export/dup machinery, prove it on two masters, record the line count, *then* roll
+  out. Do not roll out first and generalise later — that path ends in copy-paste, and five later
+  parts inherit it.
+- **Part 5 before part 7.** Sales-order reservation (part 7) needs reservation to exist as a *ledger
+  concept* (part 5) first. Building 7 first produces a boolean flag that then has to be undone.
+- **Part 4's recommendation engine is read, never copied.** Part 5's reorder suggestions and part 10's
+  consolidation both call it. Two implementations of "what should I buy" is the specific failure this
+  ordering prevents.
+- **Parts 9 and 10 read; they do not compute.** Both consume the projections built in parts 4, 5 and
+  8. If either starts recomputing business logic, the earlier part was left incomplete — fix it there.
+- **Part 1 before everything.** Soft delete (WS3) and the web authz guard (WS4) are mechanisms every
+  later part wires into.
 
 ---
 
@@ -77,9 +97,15 @@ transaction; nouns are data, never hardcoded (`customer_type`, `supplier_type`, 
 lifespan, plus the additive-ALTER shim `_ensure_new_columns`. Add new models to the imports the
 lifespan touches, and extend `app/seed.py` so new screens have demo data.
 
-**Explainability:** every score, alert, recommendation and forecast states its inputs, its formula
-and the records it reasoned from, **on screen**. No black boxes, no decorative charts, no vanity
-metrics. If a number does not change a decision, it does not belong on the page.
+**Explainability:** every score, alert, recommendation and forecast states its inputs, its formula,
+its data window, and the records it reasoned from, **on screen**. Where it cannot be computed, it says
+"unknown" — never a misleading default like 0 or 50. No black boxes, no decorative charts, no vanity
+metrics. If a number does not change a decision, it does not belong on the page. No ML dependency and
+no runtime LLM call for any number the product displays.
+
+**Scope discipline (from D-A/D-B/D-C/D-D):** no batch/lot, no expiry, no FIFO layers; no per-role
+permission UI; CSV import is P2 everywhere; QuickBooks bridge, notifications, saved views, ADR log and
+SOP index are cut. A session that finds itself building one of these has drifted — stop and ask.
 
 **Verify loop — run from `apps/api`, every part, no exceptions:**
 ```bash
@@ -94,23 +120,27 @@ Add tests for new behaviour in `apps/api/tests/`. Then update `PROGRESS.md`, com
 credentials. This machine both writes and tests the code.
 
 **Docs to read at the start of a part (skim, they're the design record):**
-`PROGRESS.md`, `docs/00-canonical-foundation.md`, `docs/08-module-breakdown.md` (the relevant §),
+`PROGRESS.md`, `docs/REQUIREMENTS.md` (**your part's sections — this is the acceptance contract**),
+`docs/00-canonical-foundation.md`, `docs/08-module-breakdown.md` (the relevant §),
 `docs/12-coding-standards.md`, `docs/17-design-system.md`. Note that the older `docs/` files still
 describe the retired Postgres + Alembic + Next.js design — treat their *domain* content as
-authoritative and their *delivery/stack* content as historical.
+authoritative and their *delivery/stack* content as historical. `docs/06-feature-list.md` is
+authoritative on features but its Phase column and several features are superseded or cut; see
+`REQUIREMENTS.md` §17.
 
 ---
 
 ## PROMPT — Part 1: Foundation finish (Phase 0, resume)
 
 ```
-You are finishing Part 1 of 15 (Phase 0 — Foundation & Architecture) of ApexOS at
+You are finishing Part 1 of 12 (Phase 0 — Foundation & Architecture) of ApexOS at
 c:\Imp Data\Personal\apexos. Work continues on the existing branch phase-0/foundation-sweep (already
 pushed to origin, github.com/1992tushar/apexos — personal creds only). This machine both writes and
 tests the code.
 
 FIRST: git checkout phase-0/foundation-sweep && git pull origin phase-0/foundation-sweep.
-Read docs/ROADMAP.md (standing rules) and the memory note apexos-phase-0-foundation for context.
+Read docs/ROADMAP.md (standing rules + the product decisions D-A..D-D), docs/REQUIREMENTS.md §2
+(requirements R1.1–R1.10 — your acceptance contract), and the memory note apexos-phase-0-foundation.
 Baseline is green:
   cd apps/api && ./.venv/Scripts/python.exe -m pytest -q   # expect 43 passed
   ./.venv/Scripts/python.exe -m ruff check app/ tests/     # only pre-existing E501 in untouched modules
@@ -131,7 +161,10 @@ WS3 — Soft-delete write path. Only `documents` soft-deletes today; reads alrea
 WS4 — Web-route authorization. The JSON API guards mutations with require_permission; the Jinja UI
   does not. Add a web equivalent (e.g. require_web_permission) that renders a 403 error.html for GET
   or redirects with an err flash for POST, and wire it onto the web POST routes to mirror the API.
-  It is a no-op in dev (the dev actor has "*") but establishes the prod pattern.
+  NOTE (decision D-B): ApexOS has ONE user, the founder. This guard is a no-op in dev AND in prod.
+  Build the mechanism once because it is cheap and establishes the prod pattern — but do NOT build a
+  roles/permissions management UI, and do not gold-plate the coverage audit. R14.13/R14.14 demote the
+  exhaustive route audit to SHOULD for exactly this reason.
 
 WS5 — Migration-shim decision. app/main.py._ensure_new_columns hand-rolls additive ALTERs since
   Alembic was removed. Decide and DOCUMENT the strategy (dev SQLite: create_all + additive shim;
@@ -139,9 +172,10 @@ WS5 — Migration-shim decision. app/main.py._ensure_new_columns hand-rolls addi
 
 Also clean up: ~3 E501 lint nits in app/web/pages/settings.py left over from the WS2 form_action edits.
 
-EXIT CRITERIA: soft delete works from the UI on every entity where it is valid and is refused (with a
-clear reason) where it is not; require_web_permission exists and is wired onto every web POST route;
-the migration strategy is written down; pytest + ruff green; app boots and all nav pages 200.
+EXIT CRITERIA (see REQUIREMENTS.md R1.1–R1.10): soft delete works from the UI on every entity where
+it is valid and is refused with a clear reason where it is not; require_web_permission exists and is
+wired onto the web POST routes; the migration strategy is written down; pytest + ruff green; app boots
+and all nav pages 200.
 
 FINALLY: boot the app (uvicorn app.main:app --port 8000), confirm all nav pages still 200, then
 update PROGRESS.md, commit, and open a PR to main. Update the apexos-phase-0-foundation memory note
@@ -154,115 +188,93 @@ not-found. Tests cover it, but when the app is booted, click a bad URL (e.g.
 
 ---
 
-## PROMPT — Part 2: Shared list & data machinery (Phase 1a)
+## PROMPT — Part 2: Master data & shared machinery (Phase 1)
 
 ```
-You are starting Part 2 of 15 (Phase 1a — Shared list & data machinery) of ApexOS at
-c:\Imp Data\Personal\apexos. Part 1 (Foundation) is complete and merged to main. Read docs/ROADMAP.md
-first — the "Standing rules" section is binding. Also read PROGRESS.md, docs/12-coding-standards.md,
-docs/17-design-system.md. Branch: phase-1/shared-machinery off main.
+You are starting Part 2 of 12 (Phase 1 — Master data & shared machinery) of ApexOS at
+c:\Imp Data\Personal\apexos. Part 1 (Foundation) is complete and merged to main. Read
+docs/ROADMAP.md first — "Standing rules" and the product decisions D-A..D-D are binding. Then read
+docs/REQUIREMENTS.md §3 and §4 (requirements R2.x and R3.x — your acceptance contract). Also read
+PROGRESS.md, docs/08-module-breakdown.md (§2.1 Org/Config, §2.3 Products, §2.4 Customers,
+§2.5 Suppliers), docs/12-coding-standards.md, docs/17-design-system.md.
+Branch: phase-1/master-data off main.
 
-GOAL: build ONCE the machinery that every master-data and transactional list screen in parts 3, 5, 7,
-9, 10 and 11 will reuse. This part ships almost no new domain features — its deliverable is
-infrastructure plus proof that the infrastructure works. THIS PART IS LOAD-BEARING: if the machinery
-is not genuinely reusable, six later parts will each re-invent it.
+GOAL: build ONCE the list/table machinery that parts 3–8 will all reuse, then apply it to every
+master so they are complete, consistent and safe to grow on. Most masters ALREADY EXIST (see
+app/modules/config, products, customers, suppliers) — this adds depth and uniformity, it is NOT a
+rewrite. Audit what each master already has before adding code.
 
-BUILD:
+THIS PART HAS TWO STAGES AND THE ORDER IS THE POINT. Do not roll out first and generalise later —
+that path ends in copy-paste, and five later parts inherit it.
+
+STAGE 1 — the machinery (build, then prove on exactly TWO masters):
 1. A reusable list/table pattern as macros in app/web/templates/_macros.html: search box, filter
-   chips, sortable column headers, pagination controls. Driven by declarative config passed from the
-   page (columns, filters, default sort) — NOT copy-pasted markup per entity. Query-string driven
-   (?q=&sort=&dir=&page=&<filter>=) so links and back-button behave.
-2. One generic paginated/filtered/sorted query helper in the repository layer so pages do not
-   hand-roll LIMIT/OFFSET and ORDER BY. Must compose with the EntityMixin soft-delete read filter and
-   business_unit scoping.
-3. One generic CSV import path: validating, per-row error reporting (row number + field + message),
-   idempotent re-run, all-or-nothing per batch. Entity-specific behaviour comes from configuration
-   (column map, required fields, resolvers for foreign keys), not a bespoke importer per entity.
-4. One generic CSV export path over the same query helper, so an export respects the filters
-   currently applied on screen.
-5. One duplicate-prevention approach: natural-key uniqueness plus a pre-save check that surfaces a
-   clean field-level error rather than an IntegrityError. Applied per entity via configuration.
-6. Change history: derive it from the existing activity_log wherever possible. Only add a new table
-   if the activity_log genuinely cannot answer "what changed on this record, when, by whom" — and if
-   you do add one, say in PROGRESS.md why the activity_log was insufficient.
+   chips, sortable headers, pagination controls. Driven by declarative per-page config (columns,
+   filters, default sort), NOT copy-pasted markup. Query-string driven (?q=&sort=&dir=&page=&<filter>=)
+   so links and the back button behave.
+2. One generic paginated/filtered/sorted query helper in the repository layer, composing with the
+   EntityMixin soft-delete read filter and business_unit scoping. Pages must not hand-roll
+   LIMIT/OFFSET or ORDER BY.
+3. One generic CSV EXPORT path over that helper, so an export respects the filters on screen.
+4. One duplicate-prevention approach: natural-key uniqueness plus a pre-save check surfacing a clean
+   field-level error, not an IntegrityError or a 500. Applied per entity via configuration.
+5. Change history: derive from the existing activity_log wherever possible. Only add a table if
+   activity_log provably cannot answer "what changed on this record, when, by whom" — and if you do,
+   say in PROGRESS.md why it was insufficient.
 
-PROVE IT on exactly TWO existing masters (suggest products and customers) end to end: list with
-search + filter + sort + pagination, CSV import with a deliberate bad row, CSV export, duplicate
-rejection, change-history panel. Do NOT roll it out to the other masters — that is part 3. Resist
-adding domain features here; if you find yourself designing a new screen, it belongs in part 3.
+CSV IMPORT IS P2, NOT P0 (decision D-C: there is no data to migrate, we start fresh). Build it only
+if stages 1 and 2 are fully done and green, and keep it minimal if you do. Do NOT let import shape
+the design of the machinery.
 
-Extend app/seed.py so products and customers have enough rows to make pagination and filtering real
-(hundreds, not five).
+Prove stage 1 on TWO masters (suggest products and customers) end to end: list with search + filter
++ sort + pagination, export, duplicate rejection, change-history panel. Then RECORD IN PROGRESS.md
+how many lines of new code the SECOND master needed — a third master must be achievable in well
+under 100 lines. That number is the gate for stage 2.
 
-Add tests: the query helper (filter + sort + pagination boundaries, soft-deleted rows excluded),
-import happy path, import with row errors reports every bad row and commits nothing, export respects
-active filters, duplicate rejection returns a field error not a 500.
+STAGE 2 — roll out to every master:
+  business units, categories + subcategories (self-referencing tree), products, brands,
+  manufacturers, warehouses, units of measure (+ conversions), tax masters (versioned slabs),
+  customers, suppliers.
 
-EXIT CRITERIA: a third master could be given the full treatment in well under 100 lines of new code.
-State in PROGRESS.md how many lines the second master needed — that number is the reusability proof
-that part 3 depends on.
+Each must uniformly support: search, filters, sorting, pagination, CSV export, audit trail, status
+(active/inactive), soft delete (the part 1 mechanism), change history, validation, relationship
+integrity, duplicate prevention. Via the stage-1 machinery — NOT bespoke code. If a master needs
+substantially more code than your recorded figure, STOP and improve the machinery rather than working
+around it, then say so in PROGRESS.md.
 
-Follow the ROADMAP verify loop, update PROGRESS.md, commit, open a PR to main, update memory.
-```
-
----
-
-## PROMPT — Part 3: Masters made uniform (Phase 1b)
-
-```
-You are starting Part 3 of 15 (Phase 1b — Masters made uniform) of ApexOS at
-c:\Imp Data\Personal\apexos. Parts 1–2 are complete and merged. Read docs/ROADMAP.md first —
-"Standing rules" is binding. Also read PROGRESS.md, docs/08-module-breakdown.md (§2.1 Org/Config,
-§2.3 Products, §2.4 Customers, §2.5 Suppliers), docs/12-coding-standards.md, docs/17-design-system.md.
-Branch: phase-1/masters-uniform off main.
-
-GOAL: make every master-data entity complete, consistent, and safe to grow on, by applying the part 2
-machinery everywhere. Most of these entities ALREADY EXIST (see app/modules/config, products,
-customers, suppliers). This is depth and uniformity — it is NOT a rewrite. Audit what each master
-already has before adding code.
-
-MASTERS in scope: business units, categories + subcategories (self-referencing tree), products,
-brands, manufacturers, warehouses, units of measure (+ conversions), tax masters (versioned slabs),
-customers, suppliers.
-
-Each master must support, uniformly, using the part 2 macros/helpers — NOT bespoke code:
-  search, filters, sorting, pagination, CSV import, CSV export, audit trail, status
-  (active/inactive), soft delete (the part 1 mechanism), change history, validation,
-  relationship integrity, duplicate prevention.
-
-WHERE A MASTER NEEDS MORE THAN THE GENERIC TREATMENT, build only that:
+Where a master needs more than the generic treatment, build only that:
   - categories: reparent with cycle prevention, tree rendering, business-unit rollup.
   - uom_conversion: non-zero and non-cyclic factor validation.
-  - tax_rate: versioned slabs — new slab appends, never edits history.
+  - tax_rate: versioned slabs — a new slab appends, never edits history.
   - relationship integrity: block or clearly explain deletion/deactivation of a master still
-    referenced by live transactions (e.g. a product on an open PO). Do not silently cascade.
+    referenced by live transactions (e.g. a product on an open PO). Never silently cascade.
 
-If applying the machinery to a master takes substantially more code than part 2's proof suggested,
-STOP and improve the machinery instead of working around it — then say so in PROGRESS.md.
+DO NOT BUILD (decision D-B — ApexOS has one user, the founder): roles and permissions management
+screens. Features 16.12 and 16.13 in docs/06-feature-list.md are cut.
 
-Extend app/seed.py so each master has enough rows to exercise search/filter/pagination, including a
-multi-level category tree and at least two tax slab versions.
+Extend app/seed.py so each master has enough rows to exercise search/filter/pagination (hundreds for
+products and customers, not five), including a multi-level category tree and at least two tax slab
+versions.
 
-Add tests: per-master list filtering, category reparent rejects a cycle, uom conversion rejects a
-zero/cyclic factor, tax slab append preserves the prior version, duplicate rejection per master,
-soft delete then absent-from-list, blocked deletion of a referenced master explains why, one export.
-
-EXIT CRITERIA: no master is missing any item from the uniform list; nothing in the list is
-implemented twice.
+Add tests: the query helper (filter + sort + pagination boundaries, soft-deleted rows excluded),
+export respects active filters, duplicate rejection returns a field error not a 500, per-master list
+filtering, category reparent rejects a cycle, uom conversion rejects zero/cyclic factors, tax slab
+append preserves the prior version, soft delete then absent-from-list, blocked deletion of a
+referenced master explains why.
 
 Follow the ROADMAP verify loop, update PROGRESS.md, commit, open a PR to main, update memory.
 ```
 
 ---
 
-## PROMPT — Part 4: Procurement — pre-order → PO depth (Phase 2, first half)
+## PROMPT — Part 3: Procurement — pre-order → PO depth (Phase 2, first half)
 
 ```
-You are starting Part 4 of 15 (Phase 2 — Procurement core) of ApexOS at
-c:\Imp Data\Personal\apexos. Parts 1–3 are complete and merged. Read docs/ROADMAP.md first —
-"Standing rules" is binding. Also read PROGRESS.md, docs/08-module-breakdown.md (§2.5
-Suppliers/Procurement, §2.6 Pricing), docs/12-coding-standards.md. Branch: phase-2/procurement-core
-off main.
+You are starting Part 3 of 12 (Phase 2 — Procurement core) of ApexOS at
+c:\Imp Data\Personal\apexos. Parts 1–2 are complete and merged. Read docs/ROADMAP.md first —
+"Standing rules" and decisions D-A..D-D are binding. Then read docs/REQUIREMENTS.md §5 (R4.x — your
+acceptance contract). Also read PROGRESS.md, docs/08-module-breakdown.md (§2.5 Suppliers/Procurement,
+§2.6 Pricing), docs/12-coding-standards.md. Branch: phase-2/procurement-core off main.
 
 GOAL: procurement is the heart of ApexOS. Make the buy-side workflow deep and extremely efficient —
 the fewest clicks and keystrokes to get from "we need this" to "it's ordered and received".
@@ -278,54 +290,59 @@ BUILD:
    one activity_log row each.
 2. PO depth: PO revisions (versioned, append-only — never mutate a confirmed PO in place; each
    revision is a new version with a reason and an activity_log row), partial receipt, back orders
-   (open quantity tracked and visible), receipt against a specific revision.
+   (open quantity DERIVED as ordered − received, never a stored counter), receipt against a specific
+   revision — and receipt against a superseded revision handled explicitly, not silently accepted.
 
 UI: extend /purchase-orders and /procurement; add requisition, RFQ and comparison screens. Optimise
 for speed — keyboard-first entry, product search-as-you-type, sensible defaults from history, bulk
 line entry. Reuse the part 2 table/filter/pagination macros; do not hand-roll list markup.
 
 Ledger discipline: goods receipt posts stock IN through the existing InventoryService.post_movement
-(the ONLY stock writer). Receipts and revisions are append-only. Open/back-order quantity is DERIVED
-from ordered minus received, never a stored mutable counter.
+(the ONLY stock writer). Receipts and revisions are append-only.
 
-Note for part 5: record the timestamps it will need (PO confirm, each receipt) so lead time can be
-measured later rather than typed in. Do not build the vendor scoring itself — that is part 5.
+HANDOFF TO PART 4 (this is a requirement, R4.11): persist the timestamps part 4 needs — PO confirm
+and each receipt — so lead time can be MEASURED there rather than typed in. Do NOT build vendor
+scoring here; part 4 owns it.
 
 Seed a requisition awaiting approval, an approved requisition converted to a PO, an RFQ with 2
 supplier quotes, a revised PO, and a partial receipt with an outstanding back order.
 
-Add tests: requisition→PO conversion, requisition approval writes exactly one activity_log row,
-RFQ→quote comparison pick, PO revision preserves the prior version verbatim, partial receipt leaves
-the correct back-order quantity, receipt against a superseded revision is handled explicitly.
+Add tests: requisition→PO conversion, approval writes exactly one activity_log row, RFQ→quote
+comparison pick, PO revision preserves the prior version verbatim, partial receipt leaves the correct
+back-order quantity, receipt against a superseded revision is handled explicitly.
 
 Follow the ROADMAP verify loop, update PROGRESS.md, commit, open a PR to main, update memory.
 ```
 
 ---
 
-## PROMPT — Part 5: Procurement — vendor intelligence + planning (Phase 2, second half)
+## PROMPT — Part 4: Procurement — vendor intelligence + planning (Phase 2, second half)
 
 ```
-You are starting Part 5 of 15 (Phase 2 — Vendor intelligence & planning) of ApexOS at
-c:\Imp Data\Personal\apexos. Parts 1–4 are complete and merged, so requisitions, RFQs, quotes, PO
+You are starting Part 4 of 12 (Phase 2 — Vendor intelligence & planning) of ApexOS at
+c:\Imp Data\Personal\apexos. Parts 1–3 are complete and merged, so requisitions, RFQs, quotes, PO
 revisions and partial receipts all exist with real history. Read docs/ROADMAP.md first — "Standing
-rules" is binding. Also read PROGRESS.md, docs/08-module-breakdown.md (§2.5, §2.6).
+rules" and decisions D-A..D-D are binding. Then read docs/REQUIREMENTS.md §6 (R5.x — your acceptance
+contract). Also read PROGRESS.md, docs/08-module-breakdown.md (§2.5, §2.6).
 Branch: phase-2/vendor-intelligence off main.
 
-GOAL: make the buy side smart using the data part 4 now produces. Data and arithmetic, NOT ML.
+GOAL: make the buy side smart using the data part 3 now produces. Data and arithmetic, NOT ML.
 
 BUILD:
 1. Vendor intelligence: product↔supplier mapping with preferred + alternate vendors; vendor score
    built from the existing supplier_evaluation plus on-time receipt history; lead time MEASURED from
-   PO-confirm → receipt (never typed in); MOQ; price history per product+supplier.
+   PO-confirm → receipt (never typed in — there must be no editable lead-time field); MOQ; price
+   history per product+supplier.
 2. Planning: a procurement calendar (what is due to arrive, what is due to order) and purchase
-   recommendations derived from reorder level + open POs + lead time.
+   recommendations derived from reorder level + open POs + measured lead time.
 
 EXPLAINABILITY IS THE FEATURE, not a nicety. Every score and every recommendation must state on
 screen: what it means, the formula, the data window it used, and links to the records it reasoned
 from ("reorder 40 units of X — stock 12, reorder level 50, 0 on open PO, supplier lead time 9 days
 measured over 6 receipts"). Where there is not enough history to compute something, say so
 explicitly — never emit a misleading default like 0 or 50.
+
+Define boundaries explicitly: received exactly on the promised date counts as ON TIME.
 
 Prefer transparent arithmetic (weighted ratios, trailing averages) over anything a founder cannot
 audit by hand. Do NOT add an ML dependency. Do NOT call an LLM at runtime.
@@ -334,9 +351,10 @@ Keep this a projection layer: it should own few or no new mutable entities (the 
 mapping and MOQ are legitimately new master data; scores and lead times are derived, not stored —
 unless you measure a real performance problem, and then say so in PROGRESS.md).
 
-Note for parts 7 and 13: part 7 builds inventory reorder suggestions and part 13 consolidates all
-recommendation engines. Write this so that logic can be READ by them, not copied — a single service
-entry point with a clear signature.
+HANDOFF TO PARTS 5 AND 10 (requirement R5.9): the recommendation engine must have ONE service entry
+point with a clear signature. Part 5's reorder suggestions CALL it; part 10 consolidates all
+recommendation logic and will check for duplicates. Two implementations of "what should I buy" is the
+specific failure this is designed to prevent.
 
 UI: extend /procurement with the calendar and the recommendations list; add vendor comparison and
 price history to the supplier and product detail pages. Reuse the part 2 macros.
@@ -345,26 +363,31 @@ Seed enough receipt history across at least two suppliers for lead time and on-t
 non-trivial, plus one product below reorder level with an open PO and one without.
 
 Add tests: lead time computed from confirm→receipt timestamps matches a hand-computed value, on-time
-rate boundary (received exactly on the promised date counts as on time), recommendation quantity
-arithmetic against known seed data, a recommendation always carries a non-empty explanation and at
-least one linked record, insufficient-history path returns "unknown" rather than a number.
+boundary (exactly on the promised date is on time), recommendation quantity arithmetic against known
+seed data, a recommendation always carries a non-empty explanation and at least one linked record,
+insufficient-history path returns "unknown" rather than a number.
 
 Follow the ROADMAP verify loop, update PROGRESS.md, commit, open a PR to main, update memory.
 ```
 
 ---
 
-## PROMPT — Part 6: Inventory — locations, states, traceability (Phase 3, first half)
+## PROMPT — Part 5: Inventory — locations, states, operations, health (Phase 3)
 
 ```
-You are starting Part 6 of 15 (Phase 3 — Inventory core) of ApexOS at c:\Imp Data\Personal\apexos.
-Parts 1–5 are complete and merged. Read docs/ROADMAP.md first — "Standing rules" is binding. Also
-read PROGRESS.md, docs/08-module-breakdown.md (§2.8 Inventory/Warehouse), docs/12-coding-standards.md.
-Branch: phase-3/inventory-core off main.
+You are starting Part 5 of 12 (Phase 3 — Inventory) of ApexOS at c:\Imp Data\Personal\apexos.
+Parts 1–4 are complete and merged. Read docs/ROADMAP.md first — "Standing rules" and decisions
+D-A..D-D are binding. Then read docs/REQUIREMENTS.md §7 and §8 (R6.x and R7.x — your acceptance
+contract). Also read PROGRESS.md, docs/08-module-breakdown.md (§2.8 Inventory/Warehouse),
+docs/12-coding-standards.md. Branch: phase-3/inventory off main.
 
-GOAL: inventory must always answer three questions — What do we have? Where is it? What is it worth?
-This part answers all three at the ledger level. Part 7 builds the operations and the health views on
-top of it, and part 9 depends on the reservation concept built here — SO GET THE LEDGER MODEL RIGHT.
+GOAL: inventory must answer three questions — What do we have? Where is it? What is it worth?
+
+READ DECISION D-A FIRST, IT CUTS A THIRD OF THE ORIGINAL SCOPE: there is NO batch/lot tracking, NO
+expiry, and NO FIFO. Do not build them. Cost basis is simple WEIGHTED AVERAGE from movement history,
+and it is needed only for the on-hand VALUE figure. Margin does not depend on it — MarginService.gp()
+is selling − buying off the purchase price snapshotted onto the line. Requirements R6.7, R6.8 and R6.9
+are struck; R6.16 (weighted average) replaces them.
 
 WHAT EXISTS: app/modules/inventory (stock_movement ledger, post_movement as the single writer,
 derived balances), multi-warehouse + transfer/adjust/count from an earlier phase. Web pages:
@@ -372,91 +395,65 @@ derived balances), multi-warehouse + transfer/adjust/count from an earlier phase
 stored mutable quantity.
 
 BUILD:
-1. Location depth: warehouse → rack location → bin, with stock addressed to a bin. Stock ledger
-   entries carry the location. Existing movements without a location must keep working (backfill to a
-   default bin per warehouse, or make location nullable with a documented meaning — decide and say
-   which in PROGRESS.md).
+1. Location depth: warehouse → rack location → bin, with stock addressed to a bin and the location
+   carried on stock ledger entries. Existing movements without a location must keep working —
+   backfill to a default bin per warehouse, or make location nullable with a documented meaning.
+   Decide and say which in PROGRESS.md. Bin-level stock must roll up correctly to rack and warehouse.
 2. Stock states, distinctly reported: available, reserved (committed to sales orders), in transit
-   (between warehouses), damaged/quarantined. RESERVATION MUST BE A LEDGER CONCEPT, NOT A FLAG — a
-   reservation is an append-only entry that reduces available without reducing on-hand, and is
-   released or consumed by a later entry. Part 9 will call this when a sales order is confirmed, so
-   expose it as a clear service verb.
-3. Traceability: batch / lot, expiry, FIFO consumption + FIFO-based valuation, stock age buckets.
-   FIFO consumption order is determined by the ledger, not by a nightly job.
+   (between warehouses), damaged/quarantined. RESERVATION MUST BE A LEDGER CONCEPT, NOT A FLAG — an
+   append-only entry that reduces available without reducing on-hand, released or consumed by a later
+   entry. There must be no boolean "reserved" column.
+   *** PART 7 CALLS THIS AT SALES-ORDER CONFIRM. Expose it as a clear service verb (R6.6). Getting
+   this model wrong is the one mistake in this part that forces rework later. ***
+3. Valuation: weighted-average cost from movement history, feeding the on-hand value figure.
+4. Stock age buckets, derived from receipt dates on the ledger. Without lots this is APPROXIMATE —
+   state the approximation on screen rather than implying precision. It feeds the dead-stock radar,
+   which is why it survives D-A.
+5. Operations: cycle count (count sheet → variance → adjustment), stock adjustment with a mandatory
+   reason, warehouse transfer (two movements with in-transit between them, so stock is never
+   invisible mid-flight). A count that matches produces NO adjustment movement; a variance produces
+   exactly ONE. All operations write through InventoryService.post_movement — the single writer.
+6. Inventory health, all explainable: ABC analysis (state the class boundaries), dead stock radar
+   (state the window), fast/slow moving, reorder suggestions, low-stock alerts. Each must show the
+   numbers it reasoned from and link to the affected records.
 
-UI: extend /inventory and /warehouse — stock-by-location view, batch/expiry view, ageing view.
-Warehouse staff must be able to understand every screen without training: plain labels, no jargon,
-no decorative charts. Reuse the part 2 macros.
+CONSOLIDATE, DO NOT DUPLICATE (requirement R7.11): part 4 already built purchase recommendations from
+reorder level + open POs + measured lead time. The reorder suggestions here MUST READ that service
+(R5.9), not reimplement it. If the two genuinely differ, unify them into one parameterised engine both
+screens read, and say in PROGRESS.md what you unified. A test (R7.13) must prove both return identical
+output for the same product. Part 10 will audit exactly this.
 
-InventoryService.post_movement remains the ONLY writer to the stock ledger. If a new operation needs
-to write stock, it calls post_movement — it does not insert rows itself.
+UI: extend /inventory and /warehouse — stock-by-location, ageing, health views, plus the count and
+adjustment flows. Reuse the part 2 macros. Note decision D-B: the founder is the only user, so
+"understandable without training" and printable count sheets are SHOULD, not MUST — but plain labels
+and no jargon are still the house style.
 
-Seed: two warehouses with racks and bins, batched + expiring stock (including one already expired and
-one expiring inside 30 days), a reservation against a confirmed sales order, and enough movement
-history that FIFO layers are non-trivial.
+Seed: two warehouses with racks and bins, a reservation against a confirmed sales order, an in-transit
+transfer awaiting receipt, a completed cycle count with a variance plus one with none, dead stock, a
+fast mover, and enough movement history for ABC classes and weighted-average cost to be non-trivial.
+Do NOT seed batches or expiry dates — they no longer exist.
 
-Add tests: FIFO consumption order and the resulting valuation, reservation reduces available but not
-on-hand, releasing a reservation restores available, expiry and ageing bucket boundaries (exactly on
-the boundary date), stock addressed to a bin rolls up correctly to rack and warehouse totals,
-post_movement is still the only code path that writes stock_movement.
-
-Follow the ROADMAP verify loop, update PROGRESS.md, commit, open a PR to main, update memory.
-```
-
----
-
-## PROMPT — Part 7: Inventory — operations + health (Phase 3, second half)
-
-```
-You are starting Part 7 of 15 (Phase 3 — Inventory operations & health) of ApexOS at
-c:\Imp Data\Personal\apexos. Parts 1–6 are complete and merged, so locations, stock states, batches
-and FIFO valuation all exist. Read docs/ROADMAP.md first — "Standing rules" is binding. Also read
-PROGRESS.md, docs/08-module-breakdown.md (§2.8), docs/12-coding-standards.md.
-Branch: phase-3/inventory-ops-health off main.
-
-GOAL: the day-to-day warehouse operations, plus inventory health that explains itself.
-
-BUILD:
-1. Operations: cycle count (count sheet → variance → adjustment), stock adjustment with a mandatory
-   reason, warehouse transfer (two movements with the part 6 in-transit state between them, so stock
-   is never invisible mid-flight). All go through InventoryService.post_movement — the single writer.
-   A count that matches produces NO adjustment movement; a variance produces exactly one.
-2. Inventory health, all explainable: ABC analysis, dead stock radar, fast/slow moving, reorder
-   suggestions, low-stock alerts. Each must show the numbers it reasoned from, the window used, and
-   link to the affected records.
-
-CONSOLIDATE, DO NOT DUPLICATE: part 5 already built purchase recommendations from reorder level +
-open POs + lead time. The reorder suggestions here must READ that service, not reimplement it. If the
-two genuinely differ, unify them into one engine with parameters and have both screens read it — and
-say in PROGRESS.md what you unified. Part 13 will audit exactly this.
-
-UI: extend /inventory and /warehouse with the count and adjustment flows and the health views. Count
-sheets are used on a warehouse floor — optimise for fast entry and for being printable/readable, not
-for looking impressive. Reuse the part 2 macros.
-
-Seed: a completed cycle count with a variance and its adjustment, a count with no variance, an
-in-transit transfer awaiting receipt, dead stock (no movement in the window), and a fast mover — with
-enough history that ABC classes are non-trivial.
-
-Add tests: cycle-count variance produces exactly one adjustment movement and a matching activity_log
-row, a zero-variance count produces none, transfer sits in-transit then lands on receipt, adjustment
-requires a reason, ABC class boundaries, dead-stock window boundary, reorder suggestion matches the
-part 5 engine's output for the same product (proving they share one implementation).
+Add tests: reservation reduces available but not on-hand, release restores available, weighted-average
+cost against hand-computed values, ageing bucket boundaries, bin→rack→warehouse rollup, post_movement
+is still the only stock writer, variance produces exactly one adjustment, zero-variance produces none,
+adjustment requires a reason, transfer sits in-transit then lands, ABC boundaries, dead-stock window
+boundary, and R7.13 (reorder suggestion identical to part 4's engine).
 
 Follow the ROADMAP verify loop, update PROGRESS.md, commit, open a PR to main, update memory.
 ```
 
 ---
 
-## PROMPT — Part 8: Sales — customer depth (Phase 4, first half)
+## PROMPT — Part 6: Sales — customer depth (Phase 4, first half)
 
 ```
-You are starting Part 8 of 15 (Phase 4 — Customer depth) of ApexOS at c:\Imp Data\Personal\apexos.
-Parts 1–7 are complete and merged. Read docs/ROADMAP.md first — "Standing rules" is binding. Also
-read PROGRESS.md, docs/08-module-breakdown.md (§2.4 Customers/CRM, §2.7 Sales),
-docs/12-coding-standards.md. Branch: phase-4/customer-depth off main.
+You are starting Part 6 of 12 (Phase 4 — Customer depth) of ApexOS at c:\Imp Data\Personal\apexos.
+Parts 1–5 are complete and merged. Read docs/ROADMAP.md first — "Standing rules" and decisions
+D-A..D-D are binding. Then read docs/REQUIREMENTS.md §9 (R8.x — your acceptance contract). Also read
+PROGRESS.md, docs/08-module-breakdown.md (§2.4 Customers/CRM, §2.7 Sales), docs/12-coding-standards.md.
+Branch: phase-4/customer-depth off main.
 
-GOAL: everything a salesperson needs to know about a customer, on one page, without asking anyone.
+GOAL: everything you need to know about a customer, on one page, without looking anywhere else.
 
 WHAT EXISTS: app/modules/customers, app/modules/crm (lead, opportunity, pipeline_stage,
 convert/advance), app/modules/sales (the proven sales_order → fulfillment → invoice → payment spine).
@@ -464,40 +461,43 @@ Web pages: /customers, /leads, /sales. Extend; do not rebuild the proven spine.
 
 BUILD:
 1. Customer profile depth: multiple contacts, multiple branches / ship-to addresses, credit limit,
-   payment terms, delivery preferences, documents, notes.
-2. Credit limit enforcement at sales-order confirm, with an explicit override that is LOGGED (who
-   overrode, when, by how much, and why — a reason is mandatory). The block must state the numbers:
-   limit, current outstanding, this order's value, the shortfall.
+   payment terms, delivery preferences, documents, notes. Credit policy is versioned — prior versions
+   stay readable.
+2. Credit limit enforcement at sales-order confirm (CreditPolicyService.check), with an explicit
+   override that is LOGGED (who, when, by how much, and why — a reason is mandatory). The block must
+   state the numbers: limit, current outstanding, this order's value, the shortfall. The boundary is
+   exact: at the limit is allowed, one minor unit over is not.
 3. A unified customer timeline: orders, invoices, payments, tasks, notes and activity in ONE
-   chronological view, assembled from activity_log plus entity events. This is a read-only projection
-   — do not add a new events table to make it easy.
+   chronological view, assembled from activity_log plus entity events. This is a READ-ONLY
+   projection — do NOT add a new events table to make it easy. A customer with no history must render
+   an empty timeline without errors.
 
 Reuse the part 2 macros for the contact/branch/document lists and the part 1 soft-delete mechanism.
 Documents reuse the existing DocKeeper/document module — do not build a second upload path.
 
-Do NOT build the health score, quotations or returns here — those are part 9. If you find yourself
+Do NOT build the health score, quotations or returns here — part 7 owns them. If you find yourself
 designing the quotation screen, stop.
 
-Seed: a customer with multiple contacts and ship-to branches, a credit limit, and enough order/
-invoice/payment history for the timeline to be worth reading; plus one order that breaches the credit
-limit and one override that was recorded.
+Seed: a customer with multiple contacts and ship-to branches, a credit limit, enough
+order/invoice/payment history for the timeline to be worth reading, one order that breaches the
+credit limit, and one recorded override.
 
-Add tests: credit-limit block fires at the boundary (exactly at the limit is allowed, one minor unit
-over is not), override requires a reason and writes exactly one activity_log row, timeline ordering is
-strictly chronological and includes every source type, a customer with no history renders an empty
-timeline without errors.
+Add tests: credit-limit boundary (exactly at the limit allowed, one minor unit over blocked), override
+requires a reason and writes exactly one activity_log row, timeline ordering is strictly chronological
+and includes every source type, empty timeline renders.
 
 Follow the ROADMAP verify loop, update PROGRESS.md, commit, open a PR to main, update memory.
 ```
 
 ---
 
-## PROMPT — Part 9: Sales — workflow completion + speed (Phase 4, second half)
+## PROMPT — Part 7: Sales — workflow completion + speed (Phase 4, second half)
 
 ```
-You are starting Part 9 of 15 (Phase 4 — Sales workflow & speed) of ApexOS at
-c:\Imp Data\Personal\apexos. Parts 1–8 are complete and merged. Read docs/ROADMAP.md first —
-"Standing rules" is binding. Also read PROGRESS.md, docs/08-module-breakdown.md (§2.4, §2.7),
+You are starting Part 7 of 12 (Phase 4 — Sales workflow & speed) of ApexOS at
+c:\Imp Data\Personal\apexos. Parts 1–6 are complete and merged. Read docs/ROADMAP.md first —
+"Standing rules" and decisions D-A..D-D are binding. Then read docs/REQUIREMENTS.md §10 (R9.x — your
+acceptance contract). Also read PROGRESS.md, docs/08-module-breakdown.md (§2.4, §2.7),
 docs/12-coding-standards.md. Branch: phase-4/sales-workflow off main.
 
 GOAL: close the two gaps at the ends of the sales workflow, wire in reservation, and make order entry
@@ -507,133 +507,115 @@ WHAT EXISTS: lead → sales_order → fulfillment → invoice → payment works 
 gaps are at the two ends: QUOTATION (before the order) and RETURNS / CREDIT NOTE (after the invoice).
 
 BUILD:
-1. Quotation: create, revise (versioned, append-only), send, expire, and convert to a sales order in
-   ONE action carrying the quoted prices forward.
+1. Quotation: create, revise (versioned, append-only — prior versions readable verbatim), send,
+   expire, and convert to a sales order in ONE action carrying the quoted prices forward.
 2. Returns and credit notes: a return posts stock IN through InventoryService.post_movement and
-   raises a credit note against the invoice. APPEND-ONLY — never edit the original invoice. Partial
-   returns allowed. The credit note reduces the receivable through the ledger, not by mutation.
-3. Reservation: confirming a sales order reserves stock using the part 6 reservation service verb —
-   do not add a flag or a second mechanism. Fulfilment consumes the reservation; cancellation
-   releases it.
+   raises a credit note against the invoice. APPEND-ONLY — never edit the original invoice; a test
+   must assert the invoice is unchanged after a return. Partial returns allowed, leaving a correct
+   DERIVED returnable quantity. The credit note reduces the receivable through the ledger, not by
+   mutation.
+3. Reservation: confirming a sales order reserves stock by calling PART 5's RESERVATION SERVICE VERB
+   (R6.6) — do NOT add a flag or a second mechanism. Fulfilment consumes the reservation;
+   cancellation releases it.
 4. Customer health score, fully explainable: order frequency, profitability (using the existing
-   margin logic), outstanding + ageing, recency of activity. Show the inputs and the weighting ON
+   margin logic), outstanding + ageing, recency of activity. Show the inputs AND the weighting ON
    SCREEN. Where there is not enough history, say "unknown" — never a misleading default.
-5. Speed: keyboard-first order entry, product search-as-you-type showing price AND available stock
-   inline, reorder-from-last-order, sensible defaults from customer history, bulk line entry.
-   Measure the keystrokes for a 5-line repeat order before and after, and report both.
+5. Speed — THIS IS THE HIGHEST-VALUE ITEM IN THE PART. Decision D-B makes the founder the only
+   operator, so every order is entered personally: keyboard-first entry, product search-as-you-type
+   showing price AND available stock inline, reorder-from-last-order, defaults from customer history,
+   bulk line entry. MEASURE the keystrokes for a 5-line repeat order before and after, and report
+   both numbers in PROGRESS.md.
 
 UI: extend /sales and /customers; add quotation and return screens. Reuse the part 2 macros.
 
-Seed: a quotation, a revised quotation, a quotation converted to an order, a confirmed order holding
-a reservation, and a partial return with its credit note.
+Seed: a quotation, a revised quotation, one converted to an order, a confirmed order holding a
+reservation, and a partial return with its credit note.
 
-Add tests: quotation→order conversion carries quoted prices, quotation revision preserves the prior
-version, return posts stock IN and creates a credit note WITHOUT mutating the original invoice,
-partial return leaves the correct returnable quantity, confirming an order creates a reservation and
-cancelling releases it, health score arithmetic against known seed data, insufficient-history returns
-"unknown".
+Add tests: quotation→order conversion carries quoted prices, revision preserves the prior version,
+return posts stock IN and creates a credit note WITHOUT mutating the invoice, partial return leaves
+the correct returnable quantity, confirming an order creates a reservation and cancelling releases it,
+health score arithmetic against known seed data, insufficient-history returns "unknown".
 
 Follow the ROADMAP verify loop, update PROGRESS.md, commit, open a PR to main, update memory.
 ```
 
 ---
 
-## PROMPT — Part 10: Finance — ledgers + receivables/payables (Phase 5, first half)
+## PROMPT — Part 8: Finance — ledgers, AR/AP, cash, margin, GST (Phase 5)
 
 ```
-You are starting Part 10 of 15 (Phase 5 — Ledgers & AR/AP) of ApexOS at
-c:\Imp Data\Personal\apexos. Parts 1–9 are complete and merged, so sales, purchases, receipts,
-returns and credit notes all produce real financial history. Read docs/ROADMAP.md first — "Standing
-rules" is binding. Also read PROGRESS.md, docs/08-module-breakdown.md (§2.9 Finance),
-docs/12-coding-standards.md. Branch: phase-5/ledgers-arap off main.
+You are starting Part 8 of 12 (Phase 5 — Finance) of ApexOS at c:\Imp Data\Personal\apexos.
+Parts 1–7 are complete and merged, so sales, purchases, receipts, returns and credit notes all
+produce real financial history. Read docs/ROADMAP.md first — "Standing rules" and decisions D-A..D-D
+are binding. Then read docs/REQUIREMENTS.md §11 and §12 (R10.x and R11.x — your acceptance contract).
+Also read PROGRESS.md, docs/08-module-breakdown.md (§2.9 Finance), docs/12-coding-standards.md.
+Branch: phase-5/finance off main.
 
 GOAL: OPERATIONAL finance, not accounting software. No chart of accounts, no journals, no
-double-entry ledger. The question is always "who owes what, when, and who do I chase today" — never
-"is the trial balance balanced".
+double-entry ledger. The questions are "who owes what, when, who do I chase today" and "are we going
+to be short of cash" — never "is the trial balance balanced".
 
 WHAT EXISTS: app/modules/finance (invoice, bill, payment with direction, payment_allocation,
 receivable/payable projections). Web page: /finance. Extend; do not rebuild.
 
+NOTE decision D-D: the QuickBooks Online bridge is CUT, not deferred. Feature 11.14 in
+docs/06-feature-list.md no longer applies. Do not build it, do not stub it.
+
 BUILD:
-1. Ledgers: customer ledger and vendor ledger — running statements per party, drillable to the source
-   documents, derived from append-only invoices / bills / payments / credit notes. The running balance
-   must be computed from the ledger, never stored.
+1. Ledgers: customer ledger and vendor ledger — running statements per party, every line drillable to
+   its source document, derived from append-only invoices / bills / payments / CREDIT NOTES (all
+   four). The running balance is computed from the ledger, never stored.
 2. Receivables and payables: outstanding with ageing buckets, due vs overdue split, a collections view
-   (who to chase today, in priority order, WITH the reason stated) and a payments-due view.
-
-Everything read-only-derived: these are projections over existing ledgers, so they own few or no new
-entities and write NO activity_log rows for reads. Money stays integer minor units throughout — verify
-no float arithmetic creeps into any total, percentage or ageing calculation.
-
-Partial payment allocation across multiple invoices must be handled correctly, including a payment
-that over-covers one invoice and spills to the next, and a credit note applied against an invoice.
-
-UI: extend /finance with ledger, ageing and collections views + CSV export on each (reuse the part 2
-export path so exports respect on-screen filters). Reuse the part 2 macros.
-
-Add tests: ledger running balance across invoices/payments/credit notes, ageing bucket boundaries
-INCLUDING exactly-on-due-date, partial payment allocated across multiple invoices, over-payment
-spillover, credit note reduces the receivable without mutating the invoice, collections priority
-ordering is deterministic and each entry carries a reason, no float appears in any money path.
-
-Follow the ROADMAP verify loop, update PROGRESS.md, commit, open a PR to main, update memory.
-```
-
----
-
-## PROMPT — Part 11: Finance — cash, margin, GST (Phase 5, second half)
-
-```
-You are starting Part 11 of 15 (Phase 5 — Cash, margin & GST) of ApexOS at
-c:\Imp Data\Personal\apexos. Parts 1–10 are complete and merged, so the ledgers and AR/AP
-projections exist. Read docs/ROADMAP.md first — "Standing rules" is binding. Also read PROGRESS.md,
-docs/08-module-breakdown.md (§2.9), docs/12-coding-standards.md. Branch: phase-5/cash-margin-gst
-off main.
-
-GOAL: answer "are we going to be short of cash" and "where are we losing money" — the two questions
-a founder actually asks. Still operational finance, still no double-entry.
-
-BUILD:
-1. Cash: a cash-flow view (in vs out, actual + committed), a working-capital snapshot, and the cash
-   conversion cycle (DSO + DIO − DPO) with EACH COMPONENT SHOWN, not just the total. "Committed" must
-   be defined on screen (confirmed POs, confirmed orders, due invoices — say exactly which).
-2. Margin and profitability: margin analysis by product / customer / category / business unit, using
-   the existing margin logic and the part 6 FIFO valuation for cost.
-3. Margin leakage indicators: sold below purchase price, discount creep, freight not recovered. Each
-   must list the specific offending records — an indicator with nothing to click is noise.
-4. GST summary: output tax, input tax, net position, by period. A REPORT, not a filing engine. Do not
+   (who to chase today, in priority order, WITH the reason stated per entry, deterministic ordering)
+   and a payments-due view. Ageing boundaries are exact, including exactly-on-due-date.
+3. Payment allocation: partial payment across multiple invoices, including an over-payment that
+   spills to the next invoice, and a credit note applied against an invoice.
+4. Cash: cash-flow (in vs out, actual + committed), working-capital snapshot, and the cash conversion
+   cycle (DSO + DIO − DPO) with EACH COMPONENT SHOWN, not just the total. "Committed" must be DEFINED
+   ON SCREEN, naming exactly what it includes (confirmed POs, confirmed orders, due invoices — say
+   which).
+5. Margin and profitability by product / customer / category / business unit. Cost comes from the
+   PURCHASE PRICE SNAPSHOTTED ONTO THE LINE (MarginService.gp), NOT from an inventory valuation layer
+   — decision D-A removed FIFO, and margin never needed it. Requirement R11.6 says exactly this.
+6. Margin leakage indicators: sold below purchase price, discount creep, freight not recovered. Each
+   must LIST THE SPECIFIC OFFENDING RECORDS — an indicator with nothing to click is noise, remove it.
+7. GST summary: output tax, input tax, net position, by period. A REPORT, not a filing engine. Do not
    build return-filing workflows.
 
-Read from the part 10 ledgers and the part 6/7 inventory valuation rather than recomputing either. If
-you need a number those parts do not expose, add it THERE and read it here.
+Everything read-only-derived where possible: these are projections over existing ledgers, so they own
+few or no new entities and write NO activity_log rows for reads. Money stays integer minor units
+throughout — verify no float arithmetic creeps into any total, percentage, ageing or ratio. Division
+appears only in ratios: round explicitly, say where, and never let a float round-trip back into a
+stored or displayed money value.
 
-Money stays integer minor units. Percentages and ratios are the only place division appears — round
-explicitly and say where, and never let a float round-trip back into a stored or displayed money
-value.
+HANDOFF TO PARTS 9 AND 10 (requirement R11.13): expose every projection as a clean service method
+with explicit period parameters, so the cockpit and the intelligence layer CONSUME rather than
+recompute. If they later need a number you did not expose, that is a gap in THIS part.
 
-UI: extend /finance with cash-flow, working-capital, margin and GST views + CSV export on each. Reuse
-the part 2 macros. No decorative charts — if a chart does not change a decision, use a table.
+UI: extend /finance with ledger, ageing, collections, cash-flow, working-capital, margin and GST
+views + CSV export on each (part 2's export path, respecting on-screen filters). Reuse the part 2
+macros. No decorative charts — if a chart does not change a decision, make it a table.
 
-Note for parts 12 and 13: they will consume these projections. Expose them as clean service methods
-with explicit period parameters so the cockpit does not recompute anything.
-
-Add tests: cash conversion cycle components each match hand-computed values, committed cash matches
-its stated definition, margin computation matches known seed data across all four dimensions, each
-leakage indicator fires on a seeded offender and stays silent otherwise, GST net position by period,
-no float in any money path.
+Add tests: running balance across all four document types, ageing boundaries including
+exactly-on-due-date, partial allocation across multiple invoices, over-payment spillover, credit note
+reduces the receivable without mutating the invoice, collections ordering deterministic with a reason
+per entry, cash conversion cycle components each hand-verified, committed cash matches its stated
+definition, margin across all four dimensions, each leakage indicator fires on a seeded offender and
+stays silent otherwise, GST net position by period, and no float in any money path.
 
 Follow the ROADMAP verify loop, update PROGRESS.md, commit, open a PR to main, update memory.
 ```
 
 ---
 
-## PROMPT — Part 12: Founder Command Center (Phase 6)
+## PROMPT — Part 9: Founder Command Center (Phase 6)
 
 ```
-You are starting Part 12 of 15 (Phase 6 — Founder Command Center) of ApexOS at
-c:\Imp Data\Personal\apexos. Parts 1–11 are complete and merged, so real operational data now exists
-across procurement, inventory, sales and finance. Read docs/ROADMAP.md first — "Standing rules" is
-binding. Also read PROGRESS.md and docs/17-design-system.md. Branch: phase-6/command-center off main.
+You are starting Part 9 of 12 (Phase 6 — Founder Command Center) of ApexOS at
+c:\Imp Data\Personal\apexos. Parts 1–8 are complete and merged, so real operational data now exists
+across procurement, inventory, sales and finance. Read docs/ROADMAP.md first — "Standing rules" and
+decisions D-A..D-D are binding. Then read docs/REQUIREMENTS.md §13 (R12.x — your acceptance
+contract). Also read PROGRESS.md and docs/17-design-system.md. Branch: phase-6/command-center off main.
 
 GOAL: build the homepage a founder actually wants to open. This is NOT a dashboard — it is an
 operating cockpit. It replaces the current /dashboard page (app/web/pages/dashboard.py +
@@ -658,33 +640,37 @@ CONTENT:
 Alerts must be honest: each states the trigger, the threshold, and the affected records, and links
 straight to them. An alert with nothing to click is noise — remove it.
 
-Implementation: this is a READ-ONLY PROJECTION LAYER. Reuse the part 10/11 finance projections, the
-part 7 inventory health, and the part 5 vendor intelligence rather than recomputing anything. If a
-number is not already exposed by those parts, add it there and read it here. Watch query count — one
-page load must not fan out into dozens of queries; MEASURE it and state the number in PROGRESS.md.
-Page must render fast on the seeded dataset; report the timing.
+Implementation: this is a READ-ONLY PROJECTION LAYER. Reuse part 8's finance projections (R11.13
+exposed them with explicit period parameters), part 5's inventory health, and part 4's vendor
+intelligence rather than recomputing anything. If a number is not already exposed by those parts, add
+it THERE and read it here — do not compute it in the page.
+
+MEASURE: query count for one page load must not fan out into dozens of queries. State the number in
+PROGRESS.md and add a test asserting it, so the fan-out cannot silently regress. Report render time on
+the seeded dataset.
 
 Delete the placeholder dashboard code you replace — do not leave two dashboards behind.
 
 Add tests: each tile's arithmetic against known seed data, every alert's trigger boundary (fires at
 the threshold, silent below it), empty-state (a fresh DB renders without errors and without fake
-zeros-as-alerts), and a query-count assertion so the fan-out cannot silently regress.
+zeros-as-alerts), and the query-count assertion.
 
 Follow the ROADMAP verify loop, update PROGRESS.md, commit, open a PR to main, update memory.
 ```
 
 ---
 
-## PROMPT — Part 13: Intelligence Layer (Phase 7)
+## PROMPT — Part 10: Intelligence Layer (Phase 7)
 
 ```
-You are starting Part 13 of 15 (Phase 7 — Apex Intelligence) of ApexOS at
-c:\Imp Data\Personal\apexos. Parts 1–12 are complete and merged. Read docs/ROADMAP.md first —
-"Standing rules" is binding. Also read PROGRESS.md and docs/16-future-roadmap.md.
+You are starting Part 10 of 12 (Phase 7 — Apex Intelligence) of ApexOS at
+c:\Imp Data\Personal\apexos. Parts 1–9 are complete and merged. Read docs/ROADMAP.md first —
+"Standing rules" and decisions D-A..D-D are binding. Then read docs/REQUIREMENTS.md §14 (R13.x — your
+acceptance contract). Also read PROGRESS.md and docs/16-future-roadmap.md.
 Branch: phase-7/intelligence off main.
 
 GOAL: turn accumulated operational data into recommendations a founder can trust. Much of this exists
-in partial form from parts 5, 7, 9, 11 — THIS PART CONSOLIDATES, IT DOES NOT DUPLICATE.
+in partial form from parts 4, 5, 7 and 8 — THIS PART CONSOLIDATES, IT DOES NOT DUPLICATE.
 
 NON-NEGOTIABLE: no black-box AI. Every score, forecast and recommendation must explain WHY it exists
 in plain language, showing the inputs, the weights, and the records it reasoned from — rendered on
@@ -692,20 +678,23 @@ screen, not buried in a docstring. Prefer transparent arithmetic (weighted ratio
 simple linear projections) over anything a founder cannot audit by hand. Do NOT add an ML dependency.
 Do NOT call an LLM at runtime for these numbers.
 
-START WITH AN AUDIT: list every score, radar, suggestion and alert that parts 5–12 already produce,
-and where each lives. Anything computed in two places gets unified into ONE engine that both screens
-read. Write that list and the unifications into PROGRESS.md — it is a deliverable, not scaffolding.
+START WITH AN AUDIT (requirement R13.1 — this is a deliverable, not scaffolding): list every score,
+radar, suggestion and alert that parts 4–9 already produce, and where each lives. Anything computed in
+two places gets unified into ONE engine that both screens read. Write that list and the unifications
+into PROGRESS.md. For each unification, add a test proving both screens return identical output for
+the same input (R13.13).
 
 THEN BUILD / CONSOLIDATE:
-  Scores:      customer health, vendor reliability, inventory health.
+  Scores:      customer health (part 7), vendor reliability (part 4), inventory health (part 5) —
+               consolidated, not rebuilt.
   Radars:      dead stock, margin leakage, customer churn risk.
   Cockpits:    working capital, category performance, business-unit performance.
-  Engines:     procurement recommendations — one engine, unifying part 5's purchase recommendations
-               and part 7's reorder suggestions.
-  Forecasts:   purchase, sales, cash requirement — trailing-window based, with the window stated and
+  Engines:     procurement recommendations — ONE engine, unifying part 4's purchase recommendations
+               and part 5's reorder suggestions.
+  Forecasts:   purchase, sales, cash requirement — trailing-window based, with the window STATED and
                the confidence/limitation said out loud.
   Brief:       Founder Morning Brief — a short ranked list of "here is what changed and what to do
-               today", assembled from the above. It is a VIEW over the other outputs, not new logic.
+               today", assembled from the above. It is a VIEW over the other outputs, NOT new logic.
 
 Each output needs: a stated definition, the formula, the data window, and a link to the underlying
 records. Where a score cannot be computed (not enough history), say so explicitly — never emit a
@@ -713,59 +702,63 @@ misleading default like 0 or 50.
 
 Add tests: each score against hand-computed seed values, each forecast against a known series,
 insufficient-data path returns "unknown" not a number, every recommendation carries a non-empty
-explanation and at least one linked record, and — for each unification — one test proving both
-screens now return identical output for the same input.
+explanation and at least one linked record, plus the per-unification identical-output tests.
 
 Follow the ROADMAP verify loop, update PROGRESS.md, commit, open a PR to main, update memory.
 ```
 
 ---
 
-## PROMPT — Part 14: Polish & Optimization (Phase 8)
+## PROMPT — Part 11: Polish & Optimization (Phase 8)
 
 ```
-You are starting Part 14 of 15 (Phase 8 — Polish & Optimization) of ApexOS at
-c:\Imp Data\Personal\apexos. Parts 1–13 are complete and merged — the product is feature-complete.
-Read docs/ROADMAP.md first — "Standing rules" is binding. Also read PROGRESS.md and
+You are starting Part 11 of 12 (Phase 8 — Polish & Optimization) of ApexOS at
+c:\Imp Data\Personal\apexos. Parts 1–10 are complete and merged — the product is feature-complete.
+Read docs/ROADMAP.md first — "Standing rules" and decisions D-A..D-D are binding. Then read
+docs/REQUIREMENTS.md §15 (R14.x — your acceptance contract). Also read PROGRESS.md and
 docs/17-design-system.md. Branch: phase-8/polish off main.
 
 GOAL: make ApexOS feel like a premium internal operating system. Add NO new features. If you find
 yourself designing a new screen, stop — that belongs nowhere.
 
+READ DECISION D-B, IT RESIZES THIS PART: the founder is the only user. Accessibility narrows to form
+labels and contrast — the screen-reader table work is cut. The exhaustive per-route authz audit and
+the "every POST route is guarded" test are demoted to SHOULD (R14.13, R14.14): the guard mechanism
+from part 1 exists and that is what matters with one user. Saved views are CUT (decision D-D).
+
 IMPROVE:
   Experience — UI consistency (one spacing/type/colour system actually applied everywhere), UX flow,
-    accessibility (labels, contrast, focus order, screen-reader-sane tables), full keyboard
-    navigation, responsive layout down to a tablet.
+    form labels and contrast, full keyboard navigation, responsive layout down to a tablet.
   Findability — global search across every entity, and a command palette (Ctrl+K) for
-    navigate-and-act without the mouse.
+    navigate-and-act without the mouse. For a solo operator who lives in this app daily, these two
+    are the highest-value items in the part.
   Speed — MEASURE FIRST, then fix: page timings, N+1 queries, missing indexes, template render cost,
-    static asset size. Report before/after numbers; do not "optimise" without a measurement.
-  Code — de-duplicate (the same table/filter/form logic should exist once — by now every list screen
-    should be going through the part 2 macros; find the ones that are not), simplify workflows, reduce
-    clicks on the top-10 most frequent tasks, delete unnecessary screens, tighten developer experience
+    static asset size, all baselined BEFORE any change. Report before/after numbers; do not
+    "optimise" without a measurement.
+  Code — de-duplicate: by now EVERY list screen should be going through part 2's macros. Find the ones
+    that are not and migrate them. Simplify workflows, count and reduce clicks on the top-10 most
+    frequent tasks (report both numbers), delete unnecessary screens, tighten developer experience
     (one-command run, fast tests).
-  Security — review authz coverage on EVERY route (the part 1 require_web_permission guard must be
-    wired everywhere it belongs — audit all of them, not a sample), input validation, file-upload
-    handling, error messages that don't leak internals, dependency audit.
+  Security — input validation, file-upload handling, error messages that don't leak internals,
+    dependency audit for known vulnerabilities.
 
 Method: audit → write down the findings with evidence → fix in reviewable batches → prove it with
 measurements. Deliver a short written summary of what changed and what was measured.
 
 The full test suite must stay green throughout — this part must not change behaviour, only its
-quality. Add tests where refactors created risk (especially the de-duplication work) plus
-keyboard/accessibility smoke coverage where testable, and one test asserting every web POST route
-carries an authz guard.
+quality. Add tests where refactors created risk, especially the de-duplication work.
 
 Follow the ROADMAP verify loop, update PROGRESS.md, commit, open a PR to main, update memory.
 ```
 
 ---
 
-## PROMPT — Part 15: Product Challenge (Phase X)
+## PROMPT — Part 12: Product Challenge (Phase X)
 
 ```
-You are running Part 15 of 15 (Phase X — Product Challenge) on ApexOS at
-c:\Imp Data\Personal\apexos. Parts 1–14 are complete. Read docs/ROADMAP.md and PROGRESS.md.
+You are running Part 12 of 12 (Phase X — Product Challenge) on ApexOS at
+c:\Imp Data\Personal\apexos. Parts 1–11 are complete. Read docs/ROADMAP.md, docs/REQUIREMENTS.md §16
+(R15.x) and PROGRESS.md.
 
 Forget that this codebase was built with your help. Pretend a different company hired you to REPLACE
 it, and you are being paid to be right, not agreeable.
@@ -780,9 +773,15 @@ Review every screen and every feature. For each one, answer:
   - Would a PROCUREMENT executive use it?
   - Would a WAREHOUSE employee understand it without training?
 
-Challenge every decision, including the architectural ones. Name the things that exist because they
-were on a roadmap rather than because someone needs them. Be specific: cite the file and the screen,
-say what you would cut, and say what breaks if you cut it.
+NOTE on those last three seats: decision D-B means only the founder uses ApexOS today. Keep asking
+the other three questions anyway — they are the test of whether a screen could survive the business
+growing — but be honest that today they are hypothetical, and do not justify a screen's existence by
+a user who does not exist yet.
+
+Challenge every decision, including the architectural ones, and including decisions D-A..D-D
+themselves — if dropping FIFO or batch tracking turned out to be wrong, say so with evidence. Name
+the things that exist because they were on a roadmap rather than because someone needs them. Be
+specific: cite the file and the screen, say what you would cut, and say what breaks if you cut it.
 
 The goal is NOT more features. The goal is the simplest, most powerful operating system for a
 procurement company. Fewer, sharper screens beat comprehensive ones.
@@ -805,7 +804,12 @@ Then STOP and wait for a decision on what to act on. Do not start deleting.
 - **Superseded docs:** `docs/BUILD-PHASES.md` (old A/B/C plan, done). The stack-specific parts of
   `docs/14-backup-strategy.md`, `docs/15-deployment-strategy.md` and `docs/07-database-er-diagram.md`
   (migration order) describe the retired Postgres + Alembic design; their domain content still stands.
-- **On the 15-part split:** parts within a phase share the phase's branch prefix, so the phase
-  identity survives the split. If a part turns out to be two sessions' worth of work, split it and
-  renumber in this table rather than silently overrunning — the part count is a planning aid, not a
-  commitment.
+  `docs/06-feature-list.md` is authoritative on features but its Phase 1/2/3 column is superseded and
+  several of its features are cut — `REQUIREMENTS.md` §17 has the reconciliation.
+- **On part numbering:** parts within a phase share the phase's branch prefix, so the phase identity
+  survives the split. Requirement IDs in `REQUIREMENTS.md` keep their ORIGINAL prefixes and are never
+  renumbered, which is why part 2 holds `R2.x` + `R3.x`, part 5 holds `R6.x` + `R7.x`, and part 8
+  holds `R10.x` + `R11.x`. If a part turns out to be two sessions' worth of work, split it and
+  renumber the parts — not the requirements.
+- **History:** this plan was 9 phases, then 15 parts, now 12. The 15→12 re-cut on 2026-07-28 followed
+  decisions D-A..D-D, which removed enough work that four parts no longer justified a branch.
