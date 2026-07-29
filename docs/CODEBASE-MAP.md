@@ -30,6 +30,7 @@
 | Compute a cost of goods | `cash.py:_cogs` — `Σ line_subtotal − Σ MarginService.gp` | A second cost basis. It would put margin *and* DIO out of step |
 | Report margin, or where it leaks | `app/modules/finance/margin.py` — `MarginAnalysisService.by_dimension` (product/customer/category/business_unit) and `.leakage` | Trusting `MarginService.gp` on a product with no purchase price — it reports **100% margin**. Check `purchase_prices_by_product()` first |
 | Report GST | `app/modules/finance/gst.py` — `GstService.summary(*, date_from, date_to)`, by month | Anything that files, submits or reconciles against a portal (R11.10) |
+| Show the founder what today needs | `app/modules/command_center/service.py` — the docstring's table says which part owns which number | Adding a figure here. A number the homepage wants goes in the OWNING service and is read here (R12.10); the projection has no `select()` and a namespace-walk test keeps it that way |
 | Block deleting/deactivating something in use | `app/db/references.py` — `REFERENCES` is the policy | Writing a count query in a service; that is what this replaced |
 | Delete something | `app/db/soft_delete.py` (its docstring is the contract) | Per-module delete code — there isn't any, by design |
 | Prevent duplicates | `app/db/duplicates.py` — `NATURAL_KEYS` is the config | — |
@@ -310,6 +311,57 @@ on the seeded data — arithmetically right, useless as a precise figure — so 
 direction rather than looking authoritative. And when two figures measure different things, they are
 shown separately with a sentence saying why, never added.
 
+### `app/modules/command_center/` — the homepage, which computes nothing (Part 9 C1)
+
+Three files and no fourth: `schemas.py` (`Figure`, `Alert`, `AlertRecord`, `QuickAction`,
+`ActivityEntry`, `CommandCenter`), `service.py` (`CommandCenterService.load(*, as_of=None)`), and
+`__init__.py`. **No model, no repository, no router** — `app/web/pages/command_center.py` is a
+two-line page that calls `load()` and renders. The module owns no entity and holds no arithmetic;
+`service.py`'s docstring carries the table of which part owns which number, and that table is the
+design.
+
+The three questions R12.1 fixes are three fields, in the order they are asked: `happened` ·
+`attention` + `alerts` · `actions`. `position` and `activity` both answer "what happened" — one as a
+balance, one as a log.
+
+**Two requirements are enforced by validators rather than by review**, which is the part worth
+copying:
+
+- `Figure` raises unless its `href` starts with `/`, so R12.7's "every number drills through" cannot
+  be forgotten on a tile added later.
+- `Alert` raises on empty `records`, and again if `count` is below the list it carries. R12.8's "an
+  alert with nothing to click MUST be removed" is therefore structural: a family that finds nothing
+  is **omitted**, and the page shows an empty state, which is information. `hidden_count` states
+  what a capped list is not showing so the cap is never silent.
+
+**Where the numbers come from** — never recomputed here (R12.10, G16): `MarginAnalysisService`
+(today's revenue and gross margin off ONE one-day report, so they cannot disagree about which lines
+they counted, and `leakage` for the margin alerts) · `CashFlowService` (`cash_flow` for collections
+today and the trailing window, `committed` for the **forward** window, `working_capital` for both
+the position figure and the inventory tile — reading its inventory term rather than
+`ValuationService.stock_value()` means tile and position cannot disagree) · `AgeingService`
+(`ar_ageing`/`ap_ageing` for the two totals, `collections` for the customer alert) ·
+`InventoryHealthService.low_stock` · `ProcurementCalendarService.arrivals` (**not** `calendar()`,
+which also runs the recommendation engine this page does not show; the `overdue` bucket is the
+vendor alert, and `unpromised` is excluded because R5.7 says an order nobody promised is not due) ·
+`pending_count()` on the sales and procurement repositories · `ActivityService.recent`.
+
+**Measured at 81 queries and a 59 ms median warm render** (R12.12/R12.14) — thirteen grouped
+projections of 1–14 queries each, none growing with the row count.
+`test_r12_13_one_page_load_stays_inside_its_query_budget` holds a ceiling of 120, loose on purpose:
+what it catches is a per-row read, and with 311 products and 273 stock states those land in the
+hundreds.
+
+Building it found the fan-out it was measuring for. `InventoryHealthService.low_stock` called
+`stock()` — a grouped read of the whole catalogue — **inside** its loop over `states()`: 274 queries
+and 979 ms of what was a 344-query, 1,096 ms page, and `/inventory` had paid it since Part 5. The
+lesson generalises: a per-row read hides inside a loop-invariant *call*, not only inside an obvious
+`select()`.
+
+`app/web/templates/command_center/index.html` renders it with Part 2's macros and one local `figure`
+macro that switches on `kind` exactly as `cell` does for list columns. **No `<svg>`, `<canvas>` or
+chart marker reaches the page (R12.9)**, and a test asserts it.
+
 ### `app/modules/sales/fast_entry.py` — what makes order entry quick (Part 7 C2c)
 
 Reads only, and every helper is **bulk** — the entry form shows ~300 products, so a per-product query
@@ -577,6 +629,21 @@ MOQ raise is on screen. One order is deliberately overdue so the calendar's wors
 History is fabricated at INSERT time via `confirm(confirmed_at=…)` / `receive(received_at=…)`; the seed
 never UPDATEs a ledger row (G4).
 
+**`command_center.py` (Part 9) is the smallest section and the best one to copy** — 170 lines for a
+single invoice, and the docstring is mostly *why*. Its whole purpose: `Payment.paid_at` defaults to
+`now()`, so every seeded receipt is already dated today and "collections today" had a figure — but
+every seeded invoice is placed by offset from its due date and the newest lands 30 days ago, so the
+homepage's revenue and gross-margin tiles read ₹0.00. A headline section of three zeros cannot fail
+visibly when the arithmetic behind it is wrong.
+
+It adds **one invoice dated today, settled in full today**, on the customer at code-order offset 9.
+Settled deliberately: it then touches no ageing screen, no chase list, and leaves the receivable
+exactly as it was. Priced at list, so it adds no leakage offender — C3's two indicators must keep
+firing on exactly the three lines seeded for them. Its second line is on `SKU-NOBUY-01`, so the
+"lines with no purchase price are excluded" caveat is visible on the demo and not only in a test. It
+imports `_make_invoice` / `_pay_invoice` / `_totals` from `finance.py` rather than writing a second
+invoice path — the tax rounding has to be identical everywhere (G1).
+
 **Don't read the file end to end to add rows** — read the one section.
 
 ---
@@ -605,6 +672,7 @@ never UPDATEs a ledger row (G4).
 | `test_vendor_intel.py` | R5.1–R5.6, R5.10–R5.14: the mapping and its exclusive preferred, MOQ, lead time measured from `confirmed_at`→`received_at`, the on-time boundary (`received <= promised` is on time) and the excluded unpromised receipt, the 60/40 score and its renormalisation, price history, the unknown paths, and that no writable lead-time field exists anywhere |
 | `test_vendor_screens.py` | R5.12 + R5.5 on screen: each figure reaching its page **with** its formula, window and source records, the vendor comparison preferred-first, the price timeline, "unknown" rendering as the word, the three mapping POST verbs end to end, and the agreed MOQ reaching R4.5's grid |
 | `test_procurement_planning.py` | R5.7–R5.9: the shortfall arithmetic with every term non-zero, an open PO not double-ordered, a draft not counted as on order, the MOQ raise, the calendar's five buckets and its never-bucket-unpromised-as-today rule, R5.8's sentence, and a source walk asserting no second recommendation engine exists |
+| `test_command_center.py` | R12.1–R12.13 + G11/G15: the three questions in order; each of the twelve figures asserted **equal to the service that owns it AND non-zero on the seed**, because an equality between two code paths only tests what the data distinguishes; the ageing tiles' `side=` (the one pair a swap would hide); committed cash forward, and proven to differ from the trailing figure; the unknown-margin branch driven directly with a stub, since the seed cannot reach it; every href rendered *and* resolving; every alert's trigger and threshold on screen with linked records; the two schema validators refusing an unclickable figure and an empty alert; no chart marker; a namespace walk proving the projection holds no query and no model; no `activity_log` row written by a page load; and the query-count ceiling. `_rendered` / `_linked` are the escaping helpers — Jinja escapes what it interpolates, not the quotes you typed |
 | `_web_routes.py` | Not a test — the shared route walk both `test_web_authz.py` and `test_web_smoke.py` use. FastAPI ≥ 0.140 wraps `include_router` in `_IncludedRouter`, so a shallow walk of `.routes` sees nothing; recurse via `.original_router`. Both callers assert a floor on what they found, because the R1.5 walk silently became `[] == []` when that changed |
 
 Run `pytest -q`, never verbose.
@@ -613,13 +681,24 @@ Run `pytest -q`, never verbose.
 
 ## Known debt
 
-**37 pre-existing `ruff` findings**, all in modules the current work hasn't touched — 32 `E501`, 4
+**35 pre-existing `ruff` findings**, all in modules the current work hasn't touched — 30 `E501`, 4
 `F841`, 1 `B007`. It was 39 through Part 2 C1; C2 deleted `CustomerRepository.search`, which held one
-of the `E501`s, taking it to 38. Move 0 took it to **37**: splitting `seed.py` into `app/seed/` moved
+of the `E501`s, taking it to 38. Move 0 took it to 37: splitting `seed.py` into `app/seed/` moved
 `import_all_models()` into the package `__init__`, so `core.py`'s imports sit at the top of their file
-and the one `E402` is gone. **New work has added zero findings, and that's the bar.** Part 11 (`R14.x`)
-clears them; until then `ruff check app/ tests/` reporting exactly 37 is a *pass*, and 38 is a
-regression to fix before committing.
+and the one `E402` is gone. Part 8 C3 rewrote `_gst_summary` and dropped two over-long lines, taking
+it to **35**. **New work has added zero findings through nine parts, and that's the bar.** Part 11
+(`R14.x`) clears them; until then `ruff check app/ tests/` reporting exactly 35 is a *pass*, and 36 is
+a regression to fix before committing.
+
+**The placeholder dashboard is half deleted.** Part 9 C1 removed `app/web/pages/dashboard.py` and
+`app/web/templates/dashboard/` because they owned `/`. `app/modules/dashboard/` and the
+`"app.modules.dashboard.router"` line in `app/api.py` are **still there** and belong to P9-C2, which
+is where R12.11 sits in the ledger. Its JSON route `/dashboard/summary` has no test referencing it.
+
+**`/analytics` still renders bar "charts" from `div` heights** (`.chart-bars` in `app.css`). R12.9
+banned decorative charts from the *Command Center* and C1 obeyed it; `/analytics` was out of that
+scope, so the CSS stays for now. Whichever part owns that screen should decide whether those bars
+change a decision or should be a table.
 
 **`/warehouse` and `/inventory` render every product** (`page_size=300`, no pagination) — harmless at
 17 rows, now ~170 KB of HTML at 311. They are not list-machinery pages yet; whichever part owns them
