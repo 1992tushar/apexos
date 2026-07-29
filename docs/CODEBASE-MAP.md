@@ -27,8 +27,9 @@
 | Age something, or say what is overdue | `app/modules/finance/ageing.py` — `AgeingService`; buckets are `AR_AGE_BUCKETS` in `finance/schemas.py` | Inventing a bucket boundary. Due **today** is not overdue, the bound is inclusive, and `bucket_for()` is the one rule |
 | Apply money to documents | `app/modules/finance/allocation.py` — `AllocationService`, oldest due first, surplus refused | Editing an invoice. Money applied is a new `PaymentAllocation` row (G4) |
 | Ask "will we be short of cash" | `app/modules/finance/cash.py` — `CashFlowService`. Flows take `date_from`/`date_to`, balances take `as_of` (R11.13) | Accruing anything into "actual" — cash is payments only, there is no bank ledger |
-| Compute a cost of goods | `cash.py:_cogs` — `Σ line_subtotal − Σ MarginService.gp` | A second cost basis. It would put margin *and* DIO out of step |
-| Report margin, or where it leaks | `app/modules/finance/margin.py` — `MarginAnalysisService.by_dimension` (product/customer/category/business_unit) and `.leakage` | Trusting `MarginService.gp` on a product with no purchase price — it reports **100% margin**. Check `purchase_prices_by_product()` first |
+| Derive gross profit **anywhere** | `MarginService.gp_costed(line, *, buy_prices=None)` in `pricing/service.py` — `None` means the cost is UNKNOWN. Hoist `purchase_price_map()` out of your loop | Calling `MarginService.gp` directly. It reads a missing purchase price as **zero**, i.e. a 100% margin. An `ast` guard fails the build if any module but `MarginService` calls it (R13.2) |
+| Compute a cost of goods | `cash.py:_cogs` — `Σ line_subtotal − Σ gp_costed`, uncosted lines dropped from both terms and counted | A second cost basis. It would put margin *and* DIO out of step |
+| Report margin, or where it leaks | `app/modules/finance/margin.py` — `MarginAnalysisService.by_dimension` (product/customer/category/business_unit) and `.leakage` | Re-deciding whether a line is costable. `gp_costed` is that decision, in one place |
 | Report GST | `app/modules/finance/gst.py` — `GstService.summary(*, date_from, date_to)`, by month | Anything that files, submits or reconciles against a portal (R11.10) |
 | Show the founder what today needs | `app/modules/command_center/service.py` — the docstring's table says which part owns which number | Adding a figure here. A number the homepage wants goes in the OWNING service and is read here (R12.10); the projection has no `select()` and a namespace-walk test keeps it that way |
 | Block deleting/deactivating something in use | `app/db/references.py` — `REFERENCES` is the policy | Writing a count query in a service; that is what this replaced |
@@ -191,7 +192,29 @@ Pure: no session, no models, no queries.
 
 Rendered by exactly one macro, `explain_panel`. G11 is P0 on every score, alert, recommendation and
 forecast in the product, so **a new one builds an `Explained` and passes it to that macro** — inventing
-per-screen markup for the arithmetic is the duplication R13.1 was scheduled to clean up.
+per-screen markup for the arithmetic is the duplication R13.1 was scheduled to clean up. Part 10's
+audit closed that item by recording it as **already done** since Part 4, and left an `ast` guard that
+fails if a second `Explained` or `Input` class appears anywhere in `app/`.
+
+### The audit's other guards (Part 10 C1)
+
+`tests/test_intelligence.py` holds five structural guards, all **`ast`-parsed rather than grepped**,
+because a text search cannot tell a call from a mention and a Part 8 walk once failed on its own
+docstring. They are cheap to run and they are what keeps R13.2 true as later parts add screens:
+
+| Guard | What it forbids |
+|---|---|
+| only `MarginService` may call `gp` | a new caller silently reporting a 100% margin on an uncosted line |
+| exactly one `def recommend` | a second reorder engine (R5.9/R13.6) |
+| exactly one `Explained` / `Input` | a parallel explanation shape (G11) |
+| one `default_window`, one `month_starts` | two answers to "which months does this window touch" |
+| no table holds a **derived** `*_score` | a cached score two screens can disagree about (G7) |
+
+The last one exempts `supplier_evaluation`, and the exemption is the interesting part: those four
+score columns are the founder's **hand-entered** 1–5 scorecard, which `VendorIntelService.score`
+consumes at 60% weight. A score somebody *typed* is data; a score the system *worked out* is not, and
+only the first may be stored. A second test pins the scorecard's shape so the exemption cannot quietly
+become a loophole.
 
 ### `app/modules/inventory/` — two append-only ledgers and the location tree (Part 5 C1)
 
@@ -290,11 +313,13 @@ produce exactly that due date.
 
 - **`margin.py`** (Part 8 C3) — `MarginAnalysisService`. `by_dimension` is **one** projection
   parameterised by `MARGIN_DIMENSIONS`, not four near-copies; the only thing that varies is which key
-  a line is filed under. Cost is `MarginService.gp` (R11.6) and revenue is the **tax-exclusive**
-  subtotal, because GST is collected for the government rather than earned. **The trap:** `gp` reads
-  a missing purchase price as zero and therefore reports a 100% margin, so every line is checked
-  against `purchase_prices_by_product()` and an unpriced one is *counted and excluded*, never
-  averaged in. `leakage` builds only indicators that can produce clickable records — freight has no
+  a line is filed under. Cost is `MarginService.gp_costed` (R11.6) and revenue is the
+  **tax-exclusive** subtotal, because GST is collected for the government rather than earned.
+  **The trap:** raw `gp` reads a missing purchase price as zero and therefore reports a 100%
+  margin, so every line goes through `gp_costed` and an unpriced one is *counted and excluded*,
+  never averaged in. Part 10's audit made that check the ONE decision rather than this module's
+  private habit — two other callers had skipped it. `leakage` builds only indicators that can
+  produce clickable records — freight has no
   field anywhere in the schema, so it is named under `not_measured` rather than shipped empty
   (R11.8), and the indicators are deliberately never summed into one figure because they measure
   different quantities about overlapping lines.
@@ -428,8 +453,13 @@ Four measured inputs — frequency, profitability, payment, recency — each on 
 conversion **shown**, weighted 25/30/25/20 and **renormalising over whichever inputs exist**. The
 house pattern for a weighted figure, taken from `suppliers/vendor.py`. Stores nothing (G7).
 
-- **Profitability goes through `MarginService.gp`** — the existing margin logic (R11.6), never a
-  valuation layer. A source walk enforces it.
+- **Profitability goes through `MarginService.gp_costed`** — the existing margin logic (R11.6),
+  never a valuation layer. A source walk enforces it. **Part 10 fixed a real defect here:** it
+  used raw `gp`, so a customer who bought a product nothing had ever been purchased for was
+  scored toward a **100% margin** — up to 30 of the score's 100 points for a number nobody
+  measured. Uncosted lines are now excluded and counted, and the input's reason distinguishes
+  "nothing invoiced yet" from "none of their lines has a purchase price recorded", because only
+  the second is actionable. `profitability` returns a fourth value, the uncosted-line count.
 - **"Never invoiced" is a MISSING input, not perfect payment behaviour.** Collapsing the two made a
   brand-new customer score 100 — worse than the default R9.11 forbids, because it reads as praise.
   Invoiced-and-settled earns full marks; never-invoiced is unmeasurable.
