@@ -51,7 +51,7 @@ into the resume block, commit nothing else, and **stop the loop**.
 |---|---|---|
 | 1 | **P8-C1** customer/vendor ledgers · AR/AP ageing · collections · allocation (R10.x) | **done `ec8a573`** |
 | 2 | **P8-C2** cash flow · working capital · cash conversion cycle (R11.1–R11.4) | **done `30b3cc1`** |
-| 3 | **P8-C3** margin by four dimensions · leakage · GST (R11.5–R11.14) — **closes Part 8** | **done `0ce6931`** — R11.7 partially met, freight decision with the user |
+| 3 | **P8-C3** margin by four dimensions · leakage · GST (R11.5–R11.14) | **done `0ce6931`** — but **Part 8 is NOT closed**: R11.7 left open by the user's decision on 2026-07-29. Do not tag Part 8, and do not resolve R11.7 inside a later part |
 | 4 | **P9-C1** tiles · alerts · activity · quick actions (R12.1–R12.11) | next |
 | 5 | **P9-C2** query count + render time measured, empty state, **delete the placeholder** — **closes Part 9** | |
 | 6 | **P10-C1** the R13.1 audit + the unifications (this is the real work) | |

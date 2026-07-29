@@ -20,9 +20,11 @@ rather than everything ever built. Where everything else lives is in `CLAUDE.md`
 
 # ▶ CURRENT WORK — read this first
 
-**Parts 1–8 are COMPLETE.** The build continues at **Part 9 — the Founder Command Center**, two
-checkpoints. **All work is on `main`**; nothing in this run is tagged (the user waived it), so the
-SHA table is the record.
+**Parts 1–7 are COMPLETE. Part 8's three checkpoints are all DELIVERED, but Part 8 is NOT formally
+closed** — R11.7 is open, by the user's decision on 2026-07-29 to leave it open rather than settle it
+now (see below). The build continues at **Part 9 — the Founder Command Center**, two checkpoints;
+nothing in Part 9 depends on the open item. **All work is on `main`**; nothing in this run is tagged
+(waived), so the SHA table is the record.
 
 | Part 8 checkpoint | From | Commit | Tests | Ruff |
 |---|---|---|---|---|
@@ -30,13 +32,17 @@ SHA table is the record.
 | **C2** cash flow · working capital · CCC | `ec8a573` | `30b3cc1` | 688 → 721 | 37 → 37 |
 | **C3** margin ×4 · leakage · GST | `30b3cc1` | `0ce6931` | 721 → **757** | 37 → **35** |
 
-**One requirement is outstanding: R11.7 is PARTIALLY MET.** Its "freight not recovered" indicator
-cannot be built — there is **no freight, shipping, carriage or delivery-charge field anywhere in the
-schema**, so nothing can be computed and R11.8 forbids shipping an indicator with nothing to click.
-It is named on screen under *Not measured*. Closing it needs a **product decision**: capture freight
-on the document (a small part of its own), or strike the indicator from R11.7 with a reason, per the
-register's own rule that a dropped requirement is struck through and never deleted. **Put to the
-user at C3 close; Part 8 is otherwise done.** Full reasoning in `docs/parts/part-08.md`.
+**The one open item: R11.7 is PARTIALLY MET (P0).** Its "freight not recovered" indicator cannot be
+built — there is **no freight, shipping, carriage or delivery-charge field anywhere in the schema** —
+so nothing can be computed, and R11.8 forbids shipping an indicator with nothing to click. It is
+named on screen under *Not measured*.
+
+**Asked and answered on 2026-07-29: the user chose to LEAVE IT OPEN and proceed to Part 9.** So it is
+neither built nor struck, and **Part 8 must not be described as closed or tagged** until it is
+settled. The two ways to settle it remain: capture freight on the invoice/bill (a slice of work in
+its own right), or strike the indicator from R11.7 with a reason — the register's rule being that a
+dropped requirement is struck through, never deleted. **Do not quietly resolve this inside another
+part.** Full reasoning in `docs/parts/part-08.md`.
 
 ### ▶ How to start the next session
 
@@ -185,7 +191,7 @@ Use pytest -q, never verbose. Don't re-read files you just edited.
 
 ---
 
-## ▶ Handoff — PART 8 IS COMPLETE (R11.7 partially met, decision pending)
+## ▶ Handoff — Part 8's three checkpoints are DELIVERED · R11.7 left open by decision
 
 Full records in `docs/parts/part-08.md`; **do not read it.** Parts 1–7 in `part-01.md`…`part-07.md`
 and `e2e-gate.md`; do not read those either. The Parts 5–7 E2E gate passed 44 checks but over

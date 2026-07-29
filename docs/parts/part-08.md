@@ -49,8 +49,10 @@ reason, because silence would let the founder assume freight had been checked an
    the register's own rule is that a dropped requirement is *struck through with a reason,
    never deleted*.
 
-**This was put to the user at C3 close.** Until it is answered, Part 8 stands as
-"all three checkpoints delivered, R11.7 partially met".
+**Put to the user at C3 close on 2026-07-29. Their decision: leave it open and proceed to Part 9.**
+So it is neither built nor struck, and Part 8 stands as *"all three checkpoints delivered, R11.7
+partially met"* — **not closed, not tagged**. A later part must not resolve this quietly on the way
+past; it is a product decision that comes back to the user.
 
 ### Decisions a later part must not reverse
 
