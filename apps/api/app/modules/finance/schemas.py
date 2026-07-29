@@ -428,3 +428,174 @@ class AllocationResult(BaseModel):
     allocated_minor: int
     lines: list[AllocationLine]
 
+
+# --- Part 8 C2: cash flow, working capital, the cash conversion cycle (R11.x) ---
+#
+# C1's projections are point-in-time and take `as_of`. These are FLOWS, so every one of
+# them takes an explicit `date_from` / `date_to` — that is R11.13, and it is the contract
+# Parts 9 and 10 consume rather than recompute.
+
+
+class CashFlowPeriodRow(BaseModel):
+    """One calendar month of actual cash movement (R11.1).
+
+    Monthly rather than daily: a founder reads a trend off twelve rows, not off three
+    hundred, and R11.14 says a figure that does not change a decision does not belong.
+    """
+
+    label: str
+    date_from: date
+    date_to: date
+    in_minor: int
+    out_minor: int
+    net_minor: int
+    receipts: int
+    payments: int
+
+    def flat(self) -> dict[str, Any]:
+        return {
+            "label": self.label,
+            "in_minor": self.in_minor,
+            "out_minor": self.out_minor,
+            "net_minor": self.net_minor,
+            "receipts": self.receipts,
+            "payments": self.payments,
+        }
+
+
+class CommittedCash(BaseModel):
+    """Money contractually due in the window, and the pipeline behind it (R11.2).
+
+    **R11.2 requires this to be defined on screen, naming exactly what it includes**, so
+    `terms` carries those sentences and the template prints them verbatim. They are held
+    here rather than in the template because the test that proves the figure matches its
+    stated definition has to read the same words the founder does.
+
+    The split is the honest one:
+
+    * **committed** — invoices and bills that exist and have a **due date inside the
+      window**. Reconstructible to the rupee from the ageing screen.
+    * **pipeline** — confirmed sales orders not yet invoiced, and confirmed purchase
+      orders not yet billed. Real commitments, but **no due date exists** for either: a
+      due date is created when the order is invoiced or the PO is billed. Folding them
+      into "committed" would mean inventing a date, so they are reported beside it and
+      excluded from the total.
+    """
+
+    in_minor: int
+    out_minor: int
+    pipeline_in_minor: int
+    pipeline_out_minor: int
+    invoice_count: int
+    bill_count: int
+    pipeline_order_count: int
+    pipeline_po_count: int
+    terms: list[str] = Field(default_factory=list)
+
+    @property
+    def net_minor(self) -> int:
+        return self.in_minor - self.out_minor
+
+    @property
+    def pipeline_net_minor(self) -> int:
+        return self.pipeline_in_minor - self.pipeline_out_minor
+
+
+class CashFlowReport(BaseModel):
+    """Actual and committed cash over an explicit window (R11.1, R11.2, R11.13)."""
+
+    date_from: date
+    date_to: date
+    rows: list[CashFlowPeriodRow]
+    actual_in_minor: int
+    actual_out_minor: int
+    committed: CommittedCash
+
+    @property
+    def actual_net_minor(self) -> int:
+        return self.actual_in_minor - self.actual_out_minor
+
+    @property
+    def projected_net_minor(self) -> int:
+        """Actual net plus committed net. **Not** a forecast — no estimate is involved,
+        only documents that already exist. The pipeline is excluded, as above."""
+        return self.actual_net_minor + self.committed.net_minor
+
+
+class WorkingCapitalSnapshot(BaseModel):
+    """Working capital as at a date (R11.3).
+
+    **Cash at bank is not part of this, because ApexOS does not track a bank balance.**
+    Saying so is the point: a "working capital" figure that silently omits cash would be
+    read as though it included it. `caveat` carries that sentence to the screen.
+    """
+
+    as_of: date
+    receivables_minor: int
+    inventory_minor: int
+    payables_minor: int
+    inventory_known: bool
+    products_without_cost: int
+    caveat: str
+
+    @property
+    def working_capital_minor(self) -> int:
+        return self.receivables_minor + self.inventory_minor - self.payables_minor
+
+    def flat(self) -> dict[str, Any]:
+        return {
+            "component": None,
+            "receivables_minor": self.receivables_minor,
+            "inventory_minor": self.inventory_minor,
+            "payables_minor": self.payables_minor,
+            "working_capital_minor": self.working_capital_minor,
+        }
+
+
+class CashCycleReport(BaseModel):
+    """DSO, DIO, DPO and the cycle they add up to (R11.4).
+
+    **Each component is reported individually**, which is the whole of R11.4: a single CCC
+    number tells the founder nothing about which of the three to act on. Each carries its
+    own `Explained` — the formula, the window, the inputs and the records — and any
+    component whose denominator is zero is `Explained.unknown`, never 0 (G11).
+
+    `ccc_days` is None whenever **any** component is unknown. A cycle built from two of
+    three terms would be a smaller number that looks like good news.
+    """
+
+    date_from: date
+    date_to: date
+    window_days: int
+    dso_days: int | None
+    dio_days: int | None
+    dpo_days: int | None
+    ccc_days: int | None
+    dso: Explained
+    dio: Explained
+    dpo: Explained
+    ccc: Explained
+
+    @property
+    def components(self) -> list[tuple[str, int | None, Explained]]:
+        return [
+            ("DSO — days sales outstanding", self.dso_days, self.dso),
+            ("DIO — days inventory outstanding", self.dio_days, self.dio),
+            ("DPO — days payables outstanding", self.dpo_days, self.dpo),
+        ]
+
+    def flat_rows(self) -> list[dict[str, Any]]:
+        rows = [
+            {"component": label, "days": days, "formula": exp.formula, "window": exp.window}
+            for label, days, exp in self.components
+        ]
+        rows.append(
+            {
+                "component": "CCC — cash conversion cycle",
+                "days": self.ccc_days,
+                "formula": self.ccc.formula,
+                "window": self.ccc.window,
+            }
+        )
+        return rows
+

@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+{% block title %}Cash cycle{% endblock %}
+{% block content %}
+{% call ui.page_header("Working capital & cash cycle",
+                       "How much cash is tied up, and for how long") %}
+  <a class="btn" href="/finance">← Finance</a>
+  <a class="btn" href="/finance/cash-flow">Cash flow</a>
+{% endcall %}
+
+<form class="inline-form mt" method="get" action="/finance/cash-cycle">
+  <label>From</label>
+  <input class="input" type="date" name="date_from" value="{{ date_from }}" />
+  <label>To</label>
+  <input class="input" type="date" name="date_to" value="{{ date_to }}" />
+  <button class="btn btn-sm" type="submit">Apply</button>
+  <a class="btn btn-sm"
+     href="/finance/cash-cycle?date_from={{ date_from }}&date_to={{ date_to }}&export=csv">Export CSV</a>
+</form>
+
+<div class="card mt">
+  <div class="card-title">Working capital as at {{ snapshot.as_of | fmt_date }}</div>
+  <div class="grid grid-4 mt">
+    {{ ui.stat("Receivables", snapshot.receivables_minor | money, "what customers owe") }}
+    {{ ui.stat("Inventory at cost", snapshot.inventory_minor | money, "weighted average") }}
+    {{ ui.stat("Payables", snapshot.payables_minor | money, "what we owe suppliers") }}
+    {{ ui.stat("Working capital", snapshot.working_capital_minor | money,
+               "receivables + inventory − payables") }}
+  </div>
+  <p class="muted mt">{{ snapshot.caveat }}</p>
+</div>
+
+<div class="card mt">
+  <div class="card-title">Cash conversion cycle</div>
+  <p class="muted">
+    Each component is shown on its own, because a single cycle number does not say which of
+    the three to act on.
+  </p>
+  <div class="table-wrap mt">
+    <table>
+      <thead><tr><th>Component</th><th class="num">Days</th><th>What it measures</th></tr></thead>
+      <tbody>
+        {% for label, days, exp in cycle.components %}
+        <tr>
+          <td>{{ label }}</td>
+          <td class="num">{{ (days ~ " days") if days is not none else "unknown" }}</td>
+          <td class="muted">
+            {{ exp.what }}
+            {% if exp.caveat %}<br /><em>{{ exp.caveat }}</em>{% endif %}
+            {% if not exp.is_known %}<br /><em>{{ exp.unknown_reason }}</em>{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+        <tr>
+          <td><strong>CCC — cash conversion cycle</strong></td>
+          <td class="num">
+            <strong>{{ (cycle.ccc_days ~ " days") if cycle.ccc_days is not none else "unknown" }}</strong>
+          </td>
+          <td class="muted">
+            DSO + DIO − DPO
+            {% if cycle.ccc.caveat %}<br /><em>{{ cycle.ccc.caveat }}</em>{% endif %}
+            {% if not cycle.ccc.is_known %}<br /><em>{{ cycle.ccc.unknown_reason }}</em>{% endif %}
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="muted mt">
+    Window: {{ cycle.date_from | fmt_date }} to {{ cycle.date_to | fmt_date }},
+    {{ cycle.window_days }} days.
+  </p>
+</div>
+
+{# G11: each figure renders its inputs, its formula, its window and its records, through
+   the ONE macro. An unknown component says why rather than showing a flattering zero. #}
+<div class="mt">
+  {{ ui.explain_panel(cycle.ccc, "Cash conversion cycle") }}
+  {{ ui.explain_panel(cycle.dso, "DSO") }}
+  {{ ui.explain_panel(cycle.dio, "DIO") }}
+  {{ ui.explain_panel(cycle.dpo, "DPO") }}
+</div>
+{% endblock %}

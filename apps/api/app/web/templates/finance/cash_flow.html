@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+{% block title %}Cash flow{% endblock %}
+{% block content %}
+{% call ui.page_header("Cash flow", "What moved, and what is already committed") %}
+  <a class="btn" href="/finance">← Finance</a>
+  <a class="btn" href="/finance/cash-cycle">Cash cycle</a>
+{% endcall %}
+
+<form class="inline-form mt" method="get" action="/finance/cash-flow">
+  <label>From</label>
+  <input class="input" type="date" name="date_from" value="{{ date_from }}" />
+  <label>To</label>
+  <input class="input" type="date" name="date_to" value="{{ date_to }}" />
+  <button class="btn btn-sm" type="submit">Apply</button>
+  <a class="btn btn-sm"
+     href="/finance/cash-flow?date_from={{ date_from }}&date_to={{ date_to }}&export=csv">Export CSV</a>
+</form>
+
+<div class="grid grid-3 mt">
+  {{ ui.stat("Cash in", report.actual_in_minor | money, "payments received") }}
+  {{ ui.stat("Cash out", report.actual_out_minor | money, "payments made") }}
+  {{ ui.stat("Net actual", report.actual_net_minor | money, "in − out") }}
+</div>
+
+<div class="card mt">
+  <div class="card-title">Actual — money that really moved</div>
+  <p class="muted">
+    Payments only. An invoice raised is not cash, and a bill received is not a payment — this
+    table counts receipts and payments, nothing accrued.
+  </p>
+  {% if report.rows %}
+  <div class="table-wrap mt">
+    <table>
+      <thead>
+        <tr>
+          <th>Month</th><th class="num">Cash in</th><th class="num">Cash out</th>
+          <th class="num">Net</th><th class="num">Receipts</th><th class="num">Payments</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in report.rows %}
+        <tr>
+          <td>{{ row.label }}</td>
+          <td class="num">{{ row.in_minor | money }}</td>
+          <td class="num">{{ row.out_minor | money }}</td>
+          <td class="num">{{ row.net_minor | money }}</td>
+          <td class="num">{{ row.receipts }}</td>
+          <td class="num">{{ row.payments }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+      <tfoot>
+        <tr>
+          <td><strong>Total</strong></td>
+          <td class="num"><strong>{{ report.actual_in_minor | money }}</strong></td>
+          <td class="num"><strong>{{ report.actual_out_minor | money }}</strong></td>
+          <td class="num"><strong>{{ report.actual_net_minor | money }}</strong></td>
+          <td colspan="2"></td>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+  {% else %}
+    {{ ui.empty("No payments in this window.") }}
+  {% endif %}
+</div>
+
+{# R11.2: the definition, printed. The figures below are reconstructible from these
+   sentences, and a test asserts each one is on the page. #}
+<div class="card mt">
+  <div class="card-title">Committed — what "committed" means here</div>
+  <ul class="muted">
+    {% for term in report.committed.terms %}
+    <li>{{ term }}</li>
+    {% endfor %}
+  </ul>
+  <div class="table-wrap mt">
+    <table>
+      <thead><tr><th>Figure</th><th>Basis</th><th class="num">Documents</th><th class="num">Amount</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>Committed in</td>
+          <td class="muted">invoices due in this window, at their open balance</td>
+          <td class="num">{{ report.committed.invoice_count }}</td>
+          <td class="num">{{ report.committed.in_minor | money }}</td>
+        </tr>
+        <tr>
+          <td>Committed out</td>
+          <td class="muted">bills due in this window, at their open balance</td>
+          <td class="num">{{ report.committed.bill_count }}</td>
+          <td class="num">{{ report.committed.out_minor | money }}</td>
+        </tr>
+        <tr>
+          <td><strong>Committed net</strong></td>
+          <td class="muted">committed in − committed out</td>
+          <td class="num"></td>
+          <td class="num"><strong>{{ report.committed.net_minor | money }}</strong></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="section-title mt">Pipeline — excluded from the figures above</div>
+  <p class="muted">
+    Real commitments with no due date yet, so dating them would be guesswork. Shown so the
+    number is visible, kept out of "committed" so that figure stays checkable.
+  </p>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Figure</th><th>Basis</th><th class="num">Documents</th><th class="num">Amount</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>Pipeline in</td>
+          <td class="muted">sales orders confirmed, not yet invoiced</td>
+          <td class="num">{{ report.committed.pipeline_order_count }}</td>
+          <td class="num">{{ report.committed.pipeline_in_minor | money }}</td>
+        </tr>
+        <tr>
+          <td>Pipeline out</td>
+          <td class="muted">purchase orders confirmed, not yet billed</td>
+          <td class="num">{{ report.committed.pipeline_po_count }}</td>
+          <td class="num">{{ report.committed.pipeline_out_minor | money }}</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="grid grid-2 mt">
+  {{ ui.stat("Committed net", report.committed.net_minor | money, "documents already due") }}
+  {{ ui.stat("Actual net + committed net", report.projected_net_minor | money,
+             "no estimate — only documents that exist") }}
+</div>
+{% endblock %}

@@ -26,8 +26,9 @@ from app.db.listing import Column, ListSpec
 from app.modules.customers.models import Customer
 from app.modules.finance.ageing import AgeingService, bucket_boundaries
 from app.modules.finance.allocation import AllocationService
+from app.modules.finance.cash import CashFlowService, default_window
 from app.modules.finance.ledger import PartyLedgerService, today
-from app.modules.finance.models import Bill, Invoice
+from app.modules.finance.models import Bill, Invoice, Payment
 from app.modules.finance.repository import FinanceRepository
 from app.modules.finance.schemas import (
     AR_AGE_BUCKETS,
@@ -110,6 +111,30 @@ PAYMENTS_DUE_EXPORT = ListSpec(
     ),
 )
 
+CASH_FLOW_EXPORT = ListSpec(
+    entity="cash-flow",
+    model=Payment,
+    columns=(
+        Column("label", "Month"),
+        Column("in_minor", "Cash in", kind="money"),
+        Column("out_minor", "Cash out", kind="money"),
+        Column("net_minor", "Net", kind="money"),
+        Column("receipts", "Receipts", kind="number"),
+        Column("payments", "Payments", kind="number"),
+    ),
+)
+
+CASH_CYCLE_EXPORT = ListSpec(
+    entity="cash-cycle",
+    model=Payment,
+    columns=(
+        Column("component", "Component"),
+        Column("days", "Days", kind="number"),
+        Column("formula", "Formula"),
+        Column("window", "Window"),
+    ),
+)
+
 
 def _as_of(raw: str | None) -> date:
     """The report date from the query string, degrading to today on anything odd.
@@ -123,6 +148,19 @@ def _as_of(raw: str | None) -> date:
         except ValueError:
             pass
     return today()
+
+
+def _window(raw_from: str | None, raw_to: str | None) -> tuple[date, date]:
+    """The `(date_from, date_to)` for a flow screen (R11.13's parameters, off the URL).
+
+    Degrades the same way `_as_of` does, and additionally repairs a reversed window: a
+    bookmark with `from` after `to` renders the swapped range rather than an empty screen
+    that looks like "no cash moved".
+    """
+    default_from, default_to = default_window()
+    start = _as_of(raw_from) if raw_from else default_from
+    end = _as_of(raw_to) if raw_to else default_to
+    return (end, start) if start > end else (start, end)
 
 
 @router.get("/finance")
@@ -340,6 +378,50 @@ def finance_payments_due(request: Request, as_of: str | None = None, db: Session
         total_due=sum(e.open_minor for e in entries),
         overdue_total=sum(e.open_minor for e in entries if e.days_overdue > 0),
         methods=PAYMENT_METHODS,
+    )
+
+
+@router.get("/finance/cash-flow")
+def finance_cash_flow(
+    request: Request,
+    date_from: str | None = None,
+    date_to: str | None = None,
+    db: Session = Depends(get_db),
+):
+    """Cash in vs out over a window, actual and committed (R11.1, R11.2)."""
+    start, end = _window(date_from, date_to)
+    report = CashFlowService(db).cash_flow(date_from=start, date_to=end)
+    if wants_csv(request):
+        return csv_rows_response(CASH_FLOW_EXPORT, [row.flat() for row in report.rows])
+    return render(
+        request,
+        "finance/cash_flow.html",
+        report=report,
+        date_from=start.isoformat(),
+        date_to=end.isoformat(),
+    )
+
+
+@router.get("/finance/cash-cycle")
+def finance_cash_cycle(
+    request: Request,
+    date_from: str | None = None,
+    date_to: str | None = None,
+    db: Session = Depends(get_db),
+):
+    """Working capital as at the window's end, and the cycle over it (R11.3, R11.4)."""
+    start, end = _window(date_from, date_to)
+    svc = CashFlowService(db)
+    cycle = svc.cash_conversion_cycle(date_from=start, date_to=end)
+    if wants_csv(request):
+        return csv_rows_response(CASH_CYCLE_EXPORT, cycle.flat_rows())
+    return render(
+        request,
+        "finance/cash_cycle.html",
+        cycle=cycle,
+        snapshot=svc.working_capital(as_of=end),
+        date_from=start.isoformat(),
+        date_to=end.isoformat(),
     )
 
 

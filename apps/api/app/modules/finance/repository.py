@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import uuid
+from datetime import date
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
@@ -11,6 +12,7 @@ from app.modules.finance.models import (
     Bill,
     CreditNote,
     Invoice,
+    InvoiceLine,
     Payment,
     PaymentAllocation,
 )
@@ -304,6 +306,123 @@ class FinanceRepository:
             .order_by(Payment.paid_at, Payment.payment_no)
         ).all()
         return [(alloc, payment) for alloc, payment in rows]
+
+    # --- Part 8 C2: the flow reads (R11.1–R11.4) -----------------------------
+    #
+    # C1's reads are point-in-time ("what is open now"); these are WINDOWED ("what moved
+    # between two dates"). `func.date(...)` on the datetime column is the house pattern —
+    # `ReportService._stock_ledger` does the same, and it keeps the comparison a date
+    # comparison rather than depending on how the driver stores a timezone.
+
+    def payments_between(
+        self, date_from: date, date_to: date
+    ) -> list[tuple[str, date, int]]:
+        """(direction, paid-on date, amount) for every payment in the window.
+
+        **Payments are the only actual cash movement in the system.** There is no bank
+        ledger, so "cash in" is what was received and "cash out" is what was paid — not an
+        accrual, and the screens say so.
+        """
+        rows = self.db.execute(
+            select(Payment.direction, func.date(Payment.paid_at), Payment.amount_minor)
+            .where(
+                func.date(Payment.paid_at) >= date_from,
+                func.date(Payment.paid_at) <= date_to,
+                Payment.deleted_at.is_(None),
+            )
+            .order_by(func.date(Payment.paid_at), Payment.payment_no)
+        ).all()
+        out: list[tuple[str, date, int]] = []
+        for direction, paid_on, amount in rows:
+            # SQLite's `date()` hands back text; Postgres hands back a `date`.
+            stamp = paid_on if isinstance(paid_on, date) else date.fromisoformat(str(paid_on))
+            out.append((str(direction), stamp, int(amount or 0)))
+        return out
+
+    def invoiced_between(self, date_from: date, date_to: date) -> tuple[int, int]:
+        """(subtotal, total) invoiced in the window — DSO's revenue denominator.
+
+        Subtotal as well as total because margin works on the tax-exclusive figure: GST is
+        collected on the customer's behalf, not earned, so it has no place in COGS or in a
+        margin ratio.
+        """
+        row = self.db.execute(
+            select(
+                func.coalesce(func.sum(Invoice.subtotal_minor), 0),
+                func.coalesce(func.sum(Invoice.total_minor), 0),
+            ).where(
+                Invoice.invoice_date >= date_from,
+                Invoice.invoice_date <= date_to,
+                Invoice.status != "cancelled",
+                Invoice.deleted_at.is_(None),
+            )
+        ).one()
+        return int(row[0] or 0), int(row[1] or 0)
+
+    def billed_between(self, date_from: date, date_to: date) -> tuple[int, int]:
+        """(subtotal, total) billed in the window — DPO's purchases denominator."""
+        row = self.db.execute(
+            select(
+                func.coalesce(func.sum(Bill.subtotal_minor), 0),
+                func.coalesce(func.sum(Bill.total_minor), 0),
+            ).where(
+                Bill.bill_date >= date_from,
+                Bill.bill_date <= date_to,
+                Bill.status != "cancelled",
+                Bill.deleted_at.is_(None),
+            )
+        ).one()
+        return int(row[0] or 0), int(row[1] or 0)
+
+    def invoice_lines_between(self, date_from: date, date_to: date) -> list[InvoiceLine]:
+        """The lines behind the window's revenue — COGS is derived from these.
+
+        One query with the join, not a query per invoice.
+        """
+        return list(
+            self.db.scalars(
+                select(InvoiceLine)
+                .join(Invoice, Invoice.id == InvoiceLine.invoice_id)
+                .where(
+                    Invoice.invoice_date >= date_from,
+                    Invoice.invoice_date <= date_to,
+                    Invoice.status != "cancelled",
+                    Invoice.deleted_at.is_(None),
+                    InvoiceLine.deleted_at.is_(None),
+                )
+            )
+        )
+
+    def sales_pipeline(self) -> tuple[int, int]:
+        """(count, total) of orders confirmed but NOT yet invoiced.
+
+        Money we expect to receive but cannot date: an order carries no due date, and one is
+        only created when it is invoiced. That is exactly why R11.2's committed figure
+        excludes this and reports it separately — see `cash.py`.
+        """
+        from app.modules.sales.models import SalesOrder
+
+        row = self.db.execute(
+            select(func.count(), func.coalesce(func.sum(SalesOrder.total_minor), 0)).where(
+                SalesOrder.status.in_(("confirmed", "partially_fulfilled", "fulfilled")),
+                SalesOrder.deleted_at.is_(None),
+            )
+        ).one()
+        return int(row[0] or 0), int(row[1] or 0)
+
+    def purchase_pipeline(self) -> tuple[int, int]:
+        """(count, total) of purchase orders confirmed but NOT yet billed."""
+        from app.modules.procurement.models import PurchaseOrder
+
+        row = self.db.execute(
+            select(func.count(), func.coalesce(func.sum(PurchaseOrder.total_minor), 0)).where(
+                PurchaseOrder.status.in_(
+                    ("confirmed", "partially_received", "received")
+                ),
+                PurchaseOrder.deleted_at.is_(None),
+            )
+        ).one()
+        return int(row[0] or 0), int(row[1] or 0)
 
     def customers_with_activity(self) -> list[tuple[uuid.UUID, str]]:
         """(id, name) for every customer that has at least one live invoice.

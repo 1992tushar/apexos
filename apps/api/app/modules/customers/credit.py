@@ -50,11 +50,20 @@ class CreditPolicyService:
         return self.repo.current_credit_policy(customer_id)
 
     def history(self, customer_id: uuid.UUID) -> list[CreditPolicyRead]:
-        """Every version, newest first. The current one is `valid_to IS NULL`.
+        """Every version, newest first. `history(...)[0]` is ALWAYS the current policy.
 
-        Ordered by `id` as well as `valid_from` because `valid_from` defaults to
-        `func.now()` and ties for rows written in one transaction — the trap Part 5 hit.
-        Keys are UUID v7 and time-ordered, so `id` breaks it by real write order.
+        **The open row leads, and that is what makes the head of this list deterministic.**
+        Exactly one version has `valid_to IS NULL` by construction — `set_policy` stamps the
+        one it replaces — so sorting on that first cannot tie.
+
+        This used to order by `(valid_from DESC, id DESC)` on the reasoning that "keys are
+        UUID v7 and time-ordered, so `id` breaks the tie by real write order". **That claim
+        is false**: `uuid7()` fills its low bits from `os.urandom`, so it is not monotonic
+        within a millisecond and `id DESC` breaks a tie by coin flip rather than by write
+        order. Two versions written in the same tick could therefore come back newest-last,
+        and `test_r8_3_a_version_carries_forward_what_the_caller_did_not_name` failed exactly
+        once that way during Part 8 C2 before this was fixed. The remaining `id` term is kept
+        only as a last resort for closed rows, where nothing depends on the order.
         """
         rows = self.db.scalars(
             select(CustomerCreditPolicy)
@@ -63,7 +72,10 @@ class CreditPolicyService:
                 CustomerCreditPolicy.deleted_at.is_(None),
             )
             .order_by(
-                CustomerCreditPolicy.valid_from.desc(), CustomerCreditPolicy.id.desc()
+                CustomerCreditPolicy.valid_to.is_(None).desc(),
+                CustomerCreditPolicy.valid_to.desc(),
+                CustomerCreditPolicy.valid_from.desc(),
+                CustomerCreditPolicy.id.desc(),
             )
         )
         return [

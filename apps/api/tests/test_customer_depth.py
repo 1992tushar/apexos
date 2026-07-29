@@ -212,6 +212,72 @@ def test_r8_3_a_version_carries_forward_what_the_caller_did_not_name(db, custome
     assert current.payment_terms_days == 45, "payment terms were lost on the new version"
 
 
+def test_r8_3_the_history_head_is_the_open_version_however_the_timestamps_tie(db, customer):
+    """`history()[0]` must be the CURRENT policy, not whichever row sorted first.
+
+    This ordering used to break a `valid_from` tie with `id DESC`, on the reasoning that
+    UUID v7 keys are time-ordered. **They are not monotonic within a millisecond** — the low
+    bits come from `os.urandom` — so two versions written in the same tick came back in a
+    random order and `history()[0]` was sometimes the superseded row. It failed exactly that
+    way once during Part 8 C2. The fix sorts the open row (`valid_to IS NULL`, unique by
+    construction) to the head, so the tie cannot decide anything.
+
+    The tie is FORCED rather than hoped for, in both directions, because a test that merely
+    writes three versions quickly passes under the old ordering about two times in three —
+    `id DESC` picks a random row and sometimes picks the right one. So: every version gets
+    the same `valid_from`, and the open version is given the LOWEST id, which is an order
+    `uuid7()` can genuinely produce. Under the old ordering the head is then always a
+    superseded row; under the fix it is always the open one.
+    """
+    from sqlalchemy import update
+
+    from app.modules.customers.models import CustomerCreditPolicy
+
+    svc = CreditPolicyService(db)
+    for limit in (100000, 200000, 300000):
+        svc.set_policy(
+            customer.id,
+            CreditPolicySet(credit_limit_minor=limit, reason=f"Step {limit}"),
+            actor_id=None,
+        )
+
+    versions = list(
+        db.scalars(
+            select(CustomerCreditPolicy).where(
+                CustomerCreditPolicy.customer_id == customer.id
+            )
+        )
+    )
+    assert len(versions) >= 3, "fewer versions than expected — the tie is not being forced"
+    open_rows = [row for row in versions if row.valid_to is None]
+    assert len(open_rows) == 1, "more than one open version — the head is ambiguous either way"
+
+    collide = versions[0].valid_from
+    for row in versions:
+        row.valid_from = collide
+        if row.valid_to is not None:
+            row.valid_to = collide
+    db.flush()
+
+    # Nothing references a credit-policy version (`references.py` declares it empty), so
+    # re-keying the open row is safe. `UUID(int=1)` sorts below every uuid7.
+    lowest = uuid.UUID(int=1)
+    db.execute(
+        update(CustomerCreditPolicy)
+        .where(CustomerCreditPolicy.id == open_rows[0].id)
+        .values(id=lowest)
+    )
+    db.expire_all()
+
+    head = svc.history(customer.id)[0]
+    assert head.id == lowest, "the history head is not the open version"
+    assert head.credit_limit_minor == 300000, (
+        "with identical timestamps and the open row holding the lowest id, the history head "
+        "was a superseded version — the ordering is deciding on the id"
+    )
+    assert svc.current(customer.id).credit_limit_minor == 300000
+
+
 def test_r8_3_a_terms_change_without_a_reason_is_refused(db, customer):
     with pytest.raises(ValidationError, match="needs a reason"):
         CreditPolicyService(db).set_policy(
