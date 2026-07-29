@@ -18,13 +18,35 @@ from app.modules.sales.fast_entry import FastEntryService
 
 @pytest.fixture()
 def customer_with_history(db):
-    """A customer the seed has already given an order. READ-ONLY uses only."""
+    """A customer the seed has given an order **and** the picker actually renders.
+
+    READ-ONLY uses only.
+
+    Both halves matter, and the second was missing. `customers_with_history()` returns a
+    **set**, so `next(iter(...))` picked by UUID hash — arbitrarily, and differently every
+    session, because the ids are regenerated along with the throwaway DB. The `/sales/new`
+    picker renders only the first `PICKER_PAGE_SIZE` customers and the seed has more than
+    that, so whenever the arbitrary pick fell outside that page the customer had no
+    `<option>` and the repeat test failed on its preselect assertion. Both R9.12 tests
+    failed together, roughly one session in three, on an unchanged tree.
+
+    Chosen from the rendered page in query order instead: inside the picker by construction,
+    and the same customer every time for a given database.
+    """
     from app.modules.customers.models import Customer
+    from app.modules.customers.service import CustomerService
+    from app.web.pages.sales import PICKER_PAGE_SIZE
 
     repeatable = FastEntryService(db).customers_with_history()
     assert repeatable, "the seed has no customer with an order"
-    customer_id = next(iter(repeatable))
-    return db.get(Customer, customer_id)
+
+    shown, _ = CustomerService(db).list(search=None, page=1, page_size=PICKER_PAGE_SIZE)
+    candidates = [c.id for c in shown if c.id in repeatable]
+    assert candidates, (
+        "no customer with an order appears on the picker's first page, so the repeat action "
+        "cannot be exercised through the form at all"
+    )
+    return db.get(Customer, candidates[0])
 
 
 @pytest.fixture()
@@ -284,9 +306,28 @@ def test_r9_12_repeatable_customers_are_marked_in_the_one_picker(client, db):
     assert 'formmethod="get"' in html
     assert 'formaction="/sales/new"' in html
 
+    # The marker is only ever rendered for a customer the picker actually shows, and the page
+    # caps that list at PICKER_PAGE_SIZE. `customers_with_history()` is unbounded, so
+    # comparing the two directly was a coin flip: the seed has 250+ bulk customers, and
+    # whether every order-holder happens to fall inside the first page shifts as other tests
+    # commit customers. That made this assertion fail intermittently on an unchanged tree.
+    #
+    # The claim worth testing is "every repeatable customer the picker SHOWS is marked", so
+    # that is what is asserted — against the same list the page builds, plus the one ↺ in the
+    # legend beneath it.
+    from app.modules.customers.service import CustomerService
+    from app.web.pages.sales import PICKER_PAGE_SIZE
+
     repeatable = FastEntryService(db).customers_with_history()
-    assert repeatable
-    assert html.count("↺") >= len(repeatable), "repeatable customers are not marked"
+    assert repeatable, "no customer has an order to repeat"
+
+    shown, _ = CustomerService(db).list(search=None, page=1, page_size=PICKER_PAGE_SIZE)
+    marked = {c.id for c in shown} & repeatable
+    assert marked, "the picker's first page contains no repeatable customer"
+    assert html.count("↺") == len(marked) + 1, (
+        f"{html.count('↺')} markers for {len(marked)} shown repeatable customers "
+        "(+1 for the legend)"
+    )
 
 
 def test_r9_12_an_order_can_be_created_through_the_typed_grid(client, db, spare_customer):

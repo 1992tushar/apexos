@@ -23,6 +23,17 @@ router = APIRouter()
 
 STATUSES = ["draft", "confirmed", "fulfilled", "invoiced"]
 
+#: How many customers the fast-entry picker renders. **It is a cap, and the seed already has
+#: more customers than this**, so a founder with a long list cannot select everyone from this
+#: screen — including some with repeat history, whose ↺ marker therefore never appears.
+#:
+#: Named rather than left inline because a test needs the same number: comparing the marker
+#: count against the *unbounded* `customers_with_history()` made that test fail intermittently
+#: on an unchanged tree, since which customers land on the first page shifts as rows are added.
+#: Recorded as debt in `docs/CODEBASE-MAP.md` — the real fix is putting this picker on Part 2's
+#: list machinery with a search, which is a Part 11 job, not a bigger number here.
+PICKER_PAGE_SIZE = 200
+
 
 @router.get("/sales")
 def list_sales(request: Request, status: str | None = None, db: Session = Depends(get_db)):
@@ -50,7 +61,7 @@ def new_sale(
     reorder-from-last-order path. It is a GET so the founder can see and adjust what they are
     about to order rather than having an order created behind their back.
     """
-    customers, _ = CustomerService(db).list(search=None, page=1, page_size=200)
+    customers, _ = CustomerService(db).list(search=None, page=1, page_size=PICKER_PAGE_SIZE)
     products, _ = ProductService(db).list(
         search=None, category_id=None, page=1, page_size=300
     )
