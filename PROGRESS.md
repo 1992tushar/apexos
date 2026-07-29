@@ -138,6 +138,41 @@ Use pytest -q, never verbose. Don't re-read files you just edited.
 **If a session has drifted** and you want a hard reset on scope, paste the whole ```-fenced PROMPT
 from `docs/prompts/part-08.md` instead. More deterministic, more typing.
 
+#### ▶ C1's reconnaissance is already done — findings, so you do not repeat the reading
+
+**Baseline re-verified 2026-07-29 at `e695bab`: 623 passed, ruff exactly 37.** Tree clean.
+
+1. **There is a SECOND receivable in the tree, and it is wrong.** `app/modules/reports/service.py`
+   already ships `ar-aging` and `ap-aging` in its `REPORTS` catalogue. Neither **ages** anything —
+   no due date, no buckets, just outstanding per party — and `_ar_aging` **does not subtract credit
+   notes**, so it has disagreed with `CustomerRepository.outstanding_minor` since Part 7 added them.
+   This is the exact defect R10.x exists to prevent, already present. **C1 should make those two
+   report builders delegate to the new ageing service** rather than leave two definitions standing.
+2. **`ReportService.to_csv` is a SECOND CSV writer** beside `app/web/listing.py`'s `csv_text`. Do
+   not add a third. `csv_text(spec, rows)` takes a `ListSpec` only for its columns, so a projection
+   can be exported through it without `query_page` ever running.
+3. **`due_date` is nullable but never NULL in practice** — `SalesOrderService.invoice` sets it to
+   `order_date + payment_terms_days` (0 when the customer has no policy), and `PurchaseOrderService`
+   does the same for bills. Decide what a NULL means, state it on screen, and test it.
+4. **The seed has ONE invoice, ONE bill (both part-paid) and ONE credit note.** That cannot exercise
+   an ageing screen (G14), so C1 owes `app/seed/finance.py` with documents spread across the buckets
+   plus the exactly-on-due-date boundary. **Seed invoices DIRECTLY** (`sales_order_id` is nullable) —
+   going through the sell loop needs stock and reservations and risks leaving an OPEN document on a
+   customer that Part 1/3 tests assert is quiet.
+5. **R10.3's drill-through has a gap**: credit notes render only on the customer page and payments
+   have no page at all. Fix it where the answer lives — add an "applied to this invoice" section to
+   `finance/invoice.html` (and `bill.html`), then every ledger line has somewhere real to land.
+6. **`CreditNote` carries `invoice_id`**, so a per-invoice open balance is exact:
+   `total − Σ allocations − Σ credit notes`. Three grouped queries, not a `select()` per invoice.
+   **Do not change `outstanding_minor`** — 623 tests rest on it. Add the per-invoice sibling and pin
+   the two together with a test that sums one to the other, including a rolled-back cancelled-invoice
+   case (the current seed cannot tell the two definitions apart, which is how a no-op filter once
+   passed an "identical output" test).
+7. **`AGE_BUCKETS` in `app/modules/inventory/schemas.py`** is the house pattern to match: module
+   constant, `(key, label, inclusive_upper_bound)`, printed on screen, every edge pinned by a test.
+8. A new plain GET route is picked up automatically by `test_web_smoke.py`'s route walk and **must
+   200 with no query parameters** — so a ledger page with no party selected needs a real empty state.
+
 ---
 
 ## ▶ Handoff — Parts 5, 6 and 7 are COMPLETE · the E2E gate is CLEAN
