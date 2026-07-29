@@ -28,6 +28,8 @@
 | Apply money to documents | `app/modules/finance/allocation.py` — `AllocationService`, oldest due first, surplus refused | Editing an invoice. Money applied is a new `PaymentAllocation` row (G4) |
 | Ask "will we be short of cash" | `app/modules/finance/cash.py` — `CashFlowService`. Flows take `date_from`/`date_to`, balances take `as_of` (R11.13) | Accruing anything into "actual" — cash is payments only, there is no bank ledger |
 | Compute a cost of goods | `cash.py:_cogs` — `Σ line_subtotal − Σ MarginService.gp` | A second cost basis. It would put margin *and* DIO out of step |
+| Report margin, or where it leaks | `app/modules/finance/margin.py` — `MarginAnalysisService.by_dimension` (product/customer/category/business_unit) and `.leakage` | Trusting `MarginService.gp` on a product with no purchase price — it reports **100% margin**. Check `purchase_prices_by_product()` first |
+| Report GST | `app/modules/finance/gst.py` — `GstService.summary(*, date_from, date_to)`, by month | Anything that files, submits or reconciles against a portal (R11.10) |
 | Block deleting/deactivating something in use | `app/db/references.py` — `REFERENCES` is the policy | Writing a count query in a service; that is what this replaced |
 | Delete something | `app/db/soft_delete.py` (its docstring is the contract) | Per-module delete code — there isn't any, by design |
 | Prevent duplicates | `app/db/duplicates.py` — `NATURAL_KEYS` is the config | — |
@@ -285,12 +287,28 @@ The first bound is `0`, which is R10.6's whole point — **an invoice due today 
 `due_date` is aged from the invoice date and the screen says so, because zero-day terms already
 produce exactly that due date.
 
-**Two habits this module established, worth copying.** `_days()` in `cash.py` is the only division in
-it: one explicit rounding step, with its reasoning written down, returning `None` rather than a
-flattering `0` when the denominator is empty. And `_thin_window_caveat()` marks any day count longer
-than the window it was measured over — DIO lands near 10,000 days on the seeded data, which is
-arithmetically right and useless as a precise figure, so the screen says it is a direction rather than
-a measurement instead of quietly looking authoritative.
+- **`margin.py`** (Part 8 C3) — `MarginAnalysisService`. `by_dimension` is **one** projection
+  parameterised by `MARGIN_DIMENSIONS`, not four near-copies; the only thing that varies is which key
+  a line is filed under. Cost is `MarginService.gp` (R11.6) and revenue is the **tax-exclusive**
+  subtotal, because GST is collected for the government rather than earned. **The trap:** `gp` reads
+  a missing purchase price as zero and therefore reports a 100% margin, so every line is checked
+  against `purchase_prices_by_product()` and an unpriced one is *counted and excluded*, never
+  averaged in. `leakage` builds only indicators that can produce clickable records — freight has no
+  field anywhere in the schema, so it is named under `not_measured` rather than shipped empty
+  (R11.8), and the indicators are deliberately never summed into one figure because they measure
+  different quantities about overlapping lines.
+- **`gst.py`** (Part 8 C3) — `GstService.summary`, by calendar **month**, because that is the period
+  GST is paid for. `ReportService._gst_summary` delegates to it; it used to return one lump for the
+  whole window, which no monthly return can be reconciled against.
+
+**Three habits this area established, worth copying.** `_days()` in `cash.py` and `_bps()` in
+`margin.py` are each the only division in their module: one explicit rounding step with its reasoning
+written down, returning `None` rather than a flattering `0` when the denominator is empty — and
+neither goes through `round_minor`, which is the one *money* rounding step. `_thin_window_caveat()`
+marks any day count longer than the window it was measured over, because DIO lands near 10,000 days
+on the seeded data — arithmetically right, useless as a precise figure — so the screen calls it a
+direction rather than looking authoritative. And when two figures measure different things, they are
+shown separately with a sentence saying why, never added.
 
 ### `app/modules/sales/fast_entry.py` — what makes order entry quick (Part 7 C2c)
 

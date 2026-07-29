@@ -1,42 +1,42 @@
 # ApexOS — Build Progress
 
 > The source of truth for status. **This file is capped at ~350 lines and does not grow.**
-> Closed parts live in `docs/parts/`. A new part's handoff **replaces** the previous one here — never appends.
+> Closed parts live in `docs/parts/`. A new part's handoff **replaces** the previous one here.
 
 _Last updated: 2026-07-29_
 
 ### What belongs in this file
 
-Exactly one `▶ NEXT SESSION PROMPT` and exactly one `▶ Handoff`, both rewritten — never appended to —
-by the session that closes a checkpoint. Anything else belongs in `docs/parts/`.
+Exactly one `▶ NEXT SESSION PROMPT` and exactly one `▶ Handoff`, both rewritten — never appended
+to — by the session that closes a checkpoint. Anything else belongs in `docs/parts/`.
 
 **This is a hard cap, not a preference.** At Part 3 close this file was **1,212 lines / 90KB ≈ 22k
 tokens, re-read at the start of every remaining session**, growing ~300 lines per part — the single
-largest avoidable cost in the build. What keeps it down is **archiving progressively**: each finished
-checkpoint's record moves to `docs/parts/part-0N.md` as it closes, and the signature block carries
-what the NEXT checkpoint needs rather than everything ever built.
-
-Where everything else lives is in `CLAUDE.md`.
+largest avoidable cost in the build. What keeps it down: each finished checkpoint's record moves to
+`docs/parts/part-0N.md` as it closes, and the signature block carries what the NEXT part needs
+rather than everything ever built. Where everything else lives is in `CLAUDE.md`.
 
 ---
 
 # ▶ CURRENT WORK — read this first
 
-**Parts 1–7 are COMPLETE and the cross-part E2E gate is CLEAN** (44 checks; record in
-`docs/parts/e2e-gate.md`). **Part 8 C1 and C2 are DONE.** The build continues at **Part 8 C3 —
-margin by four dimensions, leakage indicators, GST — which CLOSES Part 8**.
+**Parts 1–8 are COMPLETE.** The build continues at **Part 9 — the Founder Command Center**, two
+checkpoints. **All work is on `main`**; nothing in this run is tagged (the user waived it), so the
+SHA table is the record.
 
-**All work is on `main`** — no feature branches, no PRs. **Nothing in this run is tagged** (the user
-waived it), so this SHA table is what `part-0N-done` would otherwise be.
-
-| Checkpoint | From | Commit | Tests | Ruff |
+| Part 8 checkpoint | From | Commit | Tests | Ruff |
 |---|---|---|---|---|
-| **P8-C1** ledgers · AR/AP ageing · collections · allocation | `3aede6e` | **`ec8a573`** | 623 → **688** | 37 → **37** |
-| **P8-C2** cash flow · working capital · CCC | `ec8a573` | **`30b3cc1`** | 688 → **721** | 37 → **37** |
-| **P8-C3** margin ×4 · leakage · GST — closes Part 8 | `30b3cc1` | — | — | — |
+| **C1** ledgers · AR/AP ageing · collections · allocation | `3aede6e` | `ec8a573` | 623 → 688 | 37 → 37 |
+| **C2** cash flow · working capital · CCC | `ec8a573` | `30b3cc1` | 688 → 721 | 37 → 37 |
+| **C3** margin ×4 · leakage · GST | `30b3cc1` | `0ce6931` | 721 → **757** | 37 → **35** |
 
-**C1's and C2's full records are in `docs/parts/part-08.md`. Do not read them** — everything C3
-needs is below.
+**One requirement is outstanding: R11.7 is PARTIALLY MET.** Its "freight not recovered" indicator
+cannot be built — there is **no freight, shipping, carriage or delivery-charge field anywhere in the
+schema**, so nothing can be computed and R11.8 forbids shipping an indicator with nothing to click.
+It is named on screen under *Not measured*. Closing it needs a **product decision**: capture freight
+on the document (a small part of its own), or strike the indicator from R11.7 with a reason, per the
+register's own rule that a dropped requirement is struck through and never deleted. **Put to the
+user at C3 close; Part 8 is otherwise done.** Full reasoning in `docs/parts/part-08.md`.
 
 ### ▶ How to start the next session
 
@@ -44,349 +44,289 @@ Type **`Start next part of development`** in a fresh session; `CLAUDE.md` binds 
 prompt below. **The session that closes a checkpoint owns it** — one still naming the previous
 baseline is worse than none, because the next session will trust it.
 
-#### ▶ NEXT SESSION PROMPT — Part 8, C3 (margin ×4, leakage, GST) · CLOSES PART 8
+#### ▶ NEXT SESSION PROMPT — Part 9, C1 (Command Center: tiles, alerts, activity, quick actions)
 
 ```
 Continue the ApexOS build. Do this in order:
 
 1. git checkout main && git pull origin main, then git status — one writer per working tree;
-   if it is dirty, STOP and report. Nothing in this run is tagged (waived), so the SHA table
-   in the CURRENT WORK block is the record and keeping it accurate replaces the tag.
+   if it is dirty, STOP and report. Nothing is tagged (waived), so the SHA table in the
+   CURRENT WORK block is the record and keeping it accurate replaces the tag.
 
-2. Read the "▶ CURRENT WORK" block below — PARTS 1–7 COMPLETE, E2E gate clean, PART 8 C1 AND
-   C2 DONE. It carries their decisions, the invariants C3 must not break, and verified
-   signatures to CALL without opening the source. Its "Do NOT read" list is binding.
+2. Read the "▶ CURRENT WORK" block below — PARTS 1–8 COMPLETE, with R11.7 partially met and a
+   decision pending (that is finance's problem, not Part 9's). The block carries what Part 8
+   settled, and verified signatures to CALL without opening the source. Its "Do NOT read"
+   list is binding.
 
-3. Read docs/REQUIREMENTS.md §1 (G1–G17) + §12 (R11.x) — §11 is C1's and is CLOSED. Then
-   docs/prompts/part-08.md, docs/STANDING-RULES.md (binding), docs/08-module-breakdown.md
-   § Finance. Do NOT open docs/ROADMAP.md (planning only, ~17k tokens). C3 owns R11.5–R11.10
-   and R11.14 and inherits R11.11–R11.13's rules; C1+C2 passed R11.1–R11.4, R11.11–R11.13 and
-   half of R11.14. `git show --stat 30b3cc1` for C2's shape — not a tree walk.
+3. Read docs/REQUIREMENTS.md §1 (G1–G17) + §13 (R12.x). §11 and §12 are Part 8's and CLOSED.
+   Then docs/prompts/part-09.md, docs/STANDING-RULES.md (binding), and
+   docs/08-module-breakdown.md § Dashboard. Do NOT open docs/ROADMAP.md (~17k tokens).
+   `git show --stat 0ce6931` for C3's shape — not a tree walk.
 
 4. Verify the baseline before writing code (from apps/api, venv activated):
-     python -m pytest -q                  # expect 721 passed
-     python -m ruff check app/ tests/     # expect EXACTLY 37 — 38 is a regression
-   If either is off, STOP and report. All 37 are pre-existing (E501/F841/B007 in modules this
-   run never touched); tests/ contributes zero. EIGHT PARTS HAVE ADDED ZERO NEW FINDINGS.
-   NOTE: if a single unrelated test fails and passes on re-run, do not shrug — C2 found a real
-   uuid7 ordering defect exactly that way. Diagnose it, then continue or stop.
+     python -m pytest -q                  # expect 757 passed
+     python -m ruff check app/ tests/     # expect EXACTLY 35 — 36 is a regression
+   NOTE 35, not 37: C3 rewrote `_gst_summary` and dropped two over-long lines. All 35 are
+   pre-existing (E501/F841/B007 in modules this run never touched); tests/ contributes zero.
+   NINE PARTS HAVE ADDED ZERO NEW FINDINGS. If a single unrelated test fails and passes on
+   re-run, do NOT shrug — C2 found a real uuid7 ordering defect exactly that way.
 
-5. C3 closes Part 8: margin by four dimensions, leakage indicators, and a GST summary.
-   Four things decide whether this checkpoint is any good:
+5. C1 is the Command Center itself: R12.1–R12.11. C2 is the measurement, the empty state and
+   deleting the placeholder. Five things decide whether this checkpoint is any good:
 
-   **MARGIN IS `MarginService.gp` AND NOTHING ELSE (R11.6).** `MarginService(db).gp(line)` is
-   selling − the purchase price, × qty, in minor units — NOT an inventory valuation layer.
-   D-A removed FIFO and margin never needed it. Part 5 left a source walk asserting
-   `pricing/service.py` does not read the cost basis; keep it true in the other direction.
-   C2 already consumes `gp` for COGS (`cash.py:_cogs` is `subtotal − gp`), so a second cost
-   derivation would now disagree with DIO as well as with margin.
-   NOTE the honest wart: `gp` uses the product's CURRENT buy price, not the price at the time
-   of sale. R11.6 says reuse it, so reuse it — and SAY SO on screen as C2's DIO panel does.
+   **PART 9 COMPUTES ALMOST NOTHING (R12.10).** It is a read-only projection that CONSUMES
+   Part 8's finance projections, Part 5's inventory health and Part 4's vendor intelligence.
+   Every signature you need is in "Call, don't read" below, with explicit period parameters
+   because R11.13 exists for exactly this. **If a number you want is not exposed, add it in
+   THAT part and read it here** — a figure computed in the dashboard is a second definition,
+   and Part 8 spent three checkpoints removing those.
 
-   **MARGIN ACROSS FOUR DIMENSIONS (R11.5): product, customer, category, business unit.**
-   One projection parameterised by dimension, not four near-copies. A test per dimension.
+   **THE PAGE ANSWERS THREE QUESTIONS IN ORDER (R12.1):** what happened · what needs
+   attention · what should I do now. That ordering is the requirement, not a layout
+   preference. R12.2 fixes the first (today's revenue, today's gross margin, collections
+   today), R12.3 the second (a long list — read it), R12.6 the fourth-most-frequent four
+   actions: new order, new PO, record payment, receive stock.
 
-   **EVERY LEAKAGE INDICATOR LISTS ITS OFFENDING RECORDS (R11.8).** An indicator with nothing
-   to click MUST be REMOVED, not shipped empty — that is the requirement, not a suggestion.
-   Each needs a test that it FIRES on a seeded offender and stays SILENT otherwise, so the
-   seed owes one deliberate offender per indicator (G14). **This session checked what R11.7's
-   three indicators can actually be computed from; two can, one cannot:**
-     - Sold below purchase price — YES. `MarginService.gp(line) < 0` on an invoice line.
-     - Discount creep — YES, but it must be DERIVED: there is **no discount column anywhere**.
-       The baseline is the list price, i.e. the `selling_price` row with `customer_id IS NULL
-       AND customer_type_id IS NULL` (`PricingService.resolve_selling_minor` resolves
-       customer → segment → list). Creep = line `unit_price_minor` below that list price.
-       A product with NO list-price row has an UNKNOWN discount, not a 0% one.
-     - Freight not recovered — **NO. There is no freight, shipping, carriage or delivery-charge
-       field in the schema at all** (grepped `app/` for all four). Nothing can be computed, so
-       per R11.8 do NOT ship it empty and do NOT invent a column for it — adding a freight
-       charge to the document model is a product decision, not a C3 task (G17). Record the gap
-       in PROGRESS.md, note R11.7 as partially met with the reason, and ASK THE USER whether
-       they want freight captured before Part 8 is called closed.
+   **EVERY ALERT STATES TRIGGER, THRESHOLD AND RECORDS, AND LINKS TO THEM (R12.8). An alert
+   with nothing to click MUST BE REMOVED.** This is the same rule R11.8 applied to leakage,
+   and C3 is the worked example: two indicators were built, the third was named as a
+   *stated gap* rather than shipped empty. Use `Explained` + `explain_panel` — G11 has
+   exactly ONE implementation and R13.1 had this unification scheduled for Part 10, where it
+   will simply be recorded as already done. A boundary test per alert.
 
-   **GST IS A REPORT, NOT A FILING ENGINE (R11.9/R11.10).** Output tax, input tax, net
-   position, BY PERIOD. `ReportService._gst_summary` already exists and already windows by
-   date — read it before writing anything, and prefer extending/delegating over a second one
-   (the same trap C1 found in `_ar_aging`, which had its own arithmetic and was wrong).
-   NO return-filing workflow. Nothing that submits anything anywhere.
+   **EVERY NUMBER DRILLS THROUGH (R12.7).** Click every tile. C1 of Part 8 shipped a href
+   that was built and never rendered, and only driving the real app found it — so build the
+   figure and render its link in the same pass.
+
+   **NO DECORATIVE CHARTS, NO DONUTS, NO GRADIENT HERO TILES, NO VANITY METRICS (R12.9).**
+   A tile that does not change a decision must be deleted. `test_finance_margin.py` has a
+   test asserting no <svg>/<canvas>/chart.js reaches the page; copy it.
 
 6. Constraints that bind:
-     - G1/R11.12: money is integer minor units through `app.core.money.round_minor` only.
-       A MARGIN PERCENTAGE IS A RATIO — round it once, state where, and never let a float
-       round-trip back into a money figure. C2's `cash.py:_days` is the worked example of
-       one explicit rounding step with its reasoning written down.
-     - G7: derived, never stored. No cached margin column.
-     - G11: margin percentages and leakage indicators are computed numbers, so each explains
-       itself through `Explained` + the `explain_panel` macro. Insufficient data is
-       `Explained.unknown(...)` — never 0%. A product with no purchase price recorded has
-       UNKNOWN margin, not 100%: that is the single most likely wrong number in this
-       checkpoint, and `ValuationService` already had to handle the same case.
-     - G15: these are projections and must write NO activity_log rows; assert it.
-     - G12: no ML, no runtime LLM call. G17: no chart of accounts, no journals, no
-       double-entry, no QuickBooks bridge (R10.14, cut by D-D).
-     - R11.14: part 2's macros, CSV export on every view, and NO DECORATIVE CHARTS — if a
-       chart does not change a decision, make it a table. Export via
-       `csv_rows_response(spec, rows)` (C1 extracted it for exactly this).
-     - Any new model owes app/db/references.py an entry, even an empty tuple (R3.7). C1 and
-       C2 each added NO new model and owed nothing; C3 should aim for the same.
-     - A new column on an EXISTING table needs an `_ADDITIVE_COLUMNS` entry in app/main.py.
+     - G15/R12.10: a read-only projection writes NO activity_log rows. Assert it.
+     - G7: derived, never stored. No cached tile values, no snapshot table.
+     - G1: money is integer minor units through `app.core.money.round_minor` only. A ratio
+       (a margin %, a rate) rounds ONCE, states where, and never round-trips a float into a
+       money figure. `margin.py:_bps` and `cash.py:_days` are the two worked examples.
+     - G11: every score, alert and rate explains itself; insufficient data is
+       `Explained.unknown(...)`, NEVER 0 or a flattering default. Part 8's hardest-won
+       instance: an unpriced product has UNKNOWN margin, not 100%.
+     - G10: any new POST carries the R1.4 authz guard — the authz walk enforces it
+       automatically, so a quick action that mutates will fail the walk if you forget.
+     - G12: no ML, no runtime LLM call. G17: nothing cut by D-A..D-D.
+     - A new plain GET route must 200 with NO query parameters — `test_web_smoke.py` walks
+       them blind. Every new screen needs a real empty state, and R12.15 asks for exactly
+       that on a FRESH DB, with no fake zeros-as-alerts.
+     - Any new model owes app/db/references.py an entry, even an empty tuple (R3.7). All
+       three Part 8 checkpoints added NO new model; Part 9 should need none either.
 
-7. Work on main. No branches, no PRs, NO TAGS. Commit at the END OF C3 and push. Personal
+7. Work on main. No branches, no PRs, NO TAGS. Commit at the END OF C1 and push. Personal
    credentials only (github.com/1992tushar/apexos).
 
-8. NAME EVERY NEW TEST AFTER THE REQUIREMENT IT PROVES — `pytest -q -k r11_` is the evidence
-   for Part 8 group B (29 tests today). MUTATION-CHECK the new suite once. Good mutations
-   here: make a leakage indicator fire with an empty record list, return 0% where the
-   purchase price is unknown, and swap one dimension's group-by key for another's.
+8. NAME EVERY NEW TEST AFTER THE REQUIREMENT IT PROVES — `pytest -q -k r12_` becomes the
+   evidence. MUTATION-CHECK the new suite once. Good mutations here: make an alert fire with
+   an empty record list, return 0 where a figure is unknown, and point one tile's
+   drill-through at the wrong list.
 
-   The one lesson to re-read before writing an assertion — it has now cost three sessions,
-   most recently C2: AN EQUALITY ASSERTION BETWEEN TWO CODE PATHS ONLY TESTS WHAT THE CURRENT
-   DATA DISTINGUISHES. C2 compared committed cash against a recomputation over a window wide
-   enough to contain every document, so the due-date filter was a no-op and the mutation
-   passed. Choose data that can tell the two apart, and ASSERT that it does. The rest are in
-   "Gotchas" below. Also: DRIVE THE REAL APP before calling it done — C1 and C2 each found a
-   defect that way which the tests were happy to miss.
+   R12.12/R12.13 are C2's but affect how you build C1: the query count for one page load
+   gets MEASURED and ASSERTED IN A TEST. Use a SQLAlchemy `before_cursor_execute` listener —
+   `tests/test_fast_entry.py` has a working example — because a source walk cannot tell a
+   call from a comment. So while building C1, prefer Part 8's GROUPED reads (the `*_by_*`
+   dicts) over per-row calls, or C2 will have a fan-out to unpick rather than a number to
+   report.
+
+   The lesson to re-read before writing an assertion — it has now cost four sessions, most
+   recently C3: AN EQUALITY ASSERTION BETWEEN TWO CODE PATHS ONLY TESTS WHAT THE CURRENT
+   DATA DISTINGUISHES. C3 swapped one margin dimension's group-by key for another's and
+   every test still passed, because the totals reconcile whatever the key. Choose data that
+   can tell the two apart, and ASSERT that it does. The rest are in "Gotchas" below.
+   DRIVE THE REAL APP before calling it done — that has found a defect in all three of
+   Part 8's checkpoints, each time something the tests were happy with.
 
 9. BEFORE you run low, update the "▶ CURRENT WORK" block: the SHA table, R-numbers passed
-    and outstanding, gotchas, decisions a later checkpoint must not reverse, and the four
-    delta lines — Changed since / Read for the next checkpoint / Call, don't read (copy
-    signatures FROM SOURCE) / Do NOT read. C3 CLOSES PART 8, so also write the Part 9
-    handoff: replace the "▶ Handoff — Parts 5, 6 and 7" section with Part 8's, and rewrite
-    this prompt for P9-C1 (tiles, alerts, activity, quick actions — R12.1–R12.11) with
-    MEASURED baselines. Archive C3's record to docs/parts/part-08.md (C1's and C2's are
-    already there — add a section; do not read theirs). Amend docs/CODEBASE-MAP.md if the
-    SHAPE changed. Commit and push.
-    PROGRESS.md IS CAPPED AT ~350 LINES — replace, never append.
+   and outstanding, gotchas, decisions a later checkpoint must not reverse, and the four
+   delta lines — Changed since / Read for the next checkpoint / Call, don't read (copy
+   signatures FROM SOURCE) / Do NOT read. Then rewrite this prompt for P9-C2 with MEASURED
+   baselines. Start docs/parts/part-09.md with C1's record. Amend docs/CODEBASE-MAP.md if
+   the SHAPE changed. Commit and push.
+   PROGRESS.md IS CAPPED AT ~350 LINES — replace, never append.
 
 Use pytest -q, never verbose. Don't re-read files you just edited.
 ```
 
-**If a session has drifted** and you want a hard reset on scope, paste the whole ```-fenced PROMPT
-from `docs/prompts/part-08.md` instead. More deterministic, more typing.
+#### ▶ What Part 8 settled that Part 9 must not reverse
 
-#### ▶ What C1 and C2 settled — decisions C3 must not reverse, and the traps they hit
-
-**Baseline measured at `30b3cc1`: 721 passed, ruff exactly 37.** Tree clean. `-k r10_` is 58 tests,
-`-k r11_` is 29.
+**Baseline measured at `0ce6931`: 757 passed, ruff 35.** `-k r10_` is 58, `-k r11_` is 62.
 
 1. **ONE receivable, ONE payable, and a bulk sibling of each** —
-   `CustomerRepository.outstanding_by_customer()` / `SupplierRepository.outstanding_by_supplier()`,
-   same terms and same filters as the single-party `outstanding_minor`. C2's DSO/DPO read these.
-   **Margin must not derive a fifth version of anything already defined.** (C1 also fixed
-   `InvoiceService.balance_minor` to `total − paid − credited`; do not reintroduce the two-term form.)
-2. **COGS is already defined, once: `cash.py:_cogs` is `Σ line_subtotal − Σ MarginService.gp`.**
-   C3's margin must agree with it, and the way to guarantee that is to use the same `gp`. A second
-   cost basis would now put margin *and* DIO out of step.
-3. **Delegate rather than duplicate — this part has already caught one instance.** Both ageing
-   reports in `ReportService` now call `AgeingService` because they had their own, wrong, arithmetic.
-   **`_gst_summary` is still the old hand-rolled kind**, so C3 should extend or delegate rather than
-   sit a second GST report beside it. `ReportService.to_csv` is already a second CSV writer — **do
-   not add a third**; `csv_rows_response(spec, rows)` covers projections.
-4. **Flows take `date_from`/`date_to`; balances take `as_of`** (R11.13). Keep that split — a window
-   on a balance looks rigorous and means nothing.
-5. **A ratio with a thin denominator says so.** DIO is ~10,000 days on the seed: correct, and useless
-   as a precise figure, so `_thin_window_caveat` marks any component longer than its own window and
-   the cycle inherits it. **A margin percentage computed off one sale has the same problem — treat it
-   the same way rather than shipping a confident number.**
-6. **`Explained.unknown` is the answer for a missing input, never 0.** A product with no recorded
-   purchase price has UNKNOWN margin, not 100% — the single most likely wrong number in C3.
-   `StockValueRow.value_minor` is None in exactly that case, and C2's snapshot counts and reports
-   those products rather than skipping them.
-7. **The seed's finance section is `app/seed/finance.py`** — 8 invoices, 3 bills, placed by offset
-   from the report date. Invoices are written DIRECTLY (`sales_order_id` is nullable) because the
-   sell loop needs stock and reservations and would leave OPEN sales orders on customers other tests
-   assert are quiet; subjects come from `_CUSTOMER_OFFSET = 5` in code order for the same reason.
-   **C3's leakage offenders belong in that module, on that kind of subject.**
-8. **A new plain GET route is picked up automatically by `test_web_smoke.py`'s route walk and must
-   200 with NO query parameters** — so every new screen needs a real empty state. A bad
-   `?as_of=`/`?date_from=` degrades to a default rather than raising, and a reversed window is
-   repaired rather than rendered empty.
-9. **Build the figure and RENDER it in the same pass.** C1 shipped `CollectionsEntry.ledger_href` and
-   never put it on the page; only driving the real app found it. A field nothing renders is dead
-   weight the tests will happily pass.
+   `CustomerRepository.outstanding_by_customer()` / `SupplierRepository.outstanding_by_supplier()`.
+   The receivables and payables tiles must CALL these. Part 8 removed three second definitions
+   (`_ar_aging`, `_ap_aging`, `InvoiceService.balance_minor`); do not add a fourth.
+2. **`MarginService.gp` reads a missing purchase price as ZERO**, i.e. reports a **100% margin**.
+   `margin.py` excludes and counts those lines. **Part 7's `CustomerHealthService.profitability`
+   has the same blind spot** — known, recorded, not silently changed. R12.2's "today's gross
+   margin" must go through `MarginAnalysisService`, which handles it.
+3. **Flows take `date_from`/`date_to`; balances take `as_of`** (R11.13). That split is what lets
+   Part 9 ask for "today" without recomputing anything.
+4. **A ratio with a thin denominator says so.** DIO is ~10,000 days on the seed — correct and
+   useless as a precise figure — so `_thin_window_caveat` marks any day count longer than its own
+   window. **"Today's margin" off one invoice has the same problem**; treat it the same way.
+5. **`Explained.unknown` is the answer for a missing input, never 0.**
+6. **Leakage/alert totals that measure different things are NOT added together.** C3 removed a
+   tile that summed a loss and a give-away into one figure reading as a loss nobody made.
+7. **An indicator or alert that can never produce a clickable record is NOT built** (R11.8/R12.8).
+   Name the gap instead — C3's freight note is the pattern.
+8. **The seed's finance section is `app/seed/finance.py`**: 9 invoices (spread across every ageing
+   bucket, plus due-today, no-due-date and settled-in-full), 3 bills, and three deliberate leakage
+   offenders including a product listed but never purchased. Invoices are written DIRECTLY
+   (`sales_order_id` is nullable) because the sell loop needs stock and reservations and would
+   leave OPEN sales orders on customers other tests assert are quiet; subjects come from the
+   middle and end of the code order for the same reason.
 
 ---
 
-## ▶ Handoff — Parts 5, 6 and 7 are COMPLETE · the E2E gate is CLEAN
+## ▶ Handoff — PART 8 IS COMPLETE (R11.7 partially met, decision pending)
 
-**Not tagged** — waived for this run. Full records in `docs/parts/part-05.md`, `part-06.md`,
-`part-07.md` and `e2e-gate.md`; **do not read them.** Part 5 `437a185` `b442322` `eaee67b` `4667a5e`
-(inventory) · Part 6 `a8c9bde` (customer depth) · Part 7 `eeae971` `27d1c49` `761e9aa` `2b98c4a`
-(quotation, returns, health score, fast entry).
+Full records in `docs/parts/part-08.md`; **do not read it.** Parts 1–7 in `part-01.md`…`part-07.md`
+and `e2e-gate.md`; do not read those either. The Parts 5–7 E2E gate passed 44 checks but over
+**HTTP, not clicked in a browser** — so layout and whether the screens *feel* fast are uncovered,
+and **R9.12's manual walkthrough remains a human task.**
 
-**The E2E gate passed 44 checks**, but over **HTTP, not clicked in a browser** — so layout and whether
-the screens *feel* fast are not covered, and **R9.12's manual walkthrough remains a human task.**
+Part 8 delivered operational finance in three checkpoints: party statements and AR/AP ageing with a
+collections list and multi-document payment allocation (C1); cash flow, working capital and the cash
+conversion cycle (C2); margin across four dimensions, leakage indicators and a GST summary by period
+(C3). **No new table and no new column in any of the three** — every figure is derived from the
+append-only ledgers at read time (G7/R10.10), and none of the projections writes an `activity_log`
+row (G15).
 
-### Three older invariants still load-bearing for C3
+**What Part 8 actually fixed, beyond building screens.** Three places already disagreed about money
+and now do not: `ReportService._ar_aging` never subtracted credit notes (so it had disagreed with the
+receivable since Part 7 shipped returns) and aged nothing despite its name; `_ap_aging` the same;
+`InvoiceService.balance_minor` was `total − paid`, so an invoice reduced by a return showed a balance
+the customer did not owe **and `add_payment` would have collected it**. C2 also found a real uuid7
+ordering defect in Part 6's `CreditPolicyService.history` via an intermittently red baseline.
 
-1. **`InventoryService.record_movement` is the ONLY writer of `stock_movement`** (G8), enforced by a
-   source walk that fails if anything else constructs one. Read valuation, never the raw table.
-2. **G11 has exactly one implementation**: `Explained` + the `explain_panel` macro. Margin and the
-   leakage indicators are new *outputs*, not new shapes. **R13.1 had this unification scheduled for
-   Part 10; it is already done, and P10-C1 should record that rather than rebuild it.**
-3. **Two versioning idioms exist and that is the limit** — Part 3/7's append-only revision rows
-   (`revision_no`) and Part 6's period rows (`valid_from`/`valid_to`). Do not invent a third.
+### Read for P9-C1 — these and nothing else
 
-### Read for C3 — these and nothing else
+- `docs/REQUIREMENTS.md` §1 + **§13 (R12.x)**. §11/§12 are Part 8's and closed.
+- `docs/prompts/part-09.md` · `docs/STANDING-RULES.md` (binding) · `docs/08-module-breakdown.md`
+  § Dashboard · `docs/CODEBASE-MAP.md`'s **Finance** section for what Part 8 exposes.
+- **The likely edit set:** `app/web/pages/dashboard.py` (replaced) · a new
+  `app/modules/dashboard/service.py` **or**, better, a thin `app/web/pages/command_center.py` that
+  calls the existing services · `app/web/templates/dashboard/index.html` ·
+  `tests/test_command_center.py`.
+- **R12.11's deletion set, named so C2 does not have to find it:** `app/web/pages/dashboard.py`
+  (22 lines), `app/modules/dashboard/` (`repository.py` 58, `router.py` 16, `schemas.py` 38,
+  `service.py` 89) and `app/web/templates/dashboard/`. The JSON route `/dashboard/summary` has **no
+  test referencing it**, so it can go with the rest. Two dashboards must not remain.
 
-- `docs/REQUIREMENTS.md` §1 (invariants) + **§12 (R11.x)**. §11 is C1's and is closed.
-- `docs/prompts/part-08.md` · `docs/STANDING-RULES.md` (binding) · `docs/08-module-breakdown.md`
-  § Finance · `docs/CODEBASE-MAP.md`'s **Finance** section (~30 lines) for C1/C2's shape.
-- **The likely edit set for C3:** a new `app/modules/finance/margin.py` (margin ×4 + leakage — the
-  precedent is one module per question asked) · `app/modules/finance/schemas.py` ·
-  `app/modules/reports/service.py` (`_gst_summary`) · `app/web/pages/finance.py` + templates ·
-  `app/seed/finance.py` (the leakage offenders) · `tests/test_finance_margin.py`.
-- **Read `app/modules/pricing/service.py` in full** — it is ~150 lines and holds both
-  `PricingService` and `MarginService`, and R11.6 turns entirely on what `gp` actually does.
-- **Do not rebuild what C1 and C2 built.** `finance/{ledger,ageing,allocation,cash}.py` are
-  finished; their signatures are below. `finance/models.py` needs no new model for C3.
-
-### Call, don't read — verified signatures, copied from source at P8-C2 close
+### Call, don't read — verified signatures, copied from source at P8-C3 close
 
 ```python
-# app/core/money.py — G1. Integer minor units end to end.
-round_minor(value: Decimal) -> int      # THE one rounding step. No second one.
-qty_text(value: Decimal) -> str         # "40", not "40.0000". Service messages only.
-minor_to_text(minor: int | None) -> str # 123456 -> "1234.56"
+# app/core/money.py — G1
+round_minor(value: Decimal) -> int   # THE one money rounding step
+minor_to_text(minor) -> str          # 123456 -> "1234.56" · qty_text(Decimal) -> "40"
 
 # app/db/explain.py — the ONE shape for every explained number (G11)
 Explained(what, value: str | None, formula, window, inputs=(), records=(),
-          unknown_reason=None, caveat=None)   # .is_known · .display -> value or "unknown"
+          unknown_reason=None, caveat=None)      # .is_known · .display
 Explained.unknown(*, what, formula, reason, window="no data", inputs=(), records=())
-Input(label, value, weight=None, missing_reason=None)   # .is_missing
-SourceRecord(label, href=None)
+Input(label, value, weight=None, missing_reason=None) · SourceRecord(label, href=None)
 # Rendered by ONE macro:  {{ ui.explain_panel(explained, "Optional title") }}
 
-# app/modules/finance/ — Part 8 C1 + C2. Projections; they write NOTHING (G15).
-# Field-by-field shapes are in the source; C3 calls few of these, so only the entry points
-# are listed. FLOWS take a window (R11.13); a BALANCE takes as_of.
-#   ledger.py — the per-document open balance and the running statement
-open_invoices(db, *, customer_id=None, as_of=None) -> list[OpenDocument]   # .open_minor
-open_bills(db, *, supplier_id=None, as_of=None) -> list[OpenDocument]      # .days_overdue etc
-today() -> date                       # the report date, in one place
-PartyLedgerService(db).customer_statement/.vendor_statement(party_id, *, as_of=None)
-PartyLedgerService(db).statement_note(statement) -> str | None
-#   PartyStatement.closing_balance_minor IS outstanding_minor — called, not recomputed.
-
-#   ageing.py — buckets, the chase list, payments due
+# app/modules/finance/ — Part 8. Projections; they write NOTHING (G15).
+# FLOWS take date_from/date_to, BALANCES take as_of (R11.13). This is what R12.10 consumes.
 AgeingService(db).ar_ageing/.ap_ageing(*, as_of=None) -> AgeingReport
-AgeingService(db).collections(*, as_of=None) -> list[CollectionsEntry]   # each has .explained
+#   .rows[AgeingPartyRow] .total_minor .due_minor .overdue_minor .unaged_minor
+AgeingService(db).collections(*, as_of=None) -> list[CollectionsEntry]   # .explained, .reason
 AgeingService(db).payments_due(*, as_of=None) -> list[PaymentsDueEntry]
-bucket_boundaries() -> list[dict]     # what the screen prints; BUCKET_LABELS maps key->label
-#   AgeingReport: .rows .buckets .total_minor .due_minor .overdue_minor .unaged_minor
-#   Σ buckets + unaged == total, unconditionally. Row/entry `.flat()` feeds the CSV.
-
-#   allocation.py — oldest DUE first; more than the total open RAISES ValidationError
+PartyLedgerService(db).customer_statement/.vendor_statement(party_id, *, as_of=None)
+open_invoices(db, *, customer_id=None, as_of=None) / open_bills(...) -> list[OpenDocument]
 AllocationService(db).allocate_receipt/.allocate_payment(party_id, AllocationCreate, *, actor_id)
-
-#   cash.py — Part 8 C2
-CashFlowService(db).cash_flow(*, date_from: date, date_to: date) -> CashFlowReport
-CashFlowService(db).committed(*, date_from: date, date_to: date) -> CommittedCash
-CashFlowService(db).working_capital(*, as_of: date | None = None) -> WorkingCapitalSnapshot
-#   .receivables_minor .inventory_minor .payables_minor .working_capital_minor
-#   .inventory_known .products_without_cost .caveat
+CashFlowService(db).cash_flow(*, date_from, date_to) -> CashFlowReport
+#   .actual_in_minor .actual_out_minor .actual_net_minor .projected_net_minor .committed .rows
+CashFlowService(db).committed(*, date_from, date_to) -> CommittedCash   # .terms is R11.2's prose
+CashFlowService(db).working_capital(*, as_of=None) -> WorkingCapitalSnapshot
+#   .receivables_minor .inventory_minor .payables_minor .working_capital_minor .caveat
 CashFlowService(db).cash_conversion_cycle(*, date_from, date_to) -> CashCycleReport
-#   .dso/.dio/.dpo/.ccc are Explained · .*_days are int|None (None => unknown) · .window_days
-default_window(*, as_of=None) -> tuple[date, date]     # DEFAULT_WINDOW_DAYS = 90, ending today
-COMMITTED_TERMS: tuple[str, ...]      # R11.2's definition; the screen prints it verbatim
+#   .dso/.dio/.dpo/.ccc are Explained · .*_days are int|None (None => unknown)
+MarginAnalysisService(db).by_dimension(dimension, *, date_from, date_to) -> MarginReport
+#   dimension in MARGIN_DIMENSIONS: product | customer | category | business_unit
+#   .revenue_minor .cost_minor .gp_minor .margin_bps (int|None) .unknown_cost_lines .explained
+MarginAnalysisService(db).leakage(*, date_from, date_to) -> LeakageReport
+#   .indicators[LeakageIndicator: .records .impact_minor .rule .explained] .not_measured
+GstService(db).summary(*, date_from, date_to) -> GstSummary   # .rows are per MONTH
+GstService.position_text(net_minor) -> str
+default_window(*, as_of=None) -> tuple[date, date]   # 90 days ending today
+month_starts(date_from, date_to) -> list[date] · today() -> date
+bps_text(bps: int | None) -> str      # 1850 -> "18.5%", None -> "unknown"
 
-#   schemas.py — the ageing constant and its ONE rule
-AR_AGE_BUCKETS: tuple[tuple[str, str, int | None], ...]   # (key, label, INCLUSIVE upper bound)
-CURRENT_BUCKET = "current" · bucket_for(days_overdue) -> str    # 0 -> "current"
+# app/modules/customers/ + suppliers/ — THE receivable and THE payable
+CustomerRepository(db).outstanding_minor(id) -> int · .outstanding_by_customer() -> dict
+SupplierRepository(db).outstanding_minor(id) -> int · .outstanding_by_supplier() -> dict
+CustomerHealthService(db).score(customer_id, *, as_of=None) -> Explained   # R12.3's alerts
 
-#   repository.py — grouped, so a whole screen is a handful of queries
-FinanceRepository(db).allocated_by_invoice() / .credited_by_invoice() / .allocated_by_bill()
-FinanceRepository(db).invoices_with_party(*, customer_id=None) / .bills_with_party(...)
-FinanceRepository(db).invoice_lines_between(date_from, date_to)   # C3's margin input
-FinanceRepository(db).invoiced_between(f, t) / .billed_between(f, t) -> (subtotal, total)
-FinanceRepository(db).payments_between(f, t) / .sales_pipeline() / .purchase_pipeline()
-FinanceRepository(db).credited_minor(invoice_id) · .credit_notes_for_invoice(id)
-FinanceRepository(db).customers_with_activity() / .suppliers_with_activity()
+# app/modules/inventory/ + suppliers/vendor.py — R12.3's other alert sources
+InventoryHealthService(db).low_stock() -> list[LowStockRow] · .low_stock_explained(row)
+InventoryHealthService(db).dead_stock(...) · .dead_stock_explained(row) · .abc(...)
+InventoryHealthService(db).reorder_suggestions(...)   # delegates to R5.9's ONE engine
+ValuationService(db).stock_value()    # StockValueRow.value_minor is None where cost unknown
+VendorIntelService(db).score(supplier_id) -> Explained · .lead_time / .on_time_rate
 
-# app/web/listing.py — Part 2's ONE export path, now covering projections too
-csv_rows_response(spec: ListSpec, rows: Sequence[Any]) -> Response   # rows already in hand
+# app/modules/activity/service.py — R12.5
+ActivityService(db).recent(limit: int = 20) -> list[ActivityLog]
 
-# app/modules/pricing/service.py — R11.6's cost basis, for C3
-MarginService(db).gp(line) -> int     # selling − the LATEST PURCHASE price × qty, minor units
-#   Takes anything exposing product_id, qty, unit_price_minor. NOT a valuation layer (D-A).
-
-# app/modules/customers/ — Part 6/7, extended by Part 8 C1
-CustomerRepository(db).outstanding_minor(customer_id) -> int   # THE receivable. Call it.
-CustomerRepository(db).outstanding_by_customer() -> dict[uuid.UUID, int]   # the bulk SIBLING
-SupplierRepository(db).outstanding_minor(supplier_id) -> int               # THE payable
-SupplierRepository(db).outstanding_by_supplier() -> dict[uuid.UUID, int]   # its bulk SIBLING
-CustomerHealthService(db).score(customer_id, *, as_of=None) -> Explained
-#   Four inputs renormalising over what exists; "never invoiced" is MISSING, not full marks.
-#   Also CreditPolicyService.check/.enforce/.set_policy/.current/.history/.explain and
-#   CustomerTimelineService.events(...). history()[0] is ALWAYS the current policy (C2 fix).
-
-# app/modules/inventory/ — Part 5. Read valuation, never the raw ledger (G8).
-ValuationService(db).cost_basis(product_id) -> Explained   # weighted average, or unknown
-ValuationService(db).stock_value() · .ageing()             # StockValueRow.value_minor is
-#   None where no purchase cost exists — C3 must treat that as UNKNOWN margin, not 100%.
-InventoryService(db).on_hand/available/states/bin_stock/location_rollup · .record_movement(...)
-#   Also: ReservationService · InventoryHealthService.abc/dead_stock/movement_rates/low_stock/
-#   reorder_suggestions · RecommendationService(db).recommend(...) (R5.9's ONE entry point — a
-#   source walk FAILS if a second `def recommend` appears) · Part 7's SalesOrderService /
-#   QuotationService / SalesReturnService / FastEntryService. C3 should need none of these.
-
-# app/modules/config/service.py
+# app/web/listing.py + app/modules/config/service.py
+csv_rows_response(spec: ListSpec, rows) -> Response     # Part 2's ONE export path
 default_business_unit(db) -> uuid.UUID
 allocate_document_number(db, *, doc_type, business_unit_id, on_date) -> "INV-202607-00001"
-#   In use: PO GRN BILL REQ RFQ QUO SO INV TRF CNT FUL SQT RET CRN.
 ```
 
 Part 2's machinery still holds: `ListSpec` + `view_from_request`, `ensure_unreferenced` /
-`soft_delete` / `ensure_unique`, `ActivityService.history`, and the `page_header` / `stat` / `badge` /
-`list_*` / `history_panel` / `explain_panel` macros.
+`soft_delete` / `ensure_unique`, and the `page_header` / `stat` / `badge` / `list_*` /
+`history_panel` / `explain_panel` macros.
 
-### Gotchas that will bite C3
+### Gotchas that will bite Part 9
 
-- **`create_all` builds new TABLES but never ALTERs an existing one.** A new column needs an
-  `_ADDITIVE_COLUMNS` entry in `app/main.py` (~line 45) or it is silently missing on every DB seeded
-  earlier. Get the DDL from `CreateTable(...).compile(sqlite)`; don't guess.
 - **`client.post` COMMITS; `db`-fixture writes roll back.** A POSTing test leaves rows behind, and
-  three checkpoints broke the same two Part 1/3 tests by leaving an OPEN document (draft *or*
-  confirmed counts) on the first customer. **It needs a subject no other test asserts about** —
-  `test_fast_entry.py`'s `spare_customer` and C1's `quiet_customer` are the two patterns.
-- **A source-walk test cannot tell a call from a comment** — one failed on its own docstring. Count
-  queries with a SQLAlchemy `before_cursor_execute` listener instead.
-- **A test can pass without testing anything.** Assert a **floor** on anything you enumerate, and
-  mutation-check once. `assert x > 0` on an always-positive value asserts nothing. A test that reads
-  a **convenience field** instead of the source of truth can be confidently wrong (C1 found
-  `InvoiceService.balance_minor` was), and one that forces half a race and trusts luck for the other
-  half proves nothing (C2's first ordering test passed ~2 times in 3 against broken code).
+  three checkpoints broke the same two Part 1/3 tests by leaving an OPEN document on the first
+  customer. It needs a subject no other test asserts about — `test_fast_entry.py`'s
+  `spare_customer` and `test_finance_allocation.py`'s `quiet_customer` are the two patterns.
+- **A source-walk test cannot tell a call from a comment.** C3 searched for "portal" and failed on
+  its own docstring. Assert on imports and public surface, or count queries with a SQLAlchemy
+  `before_cursor_execute` listener.
+- **Assert on HTML phrases that do NOT straddle a template line break** — five runs and counting.
+  If a claim matters, put it on one line in the template.
+- **A test can pass without testing anything.** Assert a **floor** on anything you enumerate.
+  A test reading a **convenience field** instead of the source of truth can be confidently wrong.
 - **Never order by `uuid7()` as a tiebreak** — its low bits are `os.urandom`, so it is not monotonic
-  within a millisecond. Sort on a column that cannot tie: `CreditPolicyService.history` now leads with
-  `valid_to IS NULL`, which exactly one row has.
-- **Assert on HTML phrases that do NOT straddle a template line break** — cost four runs so far.
-- **A `select()` per row in a projector is the thing to avoid**; `db.get(Model, id)` in a loop is free
-  (identity map). C1's grouped `*_by_invoice()` dicts are the pattern for a whole-table figure. Note
-  `MarginService.gp` costs one query per line — fine at seed scale, and Part 11 C1 owns optimising it.
-- **The env var is `DATABASE_URL`, not `APEXOS_DATABASE_URL`.** The wrong name silently writes the
-  real `apexos.db`. Stop uvicorn before deleting a scratch `.db`
-  (`Get-CimInstance Win32_Process | Where CommandLine -like '*<port>*' | Stop-Process -Force`;
-  `pkill` does not exist here). Ports 8015–8034 have been used; pick above that.
-- **PowerShell has no heredocs and `$pid` is read-only** — a multi-line commit message needs the Bash
-  tool (`git commit -F - <<'EOF'`). Shell variables do not persist between tool calls. And **never
-  edit a source file with `Set-Content`**: it round-trips UTF-8 through cp1252 and mojibakes every
-  em dash. C1 hit this mutation-testing and had to re-encode the file to recover.
-- **A script that reads the DB without booting the app skips `_ensure_new_columns`** and crashes on
-  any additively-added column. Use a `TestClient(app)` context if the shim must have run.
-- **A self-referencing Pydantic model needs `Model.model_rebuild()`** after its class body.
+  within a millisecond. Sort on something that cannot tie.
+- **A `select()` per row is the thing to avoid**; `db.get(Model, id)` in a loop is free (identity
+  map). Part 8's grouped `*_by_*` dicts are the pattern — and R12.12 will measure this.
+- **`create_all` never ALTERs an existing table.** A new column needs an `_ADDITIVE_COLUMNS` entry
+  in `app/main.py` (~line 45); get the DDL from `CreateTable(...).compile(sqlite)`.
+- **The env var is `DATABASE_URL`, not `APEXOS_DATABASE_URL`.** Stop uvicorn before deleting a
+  scratch `.db` (`Get-CimInstance Win32_Process | Where CommandLine -like '*<port>*' |
+  Stop-Process -Force`; `pkill` does not exist here). Ports 8015–8036 used; pick above that.
+- **PowerShell has no heredocs** — a multi-line commit message needs the Bash tool
+  (`git commit -F - <<'EOF'`). **Never edit a source file with `Set-Content`**: it round-trips
+  UTF-8 through cp1252 and mojibakes every em dash.
+- **A script reading the DB without booting the app skips `_ensure_new_columns`.** Use a
+  `TestClient(app)` context if the shim must have run.
 
 ### Do NOT read
 
-`app/seed/core.py` (740 lines — read `app/seed/__init__.py`'s docstring, and `app/seed/finance.py` as
-the pattern for a new section) · `app/modules/finance/{ledger,ageing,allocation,cash}.py` (C1 and C2
-finished them; signatures above) · `app/modules/procurement/preorder.py` ·
+`app/seed/core.py` (740 lines — read `app/seed/__init__.py`'s docstring, and `app/seed/finance.py`
+as the pattern for a new section) · `app/modules/finance/{ledger,ageing,allocation,cash,margin,
+gst}.py` (Part 8 finished them; signatures above) · `app/modules/procurement/preorder.py` ·
 `app/modules/suppliers/vendor.py` · `app/modules/inventory/{valuation,health}.py` ·
 `app/modules/customers/{credit,timeline,health}.py` · `app/modules/sales/{quotation,returns,
 fast_entry}.py` · `tests/test_finance_*.py`, `test_inventory_*.py`, `test_customer_*.py`,
 `test_quotations.py`, `test_returns_and_reservations.py`, `test_fast_entry.py`, `test_preorder.py`,
 `test_po_revisions.py`, `test_vendor_*.py`, `test_procurement_planning.py` (they pass; read one only
-if you change what it covers) · anything in `docs/parts/` · `docs/ROADMAP.md` (~17k tokens, planning
-only) · the older `docs/` design files, `docs/DELETION-POLICY.md`, `docs/MIGRATION-STRATEGY.md`.
+if you change what it covers) · anything in `docs/parts/` · `docs/ROADMAP.md` (~17k tokens,
+planning only) · the older `docs/` design files, `docs/DELETION-POLICY.md`,
+`docs/MIGRATION-STRATEGY.md`.
 
 Note `docs/REQUIREMENTS.md` is at v1.2: the stock writer is `InventoryService.record_movement`, and
 any older doc naming `post_movement` is wrong.

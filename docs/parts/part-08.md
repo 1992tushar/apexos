@@ -9,6 +9,120 @@ Not tagged — the user waived tagging for this run, so the SHA table in `PROGRE
 
 ---
 
+## C3 — margin by four dimensions, leakage, GST
+
+**Commit `0ce6931`** · from `30b3cc1` · **757 passed** (was 721) · **ruff 35 — two BELOW the
+37 baseline**, because the rewritten `_gst_summary` dropped two over-long lines.
+`pytest -q -k r11_` is **62 tests**.
+
+### Requirements passed
+
+| R | What proves it |
+|---|---|
+| R11.5 | `test_r11_5_margin_is_reported_across_all_four_dimensions`, `…_every_dimension_sums_to_the_same_revenue_and_profit`, `…_each_dimension_has_exactly_one_row_per_distinct_member`, `…_an_unknown_dimension_is_refused`, `…_the_business_unit_dimension_works_on_one_business_unit`, `…_the_margin_screen_offers_every_dimension` |
+| R11.6 | `test_r11_6_revenue_is_tax_exclusive_and_cost_comes_from_marginservice`, `…_a_line_with_no_purchase_price_is_unknown_not_a_100_percent_margin`, `…_the_unknown_cost_lines_are_stated_in_the_explanation`, `…_a_window_with_no_sales_says_unknown_rather_than_zero_percent` |
+| **R11.7** | **PARTIALLY MET — see below.** Two of three: `test_r11_7_the_below_cost_indicator_matches_a_negative_gross_profit`, `…_discount_creep_uses_the_stated_threshold_at_both_edges`. The third: `…_freight_is_reported_as_not_measured_not_as_an_empty_indicator` |
+| R11.8 | `test_r11_8_each_indicator_fires_on_its_offender_and_stays_silent_otherwise`, `…_every_record_is_clickable_and_names_its_reference`, `…_a_quiet_window_reports_no_offenders_without_removing_the_indicator` |
+| R11.9 | `test_r11_9_gst_is_reported_by_period_with_a_net_position`, `…_the_periods_sum_to_the_documents_in_the_window`, `…_a_month_with_no_trade_still_appears`, `…_the_net_position_is_described_in_words_not_only_by_its_sign` |
+| R11.10 | `test_r11_10_the_gst_report_delegates_to_the_one_definition`, `…_nothing_in_the_gst_module_files_a_return` |
+| R11.12 | `test_r11_12_the_margin_ratio_rounds_once_and_is_unknown_on_no_revenue`, `…_basis_points_render_without_a_float`, `…_every_margin_and_gst_figure_is_an_integer` |
+| R11.14 | `test_r11_14_the_margin_export_respects_the_dimension_on_screen`, `…_the_leakage_export_carries_one_row_per_offending_record`, `…_the_gst_export_carries_every_period`, `…_the_screens_render_and_state_their_rules`, `…_no_decorative_chart_was_added` |
+| G15 | `test_r11_5_the_margin_projections_write_no_activity_row` |
+
+### R11.7 is PARTIALLY MET, and Part 8 should not be called closed until it is settled
+
+R11.7 is **P0** and names three indicators. Two are built. **"Freight not recovered" cannot be
+built**: `app/` was grepped for *freight*, *shipping*, *carriage* and *delivery charge* and there
+is **no such field anywhere** — not on an order, an invoice, a bill, or any line. There is
+nothing to compare a recovery against.
+
+R11.8 settles what to do about that: *"An indicator with nothing to click MUST be removed."* So
+it is not shipped as an empty table. It is named on screen under **Not measured**, with the
+reason, because silence would let the founder assume freight had been checked and found clean.
+
+**Adding a freight charge to the document model is a product decision, not a reporting one**
+(G17 — inventing a field to satisfy a report is drift). Two ways to close this honestly:
+
+1. Capture freight on the invoice/bill (a new column + `_ADDITIVE_COLUMNS` entry + seed data),
+   then build the third indicator. That is a small part of its own, not a C3 addendum.
+2. Amend R11.7 in `docs/REQUIREMENTS.md` to strike the freight indicator with the reason —
+   the register's own rule is that a dropped requirement is *struck through with a reason,
+   never deleted*.
+
+**This was put to the user at C3 close.** Until it is answered, Part 8 stands as
+"all three checkpoints delivered, R11.7 partially met".
+
+### Decisions a later part must not reverse
+
+1. **`MarginService.gp` reads a missing purchase price as ZERO**, so an unpriced line looks like
+   a **100% margin**. Margin work checks `purchase_prices_by_product()` first and *excludes and
+   counts* such lines. `gp` was deliberately left alone: R11.6 says reuse it, and Part 7's
+   `CustomerHealthService.profitability` also calls it. **That means Part 7's health score has
+   the same blind spot** — recorded here rather than silently changed, because altering `gp`
+   changes a Part 7 score with its own tests.
+2. **Revenue in a margin ratio is tax-EXCLUSIVE** (`line_subtotal_minor`). GST is collected for
+   the government, not earned. C2's COGS made the same choice.
+3. **`_bps()` is the one division** in `margin.py` — rounds once, returns None rather than 0%.
+   Day counts in `cash.py` use `_days()` for the same reason. Neither goes through
+   `round_minor`, which is the one *money* rounding step.
+4. **Leakage totals are NOT added together.** The indicators measure different quantities and
+   one line can appear under both; the screen reports a distinct flagged-line count and says so.
+5. **The margin `category` dimension groups by the product's OWN category**, not rolled up to a
+   parent. Categories nest; a roll-up is a different report and the screen says which this is.
+6. **`month_starts()` in `cash.py` is public** because the GST summary buckets by month too. Two
+   implementations would eventually disagree about a window ending on the 1st.
+7. **`_gst_summary` delegates.** It returned one lump for the whole window, which cannot be
+   reconciled against a monthly return. Same correction C1 made to `_ar_aging`.
+
+### Mutation check — three mutations, and the one that got through
+
+| Mutation | Caught by |
+|---|---|
+| Unknown cost falls through instead of being excluded | 2 tests, both R11.6 |
+| An indicator fires with an empty record list | 3 tests, R11.7/R11.8 |
+| The `category` dimension groups by `product_id` | **NOTHING, first time.** Totals reconcile across dimensions whatever the key, so a wrong group-by shows only as duplicate rows. Fixed by asserting each dimension has exactly one row per distinct member, and that the data can tell the dimensions apart — then re-mutated to confirm |
+
+**Two of C3's own tests failed on the traps this handoff warns about**, which is worth recording
+because writing the warning evidently is not the same as heeding it: a source walk searching for
+"portal" failed on the docstring promising there wasn't one (rewritten to assert on the module's
+imports and public surface instead), and a screen assertion straddled a template line break (the
+template now puts each assertable claim on its own line).
+
+### Verified live, not just in tests
+
+Fresh scratch DB, ports 8035/8036. Margin **₹18,674.90 revenue − ₹13,540.45 cost = ₹5,134.45 GP
+at 27.49%**, with **"1 of 10 lines are excluded"** showing the cost-unknown path. Leakage
+hand-checked: below cost ₹131.60 (4 × ₹32.90 under cost), creep ₹692.60 (₹413.60 + ₹279.00). GST
+across three months with the net position flipping sign each way — May −₹308.70, Jun +₹516.69,
+Jul −₹37.35 — so `position_text` is exercised in both directions.
+
+**Driving the app produced one real change.** The leakage screen had a "Total impact" tile adding
+₹131.60 of loss to ₹692.60 of give-away — two different quantities about overlapping lines,
+reading as a loss nobody made. Replaced with a distinct flagged-line count plus a sentence saying
+the indicators are not additive. Third checkpoint in a row where driving the app found something
+the tests were happy with.
+
+### Seed
+
+The probe that preceded C3 found the seed could not exercise **any** of this: all 311 products
+priced on both sides, and every invoice line exactly at list — so no below-cost line, no
+discount, and no unknown cost. `_seed_leakage_offenders` adds one invoice with three lines
+(below-cost, 20%-below-list-but-above-cost, and cost-unknown) on the **last** customer in code
+order, and `_listed_but_never_bought` creates the one product with a list price and no purchase
+price. The 20% line is deliberately above cost so the two indicators are demonstrably
+independent — otherwise "stays silent otherwise" would be untested.
+
+### What C3 did not do
+
+- **No freight indicator** (above). **No chart of accounts, journals or double-entry** (the
+  part's own goal forbids them). **No QuickBooks bridge** (R10.14, cut by D-D).
+- **`business_unit` margin has one row** because the seed has one business unit. The grouping is
+  exercised and reconciles; it cannot demonstrate a split until a second BU exists. Not faked.
+- **`MarginService.gp` still costs one query per line.** Fine at seed scale; Part 11 C1 owns
+  measurement and R14.7/R14.8 forbid optimising without a baseline.
+
+---
+
 ## C2 — cash flow, working capital, the cash conversion cycle
 
 **Commit `30b3cc1`** · from `ec8a573` · **721 passed** (was 688) · **ruff exactly 37**.
