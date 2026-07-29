@@ -82,6 +82,7 @@ from app.seed.catalogue import (
     bulk_customers,
     bulk_products,
 )
+from app.seed.command_center import seed_command_center
 from app.seed.customers import seed_customer_depth
 from app.seed.finance import seed_finance
 from app.seed.helpers import SeedContext, get_or_create, record_creation
@@ -651,6 +652,15 @@ def run() -> dict:
             SeedContext(db=db, actor_id=actor_id, activity=activity)
         )
 
+        # --- Part 9's one invoice dated TODAY, its own module (G14) ----------
+        # After `seed_finance`, which creates the priced-but-never-purchased product this
+        # section wants for its cost-unknown line. Without this the Command Center's
+        # headline section is three zeros on the demo, since every other seeded invoice is
+        # placed by offset from its due date and the newest of them is 30 days old.
+        command_center_result = seed_command_center(
+            SeedContext(db=db, actor_id=actor_id, activity=activity)
+        )
+
         # --- master change history (last, so it catches every row) ---------
         # Every config master gets its `created` line (R2.10, G14, R3.1's audit column).
         # Most of these rows are written with `get_or_create` rather than through
@@ -736,6 +746,8 @@ def run() -> dict:
             summary["quotations"] = quotations_result
         if finance_result is not None:
             summary["finance"] = finance_result
+        if command_center_result is not None:
+            summary["command_center"] = command_center_result
         summary["counts"] = {
             "products": db.scalar(select(func.count()).select_from(Product)) or 0,
             "customers": db.scalar(select(func.count()).select_from(Customer)) or 0,

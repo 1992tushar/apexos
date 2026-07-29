@@ -264,6 +264,11 @@ a.th-sort:hover { color: var(--text); }
 .muted { color: var(--muted); }
 .right { text-align: right; }
 .mt { margin-top: 18px; }
+/* Command Center (Part 9): a whole tile that is a link (R12.7). The affordance is the
+   border, not an underline — every number on that page is clickable, so underlining them
+   all would just add noise. */
+.tile-link:hover .stat-tile, .tile-link.card:hover { border-color: var(--accent); }
+
 .chart-bars { display: flex; align-items: flex-end; gap: 10px; height: 180px; padding-top: 10px; }
 .chart-bar { flex: 1; background: var(--accent); border-radius: 6px 6px 0 0; min-height: 2px; position: relative; }
 .chart-bar span { position: absolute; top: -18px; left: 0; right: 0; text-align: center; font-size: 11px; color: var(--muted); }

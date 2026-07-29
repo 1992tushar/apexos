@@ -269,17 +269,20 @@ class InventoryHealthService:
 
         Available, not on-hand, is the trigger: stock already committed to an order cannot
         cover a new one, so a product with 50 on hand and 45 reserved is short.
+
+        The reorder levels are read **once** into a dict keyed on product. Part 9 measured
+        this method at 274 queries and 979 ms of a 344-query homepage: `stock()` is a
+        grouped read of the whole catalogue and it was being re-executed inside the loop,
+        once per state row, then linearly scanned. `setdefault` keeps the first row per
+        product, which is exactly what the `next(...)` it replaces selected.
         """
+        levels: dict[uuid.UUID, Decimal] = {}
+        for row in self.inventory.stock():
+            levels.setdefault(row.product_id, row.reorder_level)
+
         rows: list[LowStockRow] = []
         for state in self.inventory.states():
-            level = next(
-                (
-                    r.reorder_level
-                    for r in self.inventory.stock()
-                    if r.product_id == state.product_id
-                ),
-                Decimal(0),
-            )
+            level = levels.get(state.product_id, Decimal(0))
             if level <= 0 or state.available >= level:
                 continue
             rows.append(

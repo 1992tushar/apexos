@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+{% block title %}Command Center{% endblock %}
+
+{# One tile. Formatting switches on `kind` exactly as the `cell` macro does for list
+   columns, and the whole tile is the link R12.7 requires — there is no unclickable
+   number on this page. #}
+{% macro figure(f) %}
+<a href="{{ f.href }}" class="tile-link">
+  {%- if f.kind == "money" -%}{{ ui.stat(f.label, f.value | money, f.hint) }}
+  {%- elif f.kind == "count" -%}{{ ui.stat(f.label, f.value | number, f.hint) }}
+  {%- else -%}{{ ui.stat(f.label, f.value, f.hint) }}
+  {%- endif -%}
+</a>
+{% endmacro %}
+
+{% block content %}
+{% call ui.page_header("Command Center", "Everything below is derived at read time and links to the rows behind it.") %}{% endcall %}
+
+{# ---- 1 (R12.1) ---------------------------------------------------------- #}
+<h2 class="section-title">What happened</h2>
+<div class="grid grid-3">
+  {% for f in page.happened %}{{ figure(f) }}{% endfor %}
+</div>
+{% if page.happened_caveat %}
+  <p class="hint mt">{{ page.happened_caveat }}</p>
+{% endif %}
+
+<h3 class="section-title mt">Position</h3>
+<div class="grid grid-3">
+  {% for f in page.position %}{{ figure(f) }}{% endfor %}
+</div>
+{% if page.position_caveat %}
+  <p class="hint mt">{{ page.position_caveat }}</p>
+{% endif %}
+
+{# ---- 2 (R12.1, R12.3) --------------------------------------------------- #}
+<h2 class="section-title mt">What needs attention</h2>
+<div class="grid grid-3">
+  {% for f in page.attention %}{{ figure(f) }}{% endfor %}
+</div>
+
+{% if page.alerts %}
+  {% for a in page.alerts %}
+  <div class="card mt">
+    <div class="card-title">
+      <a href="{{ a.href }}">{{ a.label }}</a>
+      <span class="badge badge-warn">{{ a.count | number }}</span>
+      {% if a.impact_minor is not none %}<span class="muted">{{ a.impact_minor | money }}</span>{% endif %}
+    </div>
+    {# R12.8's three statements. Each on one line, so a test can assert the phrase. #}
+    <dl class="explain-terms">
+      <dt>Trigger</dt><dd>{{ a.trigger }}</dd>
+      <dt>Threshold</dt><dd>{{ a.threshold }}</dd>
+      {% if a.source %}<dt>Computed by</dt><dd>{{ a.source }}</dd>{% endif %}
+    </dl>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Record</th><th>Why it fired</th></tr></thead>
+        <tbody>
+          {% for r in a.records %}
+          <tr>
+            <td><a class="row-link" href="{{ r.href }}">{{ r.label }}</a></td>
+            <td class="muted">{{ r.detail or "—" }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% if a.hidden_count %}
+      <p class="hint">{{ a.hidden_count | number }} more not shown — <a href="{{ a.href }}">see all {{ a.count | number }}</a>.</p>
+    {% endif %}
+    {% if a.explained %}<div class="mt">{{ ui.explain_panel(a.explained) }}</div>{% endif %}
+  </div>
+  {% endfor %}
+{% else %}
+  <div class="mt">{{ ui.empty("Nothing needs attention right now — no overdue invoice, no late delivery, no product below its reorder level, no margin leak in the window.") }}</div>
+{% endif %}
+
+{# ---- 3 (R12.1, R12.6) --------------------------------------------------- #}
+<h2 class="section-title mt">What should I do now</h2>
+<div class="grid grid-4">
+  {% for a in page.actions %}
+  <a class="card tile-link" href="{{ a.href }}">
+    <div class="stat-value" style="font-size:16px">{{ a.label }}</div>
+    <div class="stat-hint">{{ a.why }}</div>
+  </a>
+  {% endfor %}
+</div>
+
+{# ---- the log (R12.5) ---------------------------------------------------- #}
+<h2 class="section-title mt">Recent activity</h2>
+<div class="card">
+  {% if page.activity %}
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>What</th><th>Entity</th><th class="num">When</th></tr></thead>
+      <tbody>
+        {% for e in page.activity %}
+        <tr>
+          <td>{{ e.summary or (e.verb | humanize) }}</td>
+          <td class="muted">{{ e.entity_type | humanize }}</td>
+          <td class="num muted" title="{{ e.occurred_at | fmt_datetime }}">{{ e.occurred_at | time_ago }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+    {{ ui.empty("Nothing has happened yet — the log fills as work is recorded.") }}
+  {% endif %}
+</div>
+{% endblock %}
