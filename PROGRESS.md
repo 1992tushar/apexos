@@ -8,12 +8,9 @@ _Last updated: 2026-07-29_
 ### What belongs in this file
 
 Exactly one `▶ NEXT SESSION PROMPT` and exactly one `▶ Handoff`, both rewritten — never appended
-to — by the session that closes a checkpoint. Anything else belongs in `docs/parts/`.
-
-**This is a hard cap, not a preference.** At Part 3 close this file was **1,212 lines / 90KB ≈ 22k
-tokens, re-read at the start of every remaining session**, growing ~300 lines per part. What keeps
-it down: each finished checkpoint's record moves to `docs/parts/part-0N.md` as it closes, and the
-signature block carries what the NEXT part needs rather than everything ever built.
+to — by the session that closes a checkpoint. Anything else belongs in `docs/parts/`. **A hard
+cap, not a preference:** at Part 3 close this file was 1,212 lines ≈ 22k tokens, re-read every
+session. Each finished checkpoint's record moves to `docs/parts/part-0N.md` as it closes.
 
 ---
 
@@ -29,17 +26,23 @@ on `main`**; nothing in this run is tagged (waived), so the SHA table is the rec
 | **P9-C1** tiles · alerts · activity · quick actions | `c316861` | `45b8218` | 757 → 786 | 35 → 35 |
 | **P9-C2** empty state · placeholder deleted — **PART 9 COMPLETE** | `8c87f52` | `42b4392` | 786 → 794 | 35 → 35 |
 | **P10-C1** the R13.1 audit + the costed-line unification | `4c814b1` | `bdf384b` | 794 → **818** | 35 → 35 |
+| **baseline fix** the two flaky R9.12 tests — no product change | `642896c` | `db33e38` | 818 → 818 | 35 → 35 |
+
+**P10-C2's features are NOT built.** That firing went entirely on making the baseline
+trustworthy: two `test_fast_entry.py` R9.12 tests were failing together about one session in
+three, and building radars on a suite that fails at random means you cannot tell your own
+regressions from noise. **The C2 prompt below is unchanged and still the next thing to do.**
 
 **Part 9 measured (R12.12/R12.14):** one `/` page load is **81 queries, 51 ms median warm render**
-(184 ms cold), uvicorn over real HTTP, seeded data — down from 344 / 1,096 ms. Thirteen grouped
-projections, none growing with row count. Not a browser measurement. Detail in `docs/parts/part-09.md`.
+(184 ms cold), uvicorn over real HTTP — down from 344 / 1,096 ms. Thirteen grouped projections,
+none growing with row count. Not a browser measurement. Detail in `docs/parts/part-09.md`.
 
 **R11.7 is PARTIALLY MET (P0) and OPEN by the user's decision on 2026-07-29.** Its "freight not
 recovered" indicator cannot be built — no freight/shipping/carriage field exists anywhere in the
-schema — and R11.8 forbids shipping an indicator with nothing to click, so it is named on screen
-under *Not measured*. The user chose to leave it open. **Part 8 must not be called closed or
-tagged** until it is settled: capture freight on the invoice/bill, or strike the indicator with a
-reason (the register strikes through, never deletes). **Do not resolve it inside another part.**
+schema — and R11.8 forbids an indicator with nothing to click, so it is named on screen under
+*Not measured*. **Part 8 must not be called closed or tagged** until it is settled: capture
+freight on the invoice/bill, or strike the indicator with a reason (the register strikes through,
+never deletes). **Do not resolve it inside another part.**
 
 ---
 
@@ -120,11 +123,10 @@ Continue the ApexOS build. Do this in order:
    docs/ROADMAP.md (~17k tokens) or anything in docs/parts/.
 
 4. Verify the baseline before writing code (from apps/api, venv activated):
-     python -m pytest -q                  # expect 818 passed
+     python -m pytest -q                  # expect 818 passed — RELIABLY, 16 runs verified
      python -m ruff check app/ tests/     # expect EXACTLY 35 — 36 is a regression
-   TEN PARTS HAVE ADDED ZERO NEW FINDINGS. If a single unrelated test fails and passes on
-   re-run, do NOT shrug — P8-C2 found a real uuid7 ordering defect exactly that way, and
-   C1 found a fixture that passed alone and failed in the suite.
+   TEN PARTS HAVE ADDED ZERO NEW FINDINGS. If a test fails and passes on re-run, do NOT
+   shrug — but DO capture the assertion text before theorising. See the open-flake note.
 
 5. C2 is the visible half: R13.3, R13.4, R13.5, R13.7, R13.8, R13.9, R13.10, R13.11, R13.14.
 
@@ -282,8 +284,34 @@ csv_rows_response(spec: ListSpec, rows) · default_business_unit(db)
 round_minor(Decimal) -> int · minor_to_text(minor) · qty_text(Decimal)
 ```
 
+#### ▶ ONE FLAKE IS STILL OPEN — do not re-chase the disproven theory
+
+`test_r8_5_notes_are_recordable_against_a_customer` **failed once** and has not recurred in
+**16 consecutive full runs**. It is recorded here rather than guessed at. If you see it, capture
+the assertion text before theorising — that mistake is what made the first attempt useless.
+
+**Already disproven, with the measurement:** the tie theory. `notes()` sorts on
+`(created_at DESC, id DESC)` and `id` is a `uuid7` whose low bits are random, so a `created_at`
+tie *would* order by coin flip — but `add_note`'s stamps do not tie. Measured: consecutive
+`add_note` calls land **~0.5 ms apart at microsecond resolution**. A fix for that
+non-existent defect was written, measured, disproven and reverted rather than shipped.
+
+**The trap that produced the wrong theory, worth remembering:**
+`time.get_clock_info("time").resolution` reports **0.015625 s** on this machine, and two
+back-to-back `datetime.now(UTC)` calls with nothing between them return the same value ~100%
+of the time. Neither fact describes `datetime.now()` under real work — it resolves to
+microseconds there. **Do not reason about `datetime.now()` from `time.time()`'s clock info.**
+
 ### Gotchas that will bite P10-C2
 
+- **A `set` of UUIDs iterates by hash — arbitrarily, and differently every session**, because
+  the ids are regenerated with the throwaway DB. `next(iter(some_id_set))` is not a choice, it
+  is a dice roll, and it made both R9.12 tests fail one session in three. Sort, or pick from a
+  query's order.
+- **`/sales/new` renders only `PICKER_PAGE_SIZE` (200) customers and the seed has 250+.** A
+  founder with a longer list cannot select everyone from that screen. Recorded as debt, not
+  fixed with a bigger number — the fix is Part 2's list machinery plus a search, in Part 11.
+  Any test comparing a rendered page against an **unbounded** service result has this bug.
 - **A fixture whose isolation depends on other tests is not isolated.** `client.post` COMMITS.
   C1's first fixture took "the last customer in code order", passed alone and failed in the suite
   because an earlier test had left orders there. **Create your own subject** —
@@ -296,13 +324,14 @@ round_minor(Decimal) -> int · minor_to_text(minor) · qty_text(Decimal)
 - **An equality between two code paths only tests what the data distinguishes.** R13.13's whole
   risk. Assert the structure too, and assert the discriminating case EXISTS (C1's uncosted-line
   count is asserted non-zero for exactly this reason).
-- **Measure before claiming.** C1 nearly shipped "this fixed DIO" when the number had not moved.
+- **Measure before claiming.** C1 nearly shipped "this fixed DIO" when the number had not moved,
+  and the flake hunt nearly shipped a fix for a tie that does not happen.
 - **A per-row read hides inside a loop-invariant CALL** — Part 9 found `stock()` inside a loop
-  (274 queries). `gp` itself resolves a price per call: hoist `purchase_price_map()`.
+  (274 queries). `gp` resolves a price per call: hoist `purchase_price_map()`.
 - **Assert on HTML phrases that do NOT straddle a template line break** — six runs and counting.
   Escaping: `_rendered` (content) / `_linked` (URL) in `tests/test_command_center.py`.
 - **Never order by `uuid7()` as a tiebreak** — low bits are `os.urandom`, not monotonic within a
-  millisecond.
+  millisecond. `CreditPolicyService.history` shows the fix: sort on a discriminating column.
 - **A fresh-DB test needs its own engine**; the suite's `db` is seeded session-wide.
   `test_command_center.py:fresh_db` / `fresh_client` (a `get_db` override) is the pattern.
 - **Orphaned pytest processes lock the scratch DB on Windows** (`PermissionError WinError 32`).
