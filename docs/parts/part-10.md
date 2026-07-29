@@ -157,3 +157,74 @@ scores exist and C2 surfaces them together.
 both have owners (`InventoryHealthService.dead_stock`, `MarginAnalysisService.leakage`); churn
 does not, and `CustomerHealthService.recency` is the nearest thing. C2 should build it in the
 part that owns customers, not in the radar screen.
+
+---
+
+## C2 — the visible half, built thin by explicit user request
+
+**Tests 818 → 819** (the route walk picked up `/intelligence` — one new parametrised case, no
+suite written by hand). **Ruff 35 → 35.** No new model, so no `references.py` entry is owed.
+
+The user asked for the bare-minimum functional version of C2 — no new test files, no
+mutation check, no R13.14 known-series tests — traded explicitly against the R13.14 P0
+requirement, in exchange for a ten-minute session. **That trade is recorded here so it is not
+mistaken for an oversight**, and R13.14 is now the one requirement this part does not meet.
+
+### What was built
+
+* **`app/modules/customers/churn.py` — `ChurnRiskService`, the one new engine (R13.4).**
+  Measures a customer against their **own** ordering history, never an average: cadence is the
+  mean gap between their own orders, risk is how many of those gaps have now passed in silence
+  (`AT_RISK_MULTIPLE = 2`). One grouped query for every customer, not one query per customer —
+  the fan-out Part 9 found inside `low_stock` was the thing to not repeat. Two states report
+  **unknown**, never a number: fewer than two orders (no gap observed), and every order on one
+  date (a zero-day span, which the seed contains as a real edge). Nothing is stored (G7).
+
+* **`app/modules/intelligence/forecast.py` — `ForecastService`, R13.7/R13.8's three.** Purchase
+  (trailing supplier payments), sales (trailing invoiced revenue, tax-exclusive), and cash
+  requirement (projected outflow − projected inflow, **not** committed cash added on top — see
+  the module docstring for why that would double-count). One division, one multiplication,
+  rounded once through `round_minor` (G1). `confidence` is a mandatory field, never empty, and
+  states BOTH weaknesses when both apply: too few source documents, and a 90-day window that
+  cannot see a season.
+
+* **`app/modules/intelligence/{schemas,service}.py` — the projection.** No `select()`, no ORM
+  model, matching `command_center/service.py`'s shape. `Figure`/`Alert` are imported from
+  `command_center.schemas`, not redefined — R13.10 is R12.7/R12.8 under a new number and reuses
+  the same validators. Three radars (dead stock, leakage, churn — each omitted if nothing
+  fired), three cockpits (working capital, category, business unit — each one call to the
+  service that owns the figures), the three score families as **definitions and links**, not
+  recomputed numbers (a per-customer/supplier/product score rendered as a headline would be the
+  per-row fan-out R12.12 measures), and the Morning Brief as a sort over what the radars and
+  forecasts already found, ranked by measured money impact where one exists.
+
+* **`app/web/pages/intelligence.py` + `templates/intelligence/index.html`** — one route, no
+  query parameters (same reasoning as the homepage), one template copying the Command Center's
+  `figure`/alert-card macros verbatim rather than inventing new markup.
+
+* **Nav:** one entry, `app/web/core.py` — `Intelligence`, `/intelligence`, `main` section.
+
+### Driven on the real app, not just tested
+
+Loaded on uvicorn against the seed. Every drill-through resolved. Two radars (leakage, churn)
+correctly rendered nothing — verified against the **same** trailing window the existing
+Command Center alerts use, which shows the identical single alert today, so this is the seed's
+dates relative to "today", not a defect. The forecasts are honestly thin on the seed (2 invoice
+lines, 1 supplier payment) and say so out loud rather than showing a confident rate.
+
+### What C2 explicitly did NOT do — the debt this session left
+
+* **R13.14 is UNMET.** No test asserts a score against a hand-computed seed value or a forecast
+  against a known series. The arithmetic was checked by hand against the rendered page for this
+  session, not pinned in a suite.
+* **No mutation check** was run against the new engines (C1's precedent: flip `gp_costed`'s
+  refusal, count the reds). Whether `ChurnRiskService`/`ForecastService` fail loudly on a wrong
+  answer is unverified.
+* **No fresh-DB empty-state pass** (`command_center.py`'s `fresh_db`/`fresh_client` pattern) —
+  whether `/intelligence` renders sanely with zero customers/zero invoices is unconfirmed. The
+  `is_empty` property exists on `Intelligence` but nothing exercises it.
+* Category/business-unit cockpits show only the top-5 rows by revenue with no pagination or
+  link to a fuller ranked list beyond the existing margin screen's own dimension filter.
+
+Whichever session closes Part 10 formally (or Part 11, if it inherits this) should decide
+whether to backfill R13.14 before tagging, or record it as accepted debt the way R11.7 is.

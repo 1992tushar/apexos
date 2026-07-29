@@ -3,7 +3,7 @@
 > The source of truth for status. **This file is capped at ~350 lines and does not grow.**
 > Closed parts live in `docs/parts/`. A new part's handoff **replaces** the previous one here.
 
-_Last updated: 2026-07-29_
+_Last updated: 2026-07-29 (P10-C2)_
 
 ### What belongs in this file
 
@@ -16,33 +16,53 @@ session. Each finished checkpoint's record moves to `docs/parts/part-0N.md` as i
 
 # ▶ CURRENT WORK — read this first
 
-**Parts 1–7 and 9 COMPLETE. Part 8 DELIVERED but not formally closed** (R11.7 open, below).
-**Part 10's C1 is done**; the build continues at **P10-C2**, which closes Part 10. **All work is
-on `main`**; nothing in this run is tagged (waived), so the SHA table is the record.
+**Parts 1–7, 9 and 10 FEATURE-COMPLETE. Part 8 DELIVERED but not formally closed** (R11.7
+open, below). **Part 10 is built but carries one recorded gap** (R13.14, below) — not tagged
+on that account, same as Part 8's R11.7. The build continues at **Part 11, C1** (measurement
+only — see the NEXT SESSION PROMPT). **All work is on `main`**; nothing in this run is tagged
+(waived), so the SHA table is the record.
 
 | Checkpoint | From | Commit | Tests | Ruff |
 |---|---|---|---|---|
-| **P8-C3** margin ×4 · leakage · GST | `30b3cc1` | `0ce6931` | 721 → 757 | 37 → **35** |
 | **P9-C1** tiles · alerts · activity · quick actions | `c316861` | `45b8218` | 757 → 786 | 35 → 35 |
 | **P9-C2** empty state · placeholder deleted — **PART 9 COMPLETE** | `8c87f52` | `42b4392` | 786 → 794 | 35 → 35 |
 | **P10-C1** the R13.1 audit + the costed-line unification | `4c814b1` | `bdf384b` | 794 → **818** | 35 → 35 |
 | **baseline fix** the two flaky R9.12 tests — no product change | `642896c` | `db33e38` | 818 → 818 | 35 → 35 |
+| **P10-C2** radars · cockpits · forecasts · churn · Brief — **built thin** | `a281160` | `6060937` | 818 → **819** | 35 → 35 |
 
-**P10-C2's features are NOT built.** That firing went entirely on making the baseline
-trustworthy: two `test_fast_entry.py` R9.12 tests were failing together about one session in
-three, and building radars on a suite that fails at random means you cannot tell your own
-regressions from noise. **The C2 prompt below is unchanged and still the next thing to do.**
+**P10-C2 was built thin, at the user's explicit request, trading away one P0 requirement —
+recorded rather than left implicit:**
+
+* **R13.14 is UNMET.** No test asserts a score or forecast against a hand-computed/known
+  series. The five new figures (3 forecasts + churn's two arithmetic paths) were checked by
+  hand against the rendered `/intelligence` page this session, not pinned in a suite.
+* No mutation check was run against the two new engines (`ChurnRiskService`, `ForecastService`).
+* No fresh-DB empty-state pass exercises `Intelligence.is_empty` — the property exists,
+  untested.
+* `pytest -q` → **819** (the route walk absorbed `/intelligence` as one parametrised case; zero
+  tests were hand-written). `ruff` unchanged at **35**. The real app WAS driven on uvicorn —
+  every drill-through resolved; the two radars that render nothing (churn, leakage) were
+  checked against the Command Center's own identical window and found consistent, not broken.
+
+Full record, including what each new file does and why: `docs/parts/part-10.md`'s **C2**
+section (added this session — the C1 section above it is still the survey, unchanged).
+**Whichever session next touches Part 10 or the Intelligence Layer should backfill R13.14 or
+explicitly accept it as debt** — same treatment as R11.7 below. Do not build a THIRD forecast
+or score engine while it's unmet; the R13.2 guards would fail before you got far.
 
 **Part 9 measured (R12.12/R12.14):** one `/` page load is **81 queries, 51 ms median warm render**
 (184 ms cold), uvicorn over real HTTP — down from 344 / 1,096 ms. Thirteen grouped projections,
 none growing with row count. Not a browser measurement. Detail in `docs/parts/part-09.md`.
+**`/intelligence` has not been query-counted or timed** — Part 11 C1's measurement pass is
+where that number belongs; do not guess at it.
 
 **R11.7 is PARTIALLY MET (P0) and OPEN by the user's decision on 2026-07-29.** Its "freight not
 recovered" indicator cannot be built — no freight/shipping/carriage field exists anywhere in the
 schema — and R11.8 forbids an indicator with nothing to click, so it is named on screen under
 *Not measured*. **Part 8 must not be called closed or tagged** until it is settled: capture
 freight on the invoice/bill, or strike the indicator with a reason (the register strikes through,
-never deletes). **Do not resolve it inside another part.**
+never deletes). **Do not resolve it inside another part** — Part 11 is UI/perf/security only
+(GOAL: "Add NO new features").
 
 ---
 
@@ -105,7 +125,7 @@ out** is not.
 Type **`Start next part of development`** in a fresh session; `CLAUDE.md` binds that phrase to the
 prompt below. **The session that closes a checkpoint owns it.**
 
-#### ▶ NEXT SESSION PROMPT — Part 10, C2 (radars · cockpits · forecasts · Morning Brief)
+#### ▶ NEXT SESSION PROMPT — Part 11, C1 (measure everything — NO FIXES)
 
 ```
 Continue the ApexOS build. Do this in order:
@@ -114,228 +134,141 @@ Continue the ApexOS build. Do this in order:
    if it is dirty, STOP and report. Nothing is tagged (waived); the SHA table above is the
    record.
 
-2. Read the "▶ CURRENT WORK" block below, INCLUDING THE R13.1 AUDIT TABLE. That table is a
-   deliverable C1 produced and you must not redo the survey — it names every output you are
-   about to assemble and where each lives. Part 8's R11.7 stays open; not your problem.
+2. Read the "▶ CURRENT WORK" block below in full, including the R13.14 debt note on P10-C2
+   and the still-open R11.7 note. Neither is yours to fix in this part — R11.7 belongs to
+   whichever session settles Part 8, and Part 11's own GOAL line forbids new features, which
+   is what fixing R13.14 (writing the missing tests is fine; changing behaviour is not) or
+   R11.7 (a new freight field) would be.
 
-3. Read docs/REQUIREMENTS.md §1 (G1–G17) + §14 (R13.x). Then docs/prompts/part-10.md and
-   docs/STANDING-RULES.md (binding). `git show --stat bdf384b` for C1's shape. Do NOT open
-   docs/ROADMAP.md (~17k tokens) or anything in docs/parts/.
+3. Read docs/STANDING-RULES.md (binding) + docs/REQUIREMENTS.md §15 (R14.x — your acceptance
+   contract) + docs/prompts/part-11.md + docs/17-design-system.md. Do NOT open docs/ROADMAP.md
+   (~17k tokens) or anything in docs/parts/.
 
-4. Verify the baseline before writing code (from apps/api, venv activated):
-     python -m pytest -q                  # expect 818 passed — RELIABLY, 16 runs verified
+4. Verify the baseline before measuring anything (from apps/api, venv activated):
+     python -m pytest -q                  # expect 819 passed
      python -m ruff check app/ tests/     # expect EXACTLY 35 — 36 is a regression
-   TEN PARTS HAVE ADDED ZERO NEW FINDINGS. If a test fails and passes on re-run, do NOT
-   shrug — but DO capture the assertion text before theorising. See the open-flake note.
+   TEN PARTS HAVE ADDED ZERO NEW RUFF FINDINGS; Part 11 (R14.x) is where those 35 finally
+   get cleared, but NOT in C1 — C1 measures, it does not fix.
 
-5. C2 is the visible half: R13.3, R13.4, R13.5, R13.7, R13.8, R13.9, R13.10, R13.11, R13.14.
+5. C1 IS MEASUREMENT-ONLY. NO FIXES THIS SESSION (R14.7/R14.8) — a session that measures
+   and fixes in one pass loses the baseline C3 is graded against. If you find yourself
+   editing app/ code to make a number look better, STOP.
 
-   **ASSEMBLE, DO NOT COMPUTE.** Every radar and cockpit is a view over the audit table's
-   23 outputs. `app/modules/command_center/` is the shape to copy — no `select()`, no ORM
-   model, no arithmetic, and a namespace-walk test that keeps it that way. R13.9 says the
-   Morning Brief MUST NOT contain new business logic, and the same discipline belongs in
-   the radars.
-
-   **THE ONE THING WITH NO ENGINE YET IS CHURN RISK (R13.4).** Dead stock has
-   `InventoryHealthService.dead_stock`; margin leakage has `MarginAnalysisService.leakage`;
-   churn has nothing, and `CustomerHealthService.recency` is the nearest thing. BUILD IT IN
-   `app/modules/customers/`, the part that owns customers, and READ it from the radar — a
-   churn score computed in a radar screen is exactly the second definition C1 spent a
-   checkpoint removing.
-
-   **FORECASTS (R13.7/R13.8): trailing-window, window STATED, confidence SAID OUT LOUD.**
-   Purchase, sales and cash requirement. Transparent arithmetic only (R13.12) — trailing
-   averages and simple linear projections, nothing a founder cannot redo by hand. NO ML
-   dependency, NO runtime LLM (G12); a test asserts the dependency list.
-   R13.14 wants each forecast tested AGAINST A KNOWN SERIES, not just against the seed.
-
-   **REUSE `Figure` AND `Alert` from `command_center/schemas.py`.** They already enforce
-   R12.7 (an href or it will not construct) and R12.8 (records or it will not construct),
-   which are R13.10's requirements under different numbers. Do not invent parallel shapes.
+   Measure and WRITE DOWN, with evidence, in the PROGRESS.md resume block C1 leaves behind:
+     - Page timings and query counts for the heaviest screens — `/`, `/intelligence`,
+       `/inventory`, `/warehouse`, `/finance`. Command Center's own numbers (81 queries,
+       ~51ms warm) are the template; `/intelligence` has NEVER been measured — do it fresh.
+     - N+1s and missing indexes, the same way Part 9 found `low_stock` calling `stock()`
+       inside a loop — profile, don't guess.
+     - Which list screens do NOT go through app/db/listing.py's ListSpec machinery yet.
+       Known suspects from CODEBASE-MAP's "Known debt": `/analytics` (div-height fake
+       charts), `/warehouse` and `/inventory` (page_size=300, no pagination), `/categories`
+       (full parent dropdown per row), `/sales/new` (200-customer cap against a 250+ seed).
+       Confirm each, and look for others.
+     - Click counts on the top-10 most frequent tasks (report the number, don't reduce it
+       yet).
+     - UI consistency gaps — spacing/type/colour drift across the ~21 screens.
+     - Security: input validation gaps, file-upload handling (if any), error messages that
+       leak internals, a dependency audit for known CVEs.
+     - Static asset size, template render cost.
 
 6. Constraints that bind:
-     - G11/R13.10/R13.11: definition, formula, window and linked records on screen, via
-       `Explained` + `explain_panel`. Insufficient history says so — NEVER 0, never 50.
-       C1's precedent: distinguish "no data yet" from "the data cannot be costed", because
-       only the second is actionable.
-     - G7: derived, never stored. A `*_score` column fails an existing test.
-     - G1: money is integer minor units through `round_minor`; a ratio rounds ONCE and says
-       where (`margin.py:_bps`, `cash.py:_days`).
-     - G15: a projection writes no activity_log row. G16: call the earlier service.
-     - New plain GET routes must 200 with NO query parameters, and need a real empty state —
-       `CommandCenter.is_empty` is the pattern, and R12.15's fresh-DB test is where three
-       lying hints were found. Add the same fresh-DB pass here.
-     - Any new model owes app/db/references.py an entry, even an empty tuple (R3.7).
+     - D-B resizes this part: the founder is the only user. Accessibility narrows to form
+       labels and contrast — no screen-reader table work. The per-route authz audit and
+       "every POST is guarded" test are SHOULD, not MUST (R14.13/R14.14) — the Part 1 guard
+       mechanism is what matters with one user.
+     - D-D: saved views are CUT. Do not measure toward building them.
+     - Add NO new features. A new screen belongs nowhere in this part — say so and stop.
 
-7. Work on main. No branches, no PRs, NO TAGS. Commit at the END OF C2 and push. Personal
-   credentials only (github.com/1992tushar/apexos).
+7. Work on main. No branches, no PRs, NO TAGS (this checkpoint doesn't close the part).
+   Commit at the END OF C1. Personal credentials only (github.com/1992tushar/apexos).
 
-8. NAME EVERY NEW TEST AFTER THE REQUIREMENT IT PROVES — `pytest -q -k r13_` is the
-   evidence (24 tests today). MUTATION-CHECK the new suite once: make a forecast return a
-   default where history is insufficient, and make the Morning Brief rank something it has
-   no record for.
-   DRIVE THE REAL APP before calling it done — it has found a defect in all six checkpoints
-   of Parts 8–10, most recently a DIO claim that measurement did not support.
-
-9. BEFORE you run low, update the "▶ CURRENT WORK" block: the SHA table, R-numbers passed
-   and outstanding, gotchas, decisions a later checkpoint must not reverse, and the four
-   delta lines. **KEEP THE R13.1 AUDIT TABLE — it is a deliverable, and a test asserts it is
-   still in this file.** Append C2's record to docs/parts/part-10.md. Then rewrite this
-   prompt for P11-C1 (measure everything, write the findings down, NO FIXES — R14.7/R14.8
-   forbid optimising without a baseline). Amend docs/CODEBASE-MAP.md if the SHAPE changed.
-   PROGRESS.md IS CAPPED AT ~350 LINES — replace, never append.
+8. BEFORE you run low, update the "▶ CURRENT WORK" block: the SHA table, and a full
+   MEASUREMENTS section with every number above, in enough detail that C3 can be graded
+   against it without re-measuring. Rewrite this prompt for P11-C2 (fix batch 1 — UI
+   consistency, de-duplication, global search + Ctrl+K palette; the highest-value items for
+   a solo founder per docs/prompts/part-11.md). PROGRESS.md IS CAPPED AT ~350 LINES —
+   replace, never append. Amend docs/CODEBASE-MAP.md only if you found the shape was
+   already wrong, not to record measurements (those belong here, not there).
 
 Use pytest -q, never verbose. Don't re-read files you just edited.
 ```
 
-#### ▶ What C1 settled that C2 must not reverse
+#### ▶ What P10 built that P11 must not rebuild or re-measure into fixing
 
-1. **`MarginService.gp_costed` is the ONE costable-line decision.** Only `MarginService` may call
-   `gp` — an `ast` guard fails otherwise. If a forecast or cockpit needs gross profit, it uses
-   `gp_costed` and discloses what it excluded.
-2. **A projection computes nothing.** `command_center/service.py` is the shape; its namespace-walk
-   test is the enforcement. R13.9's Morning Brief is the same shape by requirement.
-3. **`Figure` and `Alert` enforce R12.7/R12.8 structurally.** Reuse them; do not relax them to
-   make an empty state easier — omit the alert instead.
-4. **`is_empty` distinguishes a measured zero from no measurement.** A fresh install is told the
-   figures will fill in; a quiet day still shows its zeros.
-5. **Do not merge `low_stock` with the reorder engine.** Different bases, on purpose (#11 vs #5).
-6. **`supplier_evaluation` is the only table that may hold score columns** — it is hand-entered.
-7. **Overclaiming a fix is a defect.** C1's first draft said the `_cogs` change fixed DIO;
-   measurement showed no number moved, and the record now says so. Measure before claiming.
+1. **The Intelligence Layer exists at `/intelligence`.** `app/modules/intelligence/` (forecast,
+   schemas, service — no model, no repository) + `app/modules/customers/churn.py` (the one new
+   engine). Full shape in `docs/parts/part-10.md`'s C2 section. **R13.14 is unmet** — C1 may
+   measure `/intelligence` freely but writing its missing tests is R14.x/general-quality work
+   for a later checkpoint to decide on, not something to silently patch mid-measurement.
+2. **`MarginService.gp_costed` is still the ONE costable-line decision** — an `ast` guard fails
+   if anything but `MarginService` calls raw `gp`.
+3. **`Figure` and `Alert` (command_center/schemas.py) enforce R12.7/R12.8 structurally** and are
+   reused, not reinvented, by `/intelligence` too. Do not relax them to make measurement easier.
+4. **`is_empty` distinguishes a measured zero from no measurement** on both `/` and
+   `/intelligence`. Any UI-consistency pass touching either template must preserve it.
+5. **`supplier_evaluation` is the only table that may hold score columns** — hand-entered, not
+   derived. Don't let a de-duplication pass "simplify" that exemption away.
 
 ---
 
-## ▶ Handoff — P10-C1 delivered · Part 10 closes at C2
+## ▶ Handoff — P10-C2 delivered thin · Part 11 begins at C1
 
-Full records in `docs/parts/part-10.md` (C1) and `part-09.md`; **do not read either.** Parts 1–7
-in `part-01.md`…`part-07.md` and `e2e-gate.md`. The Parts 5–7 E2E gate passed 44 checks but over
-**HTTP, not clicked in a browser**, so layout and whether screens *feel* fast are uncovered, and
-**R9.12's manual walkthrough remains a human task.**
+Full records in `docs/parts/part-10.md` (both C1 and C2) and `part-09.md`; **do not read
+these — the notes above and here are what C1 needs.** Parts 1–7 in `part-01.md`…`part-07.md`
+and `e2e-gate.md`. The Parts 5–7 E2E gate passed 44 checks but over **HTTP, not clicked in a
+browser**, so layout and whether screens *feel* fast are uncovered, and **R9.12's manual
+walkthrough remains a human task** — no session has done it yet, across ten parts.
 
-### Read for P10-C2 — these and nothing else
+### Read for P11-C1 — these and nothing else
 
-- `docs/REQUIREMENTS.md` §1 + **§14 (R13.x)** · `docs/prompts/part-10.md` ·
-  `docs/STANDING-RULES.md` (binding) · the audit table above instead of `CODEBASE-MAP.md`'s
-  survey sections.
-- `app/modules/command_center/{schemas,service}.py` **in full** — the shape every new projection
-  copies, and the source of `Figure`/`Alert`.
-- **The likely edit set:** a new `app/modules/intelligence/` (radars, cockpits, forecasts, the
-  Brief) · a churn engine in `app/modules/customers/` · `app/web/pages/intelligence.py` +
-  templates · `tests/test_intelligence.py` (exists — 24 tests) and a new screens test.
+- `docs/STANDING-RULES.md` (binding) · `docs/REQUIREMENTS.md` §15 (R14.x) ·
+  `docs/prompts/part-11.md` · `docs/17-design-system.md`.
+- **Do NOT** re-open `docs/REQUIREMENTS.md` §14 or the R13.1 audit table above for this
+  checkpoint — Part 11 doesn't touch business logic, so C1 has no need of where each score
+  lives, only of which *screens* exist. The nav list in `app/web/core.py:NAV_ITEMS` (19 routes,
+  including `/intelligence` now) is the actual screen inventory to measure against.
 
-### Call, don't read — the signatures C2 needs, from source at P10-C1 close
+### Where things are, without re-deriving them
 
-The **audit table above** names where every output lives; these are the exact call shapes.
+- **Query-count / timing pattern:** `tests/test_command_center.py` has a `before_cursor_execute`
+  listener that counts statements per page load — copy that technique to measure `/intelligence`,
+  `/inventory`, `/warehouse`, rather than eyeballing.
+- **List machinery:** `app/db/listing.py` (`ListSpec`/`build_select`) + `app/web/listing.py`
+  (`view_from_request`). A screen NOT going through these is doing its own pagination/sort/filter
+  — that's what C1 is checking for.
+- **The UI vocabulary:** `templates/_macros.html` (`stat`, `badge`, `list_table`, `explain_panel`,
+  …) — a screen with markup that doesn't call these macros is a UI-consistency finding.
+- **Known suspects already on record** (`docs/CODEBASE-MAP.md`'s "Known debt" section):
+  `/analytics` fake div-height charts, `/warehouse` + `/inventory` unpaginated at
+  `page_size=300`, `/categories`' per-row parent dropdown, `/sales/new`'s 200-customer cap
+  against 250+ seeded. Confirm each with a real measurement rather than re-describing them.
 
-```python
-# THE costable-line decision (Part 10 C1). Only MarginService may call `gp`.
-MarginService(db).gp_costed(line, *, buy_prices=None) -> int | None   # None => cost UNKNOWN
-MarginService(db).purchase_price_map() -> dict[uuid, int]   # hoist out of loops; ONE query
-MarginService(db).gp(line) -> int                          # raw; reads missing cost as ZERO
+#### ▶ ONE FLAKE, LONG QUIET — do not re-chase it
 
-# app/db/explain.py — the ONE explained-number shape (G11, R13.10/R13.11)
-Explained(what, value: str | None, formula, window, inputs=(), records=(),
-          unknown_reason=None, caveat=None)      # .is_known · .display
-Explained.unknown(*, what, formula, reason, window="no data", inputs=(), records=())
-Input(label, value, weight=None, missing_reason=None) · SourceRecord(label, href=None)
-ExplainedSet().add(e) · .known · .all_unknown     # {{ ui.explain_panel(e, "Title") }}
+`test_r8_5_notes_are_recordable_against_a_customer` failed once, long ago, and has not recurred
+in **17+ consecutive full runs** (including this session's). The tie theory was chased and
+disproven (`add_note`'s timestamps land ~0.5ms apart at microsecond resolution, so they don't
+actually tie) — a fix for that non-existent defect was written, measured, and reverted rather
+than shipped. If it reappears, capture the assertion text before theorising; don't re-derive the
+tie theory from `time.get_clock_info()`'s 15.6ms resolution, which does not describe
+`datetime.now()` under real work.
 
-# app/modules/command_center/schemas.py — REUSE these, do not re-invent
-Figure(key, label, kind, value, href, hint=None, explained=None)  # kind: money|count|text
-#   raises unless href startswith "/"   (R12.7 == R13.10's linked records)
-Alert(key, label, trigger, threshold, count, records, href, impact_minor=None,
-      explained=None, source="")   # raises on empty records / count < len(records)
-#   .hidden_count · AlertRecord(label, href, detail=None) · QuickAction(label, href, why)
-CommandCenterService(db).load(*, as_of=None) -> CommandCenter    # .is_empty is the pattern
+### Gotchas that will bite P11
 
-# Scores (R13.3) — consolidate, do not rebuild
-CustomerHealthService(db).score(customer_id, *, as_of=None) -> Explained
-#   .frequency / .payment / .recency(customer_id, *, as_of) · WINDOW_DAYS = 365
-#   .profitability(...) -> (margin_pct|None, revenue_minor, gp_minor, uncosted_line_count)
-VendorIntelService(db).score(supplier_id) -> Explained · .lead_time · .on_time_rate
-#   .price_history(product_id) · .receipts(supplier_id)
-InventoryHealthService(db).abc(...) · .abc_explained(row, *, total_minor)
-#   .dead_stock(...) · .dead_stock_explained(row) · .movement_rates(...)
-#   .low_stock() · .low_stock_explained(row) · .reorder_suggestions(*, product_id, limit)
-ValuationService(db).cost_basis(product_id) -> Explained · .stock_value()
-#   .total_value_minor(rows=None) · .unknown_basis_count(rows=None) · .ageing(...)
-
-# Finance (Part 8) — flows take date_from/date_to, balances take as_of (R11.13)
-AgeingService(db).ar_ageing/.ap_ageing(*, as_of=None) · .collections(...) · .payments_due(...)
-CashFlowService(db).cash_flow(*, date_from, date_to) -> CashFlowReport
-#   .actual_in_minor .actual_out_minor .actual_net_minor .projected_net_minor .committed .rows
-CashFlowService(db).committed(*, date_from, date_to) -> CommittedCash   # .net_minor .terms
-CashFlowService(db).working_capital(*, as_of=None) -> WorkingCapitalSnapshot
-#   .receivables_minor .inventory_minor .payables_minor .working_capital_minor .caveat
-CashFlowService(db).cash_conversion_cycle(*, date_from, date_to) -> CashCycleReport
-MarginAnalysisService(db).by_dimension(dim, *, date_from, date_to) -> MarginReport
-#   .revenue_minor .cost_minor .gp_minor .margin_bps .line_count .unknown_cost_lines .explained
-MarginAnalysisService(db).leakage(*, date_from, date_to) -> LeakageReport   # .fired .not_measured
-default_window(*, as_of=None) -> tuple[date, date]  # 90 days ending today · today()
-month_starts(date_from, date_to) · bps_text(bps) -> "18.5%" | "unknown"
-
-# The rest
-RecommendationService(db).recommend(*, product_id=None, limit=None)   # .sentence is a PROPERTY
-ProcurementCalendarService(db).arrivals() · .calendar(*, limit=DEFAULT_LIMIT)
-CustomerRepository(db).outstanding_by_customer() -> dict   # THE receivable · supplier pair too
-ActivityService(db).recent(limit=20) · .history(entity_type, entity_id)
-csv_rows_response(spec: ListSpec, rows) · default_business_unit(db)
-round_minor(Decimal) -> int · minor_to_text(minor) · qty_text(Decimal)
-```
-
-#### ▶ ONE FLAKE IS STILL OPEN — do not re-chase the disproven theory
-
-`test_r8_5_notes_are_recordable_against_a_customer` **failed once** and has not recurred in
-**16 consecutive full runs**. It is recorded here rather than guessed at. If you see it, capture
-the assertion text before theorising — that mistake is what made the first attempt useless.
-
-**Already disproven, with the measurement:** the tie theory. `notes()` sorts on
-`(created_at DESC, id DESC)` and `id` is a `uuid7` whose low bits are random, so a `created_at`
-tie *would* order by coin flip — but `add_note`'s stamps do not tie. Measured: consecutive
-`add_note` calls land **~0.5 ms apart at microsecond resolution**. A fix for that
-non-existent defect was written, measured, disproven and reverted rather than shipped.
-
-**The trap that produced the wrong theory, worth remembering:**
-`time.get_clock_info("time").resolution` reports **0.015625 s** on this machine, and two
-back-to-back `datetime.now(UTC)` calls with nothing between them return the same value ~100%
-of the time. Neither fact describes `datetime.now()` under real work — it resolves to
-microseconds there. **Do not reason about `datetime.now()` from `time.time()`'s clock info.**
-
-### Gotchas that will bite P10-C2
-
-- **A `set` of UUIDs iterates by hash — arbitrarily, and differently every session**, because
-  the ids are regenerated with the throwaway DB. `next(iter(some_id_set))` is not a choice, it
-  is a dice roll, and it made both R9.12 tests fail one session in three. Sort, or pick from a
-  query's order.
-- **`/sales/new` renders only `PICKER_PAGE_SIZE` (200) customers and the seed has 250+.** A
-  founder with a longer list cannot select everyone from that screen. Recorded as debt, not
-  fixed with a bigger number — the fix is Part 2's list machinery plus a search, in Part 11.
-  Any test comparing a rendered page against an **unbounded** service result has this bug.
-- **A fixture whose isolation depends on other tests is not isolated.** `client.post` COMMITS.
-  C1's first fixture took "the last customer in code order", passed alone and failed in the suite
-  because an earlier test had left orders there. **Create your own subject** —
-  `tests/test_intelligence.py:lonely_customer` is the pattern.
-- **`Path.relative_to` yields backslashes on Windows.** Three AST guards compared against
-  posix strings and matched nothing; a source walk that finds nothing looks exactly like a pass.
-  Use `.as_posix()`, and assert a floor on whatever you enumerate.
-- **Parse, don't grep.** A text search cannot tell a call from a comment — a Part 8 walk failed on
-  its own docstring. `ast` for structure, a `before_cursor_execute` listener for query counts.
-- **An equality between two code paths only tests what the data distinguishes.** R13.13's whole
-  risk. Assert the structure too, and assert the discriminating case EXISTS (C1's uncosted-line
-  count is asserted non-zero for exactly this reason).
-- **Measure before claiming.** C1 nearly shipped "this fixed DIO" when the number had not moved,
-  and the flake hunt nearly shipped a fix for a tie that does not happen.
-- **A per-row read hides inside a loop-invariant CALL** — Part 9 found `stock()` inside a loop
-  (274 queries). `gp` resolves a price per call: hoist `purchase_price_map()`.
-- **Assert on HTML phrases that do NOT straddle a template line break** — six runs and counting.
-  Escaping: `_rendered` (content) / `_linked` (URL) in `tests/test_command_center.py`.
-- **Never order by `uuid7()` as a tiebreak** — low bits are `os.urandom`, not monotonic within a
-  millisecond. `CreditPolicyService.history` shows the fix: sort on a discriminating column.
-- **A fresh-DB test needs its own engine**; the suite's `db` is seeded session-wide.
-  `test_command_center.py:fresh_db` / `fresh_client` (a `get_db` override) is the pattern.
+- **`Path.relative_to` yields backslashes on Windows** — any new source-walk/AST check must use
+  `.as_posix()`, or it silently matches nothing and looks like a pass.
 - **Orphaned pytest processes lock the scratch DB on Windows** (`PermissionError WinError 32`).
   Stop them by PID; do not touch the unrelated `featurelens` process.
+- **A per-row read hides inside a loop-invariant CALL, not just an obvious `select()`.** Part 9
+  found `stock()` called inside a loop over `states()` — 274 queries. Profile calls, not just
+  queries, when measuring.
+- **A `set` of UUIDs iterates by hash, differently every session** — never pick from one with
+  `next(iter(...))`; sort, or take from a query's own order. This is what made two R9.12 tests
+  flaky one session in three, fixed at `db33e38`.
+- **Assert on HTML phrases that do NOT straddle a template line break.** Escaping helpers
+  `_rendered` (content) / `_linked` (URL) live in `tests/test_command_center.py` if a
+  UI-consistency test needs the same pattern.
 - **Environment, unchanged every part:** `create_all` never ALTERs — a new column needs an
   `_ADDITIVE_COLUMNS` entry in `app/main.py` (~line 45). The env var is `DATABASE_URL`, never
   `APEXOS_DATABASE_URL`; ports 8015–8040 used. PowerShell has no heredocs, so a multi-line commit
@@ -344,13 +277,14 @@ microseconds there. **Do not reason about `datetime.now()` from `time.time()`'s 
 
 ### Do NOT read
 
-`app/seed/core.py` (760 lines — read `app/seed/__init__.py`'s docstring, and
-`app/seed/command_center.py` as the smallest section) · `app/modules/finance/{ledger,ageing,
-allocation,cash,margin,gst}.py`, `app/modules/suppliers/vendor.py`,
-`app/modules/inventory/{valuation,health}.py`, `app/modules/customers/{credit,timeline,health}.py`,
-`app/modules/procurement/{preorder,recommend}.py` — **the audit table above is what you needed
-them for**; open one only when you change it · every `tests/test_*.py` that already passes ·
-anything in `docs/parts/` · `docs/ROADMAP.md` (~17k tokens) · the older `docs/` design files,
-`docs/DELETION-POLICY.md`, `docs/MIGRATION-STRATEGY.md`.
+`app/seed/core.py` (760 lines — read `app/seed/__init__.py`'s docstring instead) ·
+`app/modules/finance/{ledger,ageing,allocation,cash,margin,gst}.py`,
+`app/modules/suppliers/vendor.py`, `app/modules/inventory/{valuation,health}.py`,
+`app/modules/customers/{credit,timeline,health,churn}.py`,
+`app/modules/procurement/{preorder,recommend}.py`, `app/modules/intelligence/*.py` — C1 is
+measuring screens, not reading business logic; open one only if a screen it renders looks
+actually broken · every `tests/test_*.py` that already passes · anything in `docs/parts/` ·
+`docs/ROADMAP.md` (~17k tokens) · `docs/REQUIREMENTS.md` §14 (the R13.x you don't need this
+part) · the older `docs/` design files, `docs/DELETION-POLICY.md`, `docs/MIGRATION-STRATEGY.md`.
 
 Note `docs/REQUIREMENTS.md` is at v1.2: the stock writer is `InventoryService.record_movement`.

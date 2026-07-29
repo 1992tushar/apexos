@@ -32,6 +32,8 @@
 | Report margin, or where it leaks | `app/modules/finance/margin.py` — `MarginAnalysisService.by_dimension` (product/customer/category/business_unit) and `.leakage` | Re-deciding whether a line is costable. `gp_costed` is that decision, in one place |
 | Report GST | `app/modules/finance/gst.py` — `GstService.summary(*, date_from, date_to)`, by month | Anything that files, submits or reconciles against a portal (R11.10) |
 | Show the founder what today needs | `app/modules/command_center/service.py` — the docstring's table says which part owns which number | Adding a figure here. A number the homepage wants goes in the OWNING service and is read here (R12.10); the projection has no `select()` and a namespace-walk test keeps it that way |
+| Show radars, cockpits, forecasts or the Morning Brief | `app/modules/intelligence/service.py` — `IntelligenceService.load()`, at `/intelligence` | Computing a radar or score here. It reads the same 23 outputs `command_center` reads; `forecast.py` is the only new arithmetic (trailing-window) |
+| Measure customer churn risk | `app/modules/customers/churn.py` — `ChurnRiskService`, the customer's own ordering cadence vs. an average | A second churn definition. It is the one radar with no prior owner — everything else on `/intelligence` reads an existing service |
 | Block deleting/deactivating something in use | `app/db/references.py` — `REFERENCES` is the policy | Writing a count query in a service; that is what this replaced |
 | Delete something | `app/db/soft_delete.py` (its docstring is the contract) | Per-module delete code — there isn't any, by design |
 | Prevent duplicates | `app/db/duplicates.py` — `NATURAL_KEYS` is the config | — |
@@ -396,6 +398,27 @@ lesson generalises: a per-row read hides inside a loop-invariant *call*, not onl
 macro that switches on `kind` exactly as `cell` does for list columns. **No `<svg>`, `<canvas>` or
 chart marker reaches the page (R12.9)**, and a test asserts it.
 
+### `app/modules/intelligence/` — radars, cockpits, forecasts, the Morning Brief (Part 10 C2)
+
+Same shape as `command_center/`: `schemas.py` and `service.py`, **no model, no repository, no
+router** — `app/web/pages/intelligence.py` is a two-line page at `/intelligence`. `Figure` and
+`Alert` are **imported from `command_center.schemas`**, not redefined; R13.10's "linked
+records" is R12.7/R12.8 under a different requirement number, so the same validators apply.
+
+`forecast.py` holds the one new arithmetic Part 10 added: three trailing-window projections
+(purchase, sales, cash requirement), one division and one multiplication each, rounded once
+through `round_minor`. `confidence` is mandatory on every `Forecast` and states both weaknesses
+when both apply — too few source documents, and a window too short to see a season.
+
+`app/modules/customers/churn.py` (`ChurnRiskService`) is the one genuinely new *measurement*:
+a customer against their own mean gap between orders, never against a fleet average. Two states
+report `Explained.unknown` rather than a number — fewer than two orders (no gap observed), and
+every order on one date (a zero-day span, a real edge in the seed). Nothing is stored (G7); one
+grouped query answers every customer, not one query per customer.
+
+**R13.14 is recorded as unmet** — no test pins a score or forecast against a known series. See
+`docs/parts/part-10.md`'s C2 section for the full account of what was and wasn't verified.
+
 ### `app/modules/sales/fast_entry.py` — what makes order entry quick (Part 7 C2c)
 
 Reads only, and every helper is **bulk** — the entry form shows ~300 products, so a per-product query
@@ -745,6 +768,11 @@ the fix when it stops being fine.
 **`/settings` renders eight master lists on one page**, so none of them can own `?q=`/`?sort=`/`?page=`.
 Part 2 split them onto `/masters/{slug}` for exactly that reason; `/settings` is the hub. Any new
 multi-list screen inherits the same constraint — decide the namespace before writing the page.
+
+**R13.14 is unmet on `/intelligence`** (Part 10 C2, built thin at the user's request): no test
+pins a score or forecast against a hand-computed or known series, and no mutation check ran
+against `ChurnRiskService`/`ForecastService`. `docs/parts/part-10.md`'s C2 section has the
+full account.
 
 ---
 
