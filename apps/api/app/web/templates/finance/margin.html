@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+{% block title %}Margin{% endblock %}
+{% block content %}
+{% call ui.page_header("Margin", "Where the gross profit actually comes from") %}
+  <a class="btn" href="/finance">← Finance</a>
+  <a class="btn" href="/finance/leakage">Leakage</a>
+{% endcall %}
+
+<form class="inline-form mt" method="get" action="/finance/margin">
+  <label>By</label>
+  <select name="dimension" onchange="this.form.submit()">
+    {% for key, label in dimensions %}
+    <option value="{{ key }}" {% if key == dimension %}selected{% endif %}>{{ label }}</option>
+    {% endfor %}
+  </select>
+  <label>From</label>
+  <input class="input" type="date" name="date_from" value="{{ date_from }}" />
+  <label>To</label>
+  <input class="input" type="date" name="date_to" value="{{ date_to }}" />
+  <button class="btn btn-sm" type="submit">Apply</button>
+  <a class="btn btn-sm"
+     href="/finance/margin?dimension={{ dimension }}&date_from={{ date_from }}&date_to={{ date_to }}&export=csv">Export CSV</a>
+</form>
+
+<div class="grid grid-4 mt">
+  {{ ui.stat("Revenue ex-GST", report.revenue_minor | money, "GST is not earned") }}
+  {{ ui.stat("Cost of those sales", report.cost_minor | money) }}
+  {{ ui.stat("Gross profit", report.gp_minor | money) }}
+  {{ ui.stat("Margin", report.margin_bps | bps if report.margin_bps is not none else "unknown") }}
+</div>
+
+<div class="card mt">
+  <div class="card-title">By {{ report.dimension_label | lower }}</div>
+  {# Each claim sits on ONE line: a phrase that straddles a template line break cannot be
+     asserted on, and that has cost this build four runs. #}
+  <p class="muted">
+    Cost is the purchase price snapshotted on the line, not an inventory valuation.<br />
+    Revenue excludes GST, which is collected for the government rather than earned.
+    {% if dimension == 'category' %}<br />
+    Categories nest; this groups by the product's own category rather than rolling up to a parent.
+    {% endif %}
+  </p>
+  {% if report.unknown_cost_lines %}
+  <p class="muted">
+    <strong>{{ report.unknown_cost_lines }} of {{ report.line_count }} lines are excluded</strong>
+    because their product has no recorded purchase price. Their cost is unknown, not zero —
+    counting them would report those sales at a 100% margin.
+  </p>
+  {% endif %}
+  {% if report.rows %}
+  <div class="table-wrap mt">
+    <table>
+      <thead>
+        <tr>
+          <th>{{ report.dimension_label }}</th>
+          <th class="num">Revenue ex-GST</th><th class="num">Cost</th>
+          <th class="num">Gross profit</th><th class="num">Margin</th>
+          <th class="num">Lines</th><th class="num">Cost unknown</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in report.rows %}
+        <tr>
+          <td>
+            {% if row.href %}<a class="row-link" href="{{ row.href }}">{{ row.label }}</a>
+            {% else %}{{ row.label }}{% endif %}
+          </td>
+          <td class="num">{{ row.revenue_minor | money }}</td>
+          <td class="num">{{ row.cost_minor | money }}</td>
+          <td class="num">{{ row.gp_minor | money }}</td>
+          <td class="num">
+            {{ row.margin_bps | bps if row.margin_bps is not none else "unknown" }}
+          </td>
+          <td class="num">{{ row.line_count }}</td>
+          <td class="num">{{ row.unknown_cost_lines or "—" }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+      <tfoot>
+        <tr>
+          <td><strong>Total</strong></td>
+          <td class="num"><strong>{{ report.revenue_minor | money }}</strong></td>
+          <td class="num">{{ report.cost_minor | money }}</td>
+          <td class="num"><strong>{{ report.gp_minor | money }}</strong></td>
+          <td class="num">
+            <strong>{{ report.margin_bps | bps if report.margin_bps is not none else "unknown" }}</strong>
+          </td>
+          <td class="num">{{ report.line_count }}</td>
+          <td class="num">{{ report.unknown_cost_lines or "—" }}</td>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+  {% else %}
+    {{ ui.empty("Nothing was invoiced in this window.") }}
+  {% endif %}
+</div>
+
+<div class="mt">{{ ui.explain_panel(report.explained) }}</div>
+{% endblock %}

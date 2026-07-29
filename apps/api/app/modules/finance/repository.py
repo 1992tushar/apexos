@@ -393,6 +393,127 @@ class FinanceRepository:
             )
         )
 
+    def margin_lines_between(
+        self, date_from: date, date_to: date
+    ) -> list[tuple[InvoiceLine, Invoice, str, str, uuid.UUID, str | None]]:
+        """Every live invoice line in the window with what the four dimensions need.
+
+        ONE query with the joins rather than a lookup per line: `(line, invoice, product
+        name, sku, category_id, customer name)`. The category comes off the product because
+        that is where it lives; the customer and business unit come off the invoice.
+        """
+        from app.modules.products.models import Product
+
+        rows = self.db.execute(
+            select(
+                InvoiceLine,
+                Invoice,
+                Product.name,
+                Product.sku_code,
+                Product.category_id,
+                Customer.name,
+            )
+            .join(Invoice, Invoice.id == InvoiceLine.invoice_id)
+            .join(Product, Product.id == InvoiceLine.product_id)
+            .outerjoin(Customer, Customer.id == Invoice.customer_id)
+            .where(
+                Invoice.invoice_date >= date_from,
+                Invoice.invoice_date <= date_to,
+                Invoice.status != "cancelled",
+                Invoice.deleted_at.is_(None),
+                InvoiceLine.deleted_at.is_(None),
+            )
+            .order_by(Invoice.invoice_date, Invoice.invoice_no, InvoiceLine.line_no)
+        ).all()
+        return [tuple(row) for row in rows]
+
+    def category_names(self) -> dict[uuid.UUID, str]:
+        from app.modules.config.models import Category
+
+        rows = self.db.execute(select(Category.id, Category.name)).all()
+        return {row[0]: row[1] for row in rows}
+
+    def business_unit_names(self) -> dict[uuid.UUID, str]:
+        from app.modules.config.models import BusinessUnit
+
+        rows = self.db.execute(select(BusinessUnit.id, BusinessUnit.name)).all()
+        return {row[0]: row[1] for row in rows}
+
+    def list_prices(self) -> dict[uuid.UUID, int]:
+        """`{product_id: list price}` — the CURRENT row with no customer and no segment.
+
+        The baseline discount creep is measured against (R11.7). There is no discount column
+        anywhere in the schema, so "how much was given away" can only be the gap between what
+        was charged and the price the product is listed at. A product with no such row has an
+        UNKNOWN discount, not a zero one, and is therefore absent from this map rather than
+        present with a zero.
+        """
+        from app.modules.pricing.models import SellingPrice
+
+        rows = self.db.execute(
+            select(SellingPrice.product_id, SellingPrice.price_minor)
+            .where(
+                SellingPrice.customer_id.is_(None),
+                SellingPrice.customer_type_id.is_(None),
+                SellingPrice.valid_to.is_(None),
+                SellingPrice.deleted_at.is_(None),
+            )
+            .order_by(SellingPrice.product_id, SellingPrice.valid_from.desc())
+        ).all()
+        out: dict[uuid.UUID, int] = {}
+        for product_id, price in rows:
+            out.setdefault(product_id, int(price))
+        return out
+
+    def purchase_prices_by_product(self) -> dict[uuid.UUID, int]:
+        """`{product_id: current buy price}` for every product that has one.
+
+        Grouped so margin over a window is a handful of queries. **Absence means the cost is
+        UNKNOWN**, which is the distinction `MarginService.gp` cannot make — it reads a
+        missing purchase price as zero and therefore reports a 100% margin. Margin work must
+        use this map to decide whether a line is priceable at all before trusting `gp`.
+        """
+        from app.modules.pricing.models import PurchasePrice
+
+        rows = self.db.execute(
+            select(PurchasePrice.product_id, PurchasePrice.price_minor)
+            .where(
+                PurchasePrice.valid_to.is_(None),
+                PurchasePrice.deleted_at.is_(None),
+            )
+            .order_by(PurchasePrice.product_id, PurchasePrice.valid_from.desc())
+        ).all()
+        out: dict[uuid.UUID, int] = {}
+        for product_id, price in rows:
+            out.setdefault(product_id, int(price))
+        return out
+
+    def invoice_tax_rows_between(
+        self, date_from: date, date_to: date
+    ) -> list[tuple[date, int, int]]:
+        """(invoice date, subtotal, tax) for the GST summary's output side (R11.9)."""
+        rows = self.db.execute(
+            select(Invoice.invoice_date, Invoice.subtotal_minor, Invoice.tax_minor).where(
+                Invoice.invoice_date >= date_from,
+                Invoice.invoice_date <= date_to,
+                Invoice.status != "cancelled",
+                Invoice.deleted_at.is_(None),
+            )
+        ).all()
+        return [(row[0], int(row[1] or 0), int(row[2] or 0)) for row in rows]
+
+    def bill_tax_rows_between(self, date_from: date, date_to: date) -> list[tuple[date, int, int]]:
+        """(bill date, subtotal, tax) for the GST summary's input side (R11.9)."""
+        rows = self.db.execute(
+            select(Bill.bill_date, Bill.subtotal_minor, Bill.tax_minor).where(
+                Bill.bill_date >= date_from,
+                Bill.bill_date <= date_to,
+                Bill.status != "cancelled",
+                Bill.deleted_at.is_(None),
+            )
+        ).all()
+        return [(row[0], int(row[1] or 0), int(row[2] or 0)) for row in rows]
+
     def sales_pipeline(self) -> tuple[int, int]:
         """(count, total) of orders confirmed but NOT yet invoiced.
 

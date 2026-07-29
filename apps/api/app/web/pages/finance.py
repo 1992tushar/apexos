@@ -27,11 +27,14 @@ from app.modules.customers.models import Customer
 from app.modules.finance.ageing import AgeingService, bucket_boundaries
 from app.modules.finance.allocation import AllocationService
 from app.modules.finance.cash import CashFlowService, default_window
+from app.modules.finance.gst import GstService
 from app.modules.finance.ledger import PartyLedgerService, today
+from app.modules.finance.margin import DIMENSION_LABELS, MarginAnalysisService
 from app.modules.finance.models import Bill, Invoice, Payment
 from app.modules.finance.repository import FinanceRepository
 from app.modules.finance.schemas import (
     AR_AGE_BUCKETS,
+    MARGIN_DIMENSIONS,
     AllocationCreate,
     BillPaymentCreate,
     PaymentCreate,
@@ -132,6 +135,50 @@ CASH_CYCLE_EXPORT = ListSpec(
         Column("days", "Days", kind="number"),
         Column("formula", "Formula"),
         Column("window", "Window"),
+    ),
+)
+
+MARGIN_EXPORT = ListSpec(
+    entity="margin",
+    model=Invoice,
+    columns=(
+        Column("label", "Name"),
+        Column("revenue_minor", "Revenue ex-GST", kind="money"),
+        Column("cost_minor", "Cost", kind="money"),
+        Column("gp_minor", "Gross profit", kind="money"),
+        Column("margin_bps", "Margin", kind="bps"),
+        Column("line_count", "Lines", kind="number"),
+        Column("unknown_cost_lines", "Lines with unknown cost", kind="number"),
+    ),
+)
+
+LEAKAGE_EXPORT = ListSpec(
+    entity="leakage",
+    model=Invoice,
+    columns=(
+        Column("indicator", "Indicator"),
+        Column("doc_no", "Invoice", kind="mono"),
+        Column("occurred_on", "Date", kind="date"),
+        Column("product_name", "Product"),
+        Column("party_name", "Customer"),
+        Column("qty", "Qty", kind="number"),
+        Column("unit_price_minor", "Unit price", kind="money"),
+        Column("reference_minor", "Reference", kind="money"),
+        Column("impact_minor", "Impact", kind="money"),
+        Column("detail", "Detail"),
+    ),
+)
+
+GST_EXPORT = ListSpec(
+    entity="gst",
+    model=Invoice,
+    columns=(
+        Column("label", "Period"),
+        Column("output_taxable_minor", "Sales ex-GST", kind="money"),
+        Column("output_tax_minor", "Output GST", kind="money"),
+        Column("input_taxable_minor", "Purchases ex-GST", kind="money"),
+        Column("input_tax_minor", "Input GST", kind="money"),
+        Column("net_tax_minor", "Net GST", kind="money"),
     ),
 )
 
@@ -420,6 +467,80 @@ def finance_cash_cycle(
         "finance/cash_cycle.html",
         cycle=cycle,
         snapshot=svc.working_capital(as_of=end),
+        date_from=start.isoformat(),
+        date_to=end.isoformat(),
+    )
+
+
+@router.get("/finance/margin")
+def finance_margin(
+    request: Request,
+    dimension: str = "product",
+    date_from: str | None = None,
+    date_to: str | None = None,
+    db: Session = Depends(get_db),
+):
+    """Margin by product, customer, category or business unit (R11.5)."""
+    start, end = _window(date_from, date_to)
+    if dimension not in DIMENSION_LABELS:
+        dimension = "product"
+    report = MarginAnalysisService(db).by_dimension(dimension, date_from=start, date_to=end)
+    if wants_csv(request):
+        return csv_rows_response(MARGIN_EXPORT, [row.flat() for row in report.rows])
+    return render(
+        request,
+        "finance/margin.html",
+        report=report,
+        dimensions=MARGIN_DIMENSIONS,
+        dimension=dimension,
+        date_from=start.isoformat(),
+        date_to=end.isoformat(),
+    )
+
+
+@router.get("/finance/leakage")
+def finance_leakage(
+    request: Request,
+    date_from: str | None = None,
+    date_to: str | None = None,
+    db: Session = Depends(get_db),
+):
+    """Where margin is leaking, with the offending records (R11.7, R11.8)."""
+    start, end = _window(date_from, date_to)
+    report = MarginAnalysisService(db).leakage(date_from=start, date_to=end)
+    if wants_csv(request):
+        rows = [
+            {"indicator": indicator.label, **record.flat()}
+            for indicator in report.indicators
+            for record in indicator.records
+        ]
+        return csv_rows_response(LEAKAGE_EXPORT, rows)
+    return render(
+        request,
+        "finance/leakage.html",
+        report=report,
+        date_from=start.isoformat(),
+        date_to=end.isoformat(),
+    )
+
+
+@router.get("/finance/gst")
+def finance_gst(
+    request: Request,
+    date_from: str | None = None,
+    date_to: str | None = None,
+    db: Session = Depends(get_db),
+):
+    """Output tax, input tax and the net position by period (R11.9, R11.10)."""
+    start, end = _window(date_from, date_to)
+    summary = GstService(db).summary(date_from=start, date_to=end)
+    if wants_csv(request):
+        return csv_rows_response(GST_EXPORT, [row.flat() for row in summary.rows])
+    return render(
+        request,
+        "finance/gst.html",
+        summary=summary,
+        position=GstService.position_text(summary.net_tax_minor),
         date_from=start.isoformat(),
         date_to=end.isoformat(),
     )

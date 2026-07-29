@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+{% block title %}GST summary{% endblock %}
+{% block content %}
+{% call ui.page_header("GST summary", "Output tax, input tax, net position by period") %}
+  <a class="btn" href="/finance">← Finance</a>
+{% endcall %}
+
+<form class="inline-form mt" method="get" action="/finance/gst">
+  <label>From</label>
+  <input class="input" type="date" name="date_from" value="{{ date_from }}" />
+  <label>To</label>
+  <input class="input" type="date" name="date_to" value="{{ date_to }}" />
+  <button class="btn btn-sm" type="submit">Apply</button>
+  <a class="btn btn-sm"
+     href="/finance/gst?date_from={{ date_from }}&date_to={{ date_to }}&export=csv">Export CSV</a>
+</form>
+
+<div class="grid grid-3 mt">
+  {{ ui.stat("Output GST (sales)", summary.output_tax_minor | money) }}
+  {{ ui.stat("Input GST (purchases)", summary.input_tax_minor | money) }}
+  {{ ui.stat("Net GST", summary.net_tax_minor | money, position) }}
+</div>
+
+<div class="card mt">
+  <div class="card-title">By period</div>
+  <p class="muted">
+    Monthly, because that is the period GST is paid for. The tax shown is the tax that was
+    actually invoiced or billed on each document, not tax recomputed from a rate — a return can
+    only be built from what was charged.
+  </p>
+  {% if summary.rows %}
+  <div class="table-wrap mt">
+    <table>
+      <thead>
+        <tr>
+          <th>Period</th>
+          <th class="num">Sales ex-GST</th><th class="num">Output GST</th>
+          <th class="num">Purchases ex-GST</th><th class="num">Input GST</th>
+          <th class="num">Net GST</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in summary.rows %}
+        <tr>
+          <td>{{ row.label }}</td>
+          <td class="num">{{ row.output_taxable_minor | money }}</td>
+          <td class="num">{{ row.output_tax_minor | money }}</td>
+          <td class="num">{{ row.input_taxable_minor | money }}</td>
+          <td class="num">{{ row.input_tax_minor | money }}</td>
+          <td class="num">{{ row.net_tax_minor | money }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+      <tfoot>
+        <tr>
+          <td><strong>Total</strong></td>
+          <td class="num">{{ summary.output_taxable_minor | money }}</td>
+          <td class="num"><strong>{{ summary.output_tax_minor | money }}</strong></td>
+          <td class="num">{{ summary.input_taxable_minor | money }}</td>
+          <td class="num"><strong>{{ summary.input_tax_minor | money }}</strong></td>
+          <td class="num"><strong>{{ summary.net_tax_minor | money }}</strong></td>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+  <p class="muted mt">
+    Net GST is output minus input: {{ summary.net_tax_minor | money }}, {{ position }}.
+    This is a report only — ApexOS does not file returns and has no connection to any tax portal.
+  </p>
+  {% else %}
+    {{ ui.empty("No invoices or bills in this window.") }}
+  {% endif %}
+</div>
+{% endblock %}

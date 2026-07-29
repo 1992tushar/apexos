@@ -96,8 +96,13 @@ def _days(numerator_minor: int, per_day_minor: int, window_days: int) -> int | N
     )
 
 
-def _month_starts(date_from: date, date_to: date) -> list[date]:
-    """The first of each calendar month touched by the window, in order."""
+def month_starts(date_from: date, date_to: date) -> list[date]:
+    """The first of each calendar month touched by the window, in order.
+
+    Public because C3's GST summary buckets by month for the same reason the cash-flow view
+    does, and two implementations of "which months does this window touch" would eventually
+    disagree about a window ending on the 1st.
+    """
     out = [date_from.replace(day=1)]
     while True:
         year, month = out[-1].year, out[-1].month
@@ -126,7 +131,7 @@ class CashFlowService:
         payments = self.repo.payments_between(date_from, date_to)
 
         buckets: dict[date, list[int]] = {}
-        for start in _month_starts(date_from, date_to):
+        for start in month_starts(date_from, date_to):
             buckets[start] = [0, 0, 0, 0]  # in, out, receipt count, payment count
         for direction, paid_on, amount in payments:
             key = paid_on.replace(day=1)

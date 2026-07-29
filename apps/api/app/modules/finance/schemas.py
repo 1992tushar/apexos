@@ -599,3 +599,227 @@ class CashCycleReport(BaseModel):
         )
         return rows
 
+
+# --- Part 8 C3: margin, leakage, GST (R11.5–R11.10) -----------------------
+#
+# All windowed (R11.13), all projections (R11.10/G15), and all tax-EXCLUSIVE where margin is
+# concerned: GST is collected on the customer's behalf, not earned, so it has no place in a
+# margin ratio. C2's `_cogs` already made that choice for DIO and this keeps to it.
+
+#: The four dimensions R11.5 names, as `(key, label)`. A module constant so the screen, the
+#: export and the tests read one source, and so `by_dimension` is ONE projection
+#: parameterised by key rather than four near-copies of the same query.
+MARGIN_DIMENSIONS: tuple[tuple[str, str], ...] = (
+    ("product", "Product"),
+    ("customer", "Customer"),
+    ("category", "Category"),
+    ("business_unit", "Business unit"),
+)
+
+#: A line sold more than this far below the product's current list price is discount creep.
+#: **Strictly more than** — exactly 1500 bps (15%) is not yet an offender, and both sides of
+#: that edge are pinned by a test, the same way `AR_AGE_BUCKETS` pins its boundaries.
+DISCOUNT_CREEP_BPS = 1500
+
+
+class MarginRow(BaseModel):
+    """One dimension member's revenue, cost and gross profit (R11.5).
+
+    `margin_bps` is integer basis points and is **None when it cannot be computed** — no
+    revenue, or every line's cost unknown. `unknown_cost_lines` is never hidden: a product
+    with no recorded purchase price would otherwise report a 100% margin, which is the
+    single most misleading number this checkpoint could have produced (G11).
+    """
+
+    key: uuid.UUID | None
+    label: str
+    href: str | None = None
+    revenue_minor: int
+    cost_minor: int
+    gp_minor: int
+    margin_bps: int | None
+    line_count: int
+    unknown_cost_lines: int = 0
+
+    @property
+    def cost_is_complete(self) -> bool:
+        return self.unknown_cost_lines == 0
+
+    def flat(self) -> dict[str, Any]:
+        return {
+            "label": self.label,
+            "revenue_minor": self.revenue_minor,
+            "cost_minor": self.cost_minor,
+            "gp_minor": self.gp_minor,
+            "margin_bps": self.margin_bps,
+            "line_count": self.line_count,
+            "unknown_cost_lines": self.unknown_cost_lines,
+        }
+
+
+class MarginReport(BaseModel):
+    """Margin across one of the four dimensions, over an explicit window (R11.5, R11.13)."""
+
+    dimension: str
+    dimension_label: str
+    date_from: date
+    date_to: date
+    rows: list[MarginRow]
+    revenue_minor: int
+    cost_minor: int
+    gp_minor: int
+    margin_bps: int | None
+    line_count: int
+    unknown_cost_lines: int
+    explained: Explained
+
+
+class LeakageRecord(BaseModel):
+    """One specific offending line — R11.8's "something to click"."""
+
+    doc_no: str
+    href: str
+    occurred_on: date
+    product_name: str
+    party_name: str | None = None
+    qty: Decimal
+    unit_price_minor: int
+    reference_minor: int
+    reference_label: str
+    impact_minor: int
+    detail: str
+
+    def flat(self) -> dict[str, Any]:
+        return {
+            "doc_no": self.doc_no,
+            "occurred_on": self.occurred_on,
+            "product_name": self.product_name,
+            "party_name": self.party_name,
+            "qty": self.qty,
+            "unit_price_minor": self.unit_price_minor,
+            "reference_minor": self.reference_minor,
+            "impact_minor": self.impact_minor,
+            "detail": self.detail,
+        }
+
+
+class LeakageIndicator(BaseModel):
+    """One indicator, with the records it fired on (R11.7, R11.8).
+
+    `rule` is printed on screen so the founder can check the arithmetic, and `records` is
+    the point of the whole thing: **R11.8 says an indicator with nothing to click must be
+    removed**, so an indicator that cannot ever produce records is not built at all. One
+    that simply found nothing *this window* still appears and says so — that is a clean
+    result, not an empty feature.
+    """
+
+    key: str
+    label: str
+    rule: str
+    records: list[LeakageRecord]
+    impact_minor: int
+    explained: Explained
+
+    @property
+    def fired(self) -> bool:
+        return bool(self.records)
+
+
+class LeakageReport(BaseModel):
+    """The computable indicators, plus an honest note about the one that is not (R11.7).
+
+    `not_measured` is deliberately NOT a list of empty indicators. It names what the data
+    cannot support and why, which is different from an indicator reporting no offenders —
+    and leaving it silent would have the founder assume freight was checked and clean.
+    """
+
+    date_from: date
+    date_to: date
+    indicators: list[LeakageIndicator]
+    not_measured: list[dict[str, str]] = Field(default_factory=list)
+
+    @property
+    def total_impact_minor(self) -> int:
+        """Σ over the indicators of what each measured.
+
+        **Not presented as a single "total leakage" figure**, and the screen says why: the
+        indicators measure different quantities — money lost against cost, money given away
+        against list — and one line can appear under both. Summing them would read as a loss
+        nobody made. Kept as a property because "did anything fire at all" is a useful test.
+        """
+        return sum(i.impact_minor for i in self.indicators)
+
+    @property
+    def flagged_line_count(self) -> int:
+        """Distinct offending lines, counted once even where two indicators flag them."""
+        return len(
+            {
+                (record.doc_no, record.product_name)
+                for indicator in self.indicators
+                for record in indicator.records
+            }
+        )
+
+    @property
+    def fired(self) -> list[LeakageIndicator]:
+        return [i for i in self.indicators if i.fired]
+
+
+class GstPeriodRow(BaseModel):
+    """One calendar month of GST (R11.9). Output − input = the net position."""
+
+    label: str
+    period_from: date
+    period_to: date
+    output_taxable_minor: int
+    output_tax_minor: int
+    input_taxable_minor: int
+    input_tax_minor: int
+
+    @property
+    def net_tax_minor(self) -> int:
+        return self.output_tax_minor - self.input_tax_minor
+
+    def flat(self) -> dict[str, Any]:
+        return {
+            "label": self.label,
+            "output_taxable_minor": self.output_taxable_minor,
+            "output_tax_minor": self.output_tax_minor,
+            "input_taxable_minor": self.input_taxable_minor,
+            "input_tax_minor": self.input_tax_minor,
+            "net_tax_minor": self.net_tax_minor,
+        }
+
+
+class GstSummary(BaseModel):
+    """Output tax, input tax and the net position, BY PERIOD (R11.9).
+
+    A report and nothing more (R11.10): no return-filing workflow, no submission, no
+    reconciliation against a portal. `net_tax_minor` positive means payable, negative means
+    a credit — the screen says which rather than leaving a signed number to be interpreted.
+    """
+
+    date_from: date
+    date_to: date
+    rows: list[GstPeriodRow]
+
+    @property
+    def output_tax_minor(self) -> int:
+        return sum(r.output_tax_minor for r in self.rows)
+
+    @property
+    def input_tax_minor(self) -> int:
+        return sum(r.input_tax_minor for r in self.rows)
+
+    @property
+    def net_tax_minor(self) -> int:
+        return self.output_tax_minor - self.input_tax_minor
+
+    @property
+    def output_taxable_minor(self) -> int:
+        return sum(r.output_taxable_minor for r in self.rows)
+
+    @property
+    def input_taxable_minor(self) -> int:
+        return sum(r.input_taxable_minor for r in self.rows)
+

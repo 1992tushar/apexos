@@ -257,38 +257,64 @@ class ReportService:
         )
 
     def _gst_summary(self, date_from, date_to) -> ReportResult:
-        # Output tax collected (sales) and tax paid (purchases) per invoice/bill window.
-        inv_stmt = select(
-            func.coalesce(func.sum(Invoice.subtotal_minor), 0),
-            func.coalesce(func.sum(Invoice.tax_minor), 0),
-        ).where(Invoice.status != "cancelled", Invoice.deleted_at.is_(None))
-        bill_stmt = select(
-            func.coalesce(func.sum(Bill.subtotal_minor), 0),
-            func.coalesce(func.sum(Bill.tax_minor), 0),
-        ).where(Bill.status != "cancelled", Bill.deleted_at.is_(None))
-        if date_from:
-            inv_stmt = inv_stmt.where(Invoice.invoice_date >= date_from)
-            bill_stmt = bill_stmt.where(Bill.bill_date >= date_from)
-        if date_to:
-            inv_stmt = inv_stmt.where(Invoice.invoice_date <= date_to)
-            bill_stmt = bill_stmt.where(Bill.bill_date <= date_to)
-        inv_sub, inv_tax = self.db.execute(inv_stmt).one()
-        bill_sub, bill_tax = self.db.execute(bill_stmt).one()
+        """DELEGATES to `GstService` (R11.9, G16).
+
+        This used to return one three-row total for the whole window, which is not "by
+        period" — and GST is paid monthly, so a single lump covering a quarter cannot be
+        reconciled against anything. The arithmetic now lives in `finance/gst.py` and this
+        renders it per month, with the totals as a final row. Same correction C1 made to
+        `_ar_aging`: one definition, read from wherever it is needed.
+        """
+        from app.modules.finance.cash import default_window
+        from app.modules.finance.gst import GstService
+
+        start, end = default_window()
+        summary = GstService(self.db).summary(
+            date_from=date_from or start, date_to=date_to or end
+        )
         rows = [
-            {"kind": "Output GST (sales)", "taxable_minor": int(inv_sub), "tax_minor": int(inv_tax)},
-            {"kind": "Input GST (purchases)", "taxable_minor": int(bill_sub), "tax_minor": int(bill_tax)},
             {
-                "kind": "Net GST payable",
-                "taxable_minor": 0,
-                "tax_minor": int(inv_tax) - int(bill_tax),
-            },
+                "period": row.label,
+                "output_taxable_minor": row.output_taxable_minor,
+                "output_tax_minor": row.output_tax_minor,
+                "input_taxable_minor": row.input_taxable_minor,
+                "input_tax_minor": row.input_tax_minor,
+                "net_tax_minor": row.net_tax_minor,
+            }
+            for row in summary.rows
         ]
+        rows.append(
+            {
+                "period": "Total",
+                "output_taxable_minor": summary.output_taxable_minor,
+                "output_tax_minor": summary.output_tax_minor,
+                "input_taxable_minor": summary.input_taxable_minor,
+                "input_tax_minor": summary.input_tax_minor,
+                "net_tax_minor": summary.net_tax_minor,
+            }
+        )
         return ReportResult(
             key="gst-summary",
-            title="GST Summary",
-            columns=["kind", "taxable_minor", "tax_minor"],
+            title=(
+                f"GST Summary by period ({summary.date_from.isoformat()} to "
+                f"{summary.date_to.isoformat()})"
+            ),
+            columns=[
+                "period",
+                "output_taxable_minor",
+                "output_tax_minor",
+                "input_taxable_minor",
+                "input_tax_minor",
+                "net_tax_minor",
+            ],
             rows=rows,
-            money_columns={"taxable_minor", "tax_minor"},
+            money_columns={
+                "output_taxable_minor",
+                "output_tax_minor",
+                "input_taxable_minor",
+                "input_tax_minor",
+                "net_tax_minor",
+            },
         )
 
     # --- CSV rendering --------------------------------------------------

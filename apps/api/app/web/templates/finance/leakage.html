@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+{% block title %}Margin leakage{% endblock %}
+{% block content %}
+{% call ui.page_header("Margin leakage", "Specific lines, not a score") %}
+  <a class="btn" href="/finance">← Finance</a>
+  <a class="btn" href="/finance/margin">Margin</a>
+{% endcall %}
+
+<form class="inline-form mt" method="get" action="/finance/leakage">
+  <label>From</label>
+  <input class="input" type="date" name="date_from" value="{{ date_from }}" />
+  <label>To</label>
+  <input class="input" type="date" name="date_to" value="{{ date_to }}" />
+  <button class="btn btn-sm" type="submit">Apply</button>
+  <a class="btn btn-sm"
+     href="/finance/leakage?date_from={{ date_from }}&date_to={{ date_to }}&export=csv">Export CSV</a>
+</form>
+
+<div class="grid grid-2 mt">
+  {{ ui.stat("Indicators firing", report.fired | length ~ " of " ~ report.indicators | length) }}
+  {{ ui.stat("Lines flagged", report.flagged_line_count,
+             "one line can appear under more than one indicator") }}
+</div>
+
+{# Deliberately NOT one summed "total leakage" figure. The indicators measure different
+   quantities — money lost against cost, and money given away against list — and the same line
+   can appear under both. Adding them would read as a single loss that nobody actually made,
+   which is the sort of number R11.14 says does not belong on the page. #}
+<p class="muted">
+  Each indicator totals its own measure below. They are not added together: one counts money
+  lost against what the stock cost, the other money given away against the list price, and a
+  single line can appear under both.
+</p>
+
+{% for indicator in report.indicators %}
+<div class="card mt">
+  <div class="card-title">{{ indicator.label }} — {{ indicator.impact_minor | money }}</div>
+  <p class="muted">{{ indicator.rule }}</p>
+  {% if indicator.records %}
+  <div class="table-wrap mt">
+    <table>
+      <thead>
+        <tr>
+          <th>Invoice</th><th>Date</th><th>Product</th><th>Customer</th>
+          <th class="num">Qty</th><th class="num">Charged</th>
+          <th class="num">Reference</th><th class="num">Impact</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in indicator.records %}
+        <tr>
+          <td class="mono"><a class="row-link" href="{{ r.href }}">{{ r.doc_no }}</a></td>
+          <td>{{ r.occurred_on | fmt_date }}</td>
+          <td>{{ r.product_name }}</td>
+          <td>{{ r.party_name or "—" }}</td>
+          <td class="num">{{ r.qty | number }}</td>
+          <td class="num">{{ r.unit_price_minor | money }}</td>
+          <td class="num">{{ r.reference_minor | money }}</td>
+          <td class="num">{{ r.impact_minor | money }}</td>
+        </tr>
+        <tr><td></td><td colspan="7" class="muted">{{ r.detail }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+    {{ ui.empty("No offenders in this window — a clean result, not a missing check.") }}
+  {% endif %}
+  <div class="mt">{{ ui.explain_panel(indicator.explained, indicator.label) }}</div>
+</div>
+{% endfor %}
+
+{# R11.8: an indicator with nothing to click must not exist. Freight has nothing to compute
+   from, so it is named as a GAP rather than shipped as an empty table — those are different
+   claims and only one of them would be true. #}
+{% if report.not_measured %}
+<div class="card mt">
+  <div class="card-title">Not measured</div>
+  {% for gap in report.not_measured %}
+  <p><strong>{{ gap.label }}</strong></p>
+  <p class="muted">{{ gap.reason }}</p>
+  {% endfor %}
+</div>
+{% endif %}
+{% endblock %}

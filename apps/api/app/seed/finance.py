@@ -161,10 +161,209 @@ def seed_finance(ctx: SeedContext) -> dict | None:
             _pay_bill(ctx, bill, paid_pct)
         bill_nos.append(f"{bill.bill_no} ({label})")
 
+    made["leakage"] = _seed_leakage_offenders(ctx, bu_id=bu_id, customers=customers)
+
     db.flush()
     made["invoices"] = "; ".join(invoice_nos)
     made["bills"] = "; ".join(bill_nos)
     return made
+
+
+def _seed_leakage_offenders(ctx: SeedContext, *, bu_id, customers) -> str | None:
+    """Part 8 C3 (R11.8, G14): one deliberate offender per leakage indicator.
+
+    R11.8 asks for a test that each indicator FIRES on an offender and stays SILENT
+    otherwise, and the probe that preceded C3 found the seed had **neither** — every line
+    was priced exactly at list, and none below cost. Without these three lines the
+    indicators would ship untested against real data and the screen would show two empty
+    tables that look like features nobody finished.
+
+    Three lines, one invoice, on the LAST customer in code order so nothing else asserts
+    about them:
+
+    * **below cost** — priced under the product's purchase price, so gross profit is negative,
+    * **discount creep** — 40% below list, well past the 15% threshold,
+    * **cost unknown** — a product with no purchase-price row at all, which is the line that
+      would otherwise be reported at a 100% margin. It is the reason the margin projection
+      counts and excludes rather than trusting `MarginService.gp` blindly.
+
+    The third needs a product nothing has ever been bought for, and the seed prices all 311
+    products on both sides — so `_listed_but_never_bought` creates one. That is not seed
+    fiction: a product you have listed and not yet stocked is an ordinary situation, and it is
+    the only way the "cost unknown" column and its caveat are ever visible on the demo.
+    """
+    from app.modules.pricing.models import PurchasePrice
+
+    db = ctx.db
+    if not customers:
+        return None
+    subject = customers[-1]
+
+    priced = db.execute(
+        select(SellingPrice.product_id, SellingPrice.price_minor)
+        .where(
+            SellingPrice.deleted_at.is_(None),
+            SellingPrice.price_minor > 0,
+            SellingPrice.customer_id.is_(None),
+            SellingPrice.customer_type_id.is_(None),
+        )
+        .order_by(SellingPrice.price_minor.desc())
+        .limit(40)
+    ).all()
+
+    bought = {
+        row[0]
+        for row in db.execute(
+            select(PurchasePrice.product_id).where(
+                PurchasePrice.valid_to.is_(None), PurchasePrice.deleted_at.is_(None)
+            )
+        ).all()
+    }
+
+    with_cost = [(pid, price) for pid, price in priced if pid in bought]
+    if len(with_cost) < 2:
+        return None
+    without_cost, unlisted_price = _listed_but_never_bought(ctx, bu_id=bu_id)
+
+    buy_of = {
+        pid: int(
+            db.scalar(
+                select(PurchasePrice.price_minor)
+                .where(
+                    PurchasePrice.product_id == pid,
+                    PurchasePrice.valid_to.is_(None),
+                    PurchasePrice.deleted_at.is_(None),
+                )
+                .order_by(PurchasePrice.valid_from.desc())
+                .limit(1)
+            )
+            or 0
+        )
+        for pid, _price in with_cost[:2]
+    }
+
+    # Sold below cost: 20% UNDER the purchase price, so gp is unambiguously negative.
+    loss_pid, _loss_list = with_cost[0]
+    below_cost_unit = max(1, int(Decimal(buy_of[loss_pid]) * Decimal("0.8")))
+    # Discount creep: 20% below list — past the 15% threshold, but the C1 seed buys at 70% of
+    # list, so 80% of list stays ABOVE cost. That keeps the two indicators independent: this
+    # line fires creep and NOT below-cost, which is what makes "silent otherwise" meaningful.
+    creep_pid, creep_list = with_cost[1]
+    creep_unit = max(1, int(Decimal(creep_list) * Decimal("0.8")))
+
+    rows = [(loss_pid, below_cost_unit, Decimal("4")), (creep_pid, creep_unit, Decimal("6"))]
+    notes = ["below-cost", "discount-creep"]
+    if without_cost is not None:
+        rows.append((without_cost, unlisted_price, Decimal("3")))
+        notes.append("cost-unknown")
+
+    invoice_date = date.today() - timedelta(days=7)
+    subtotal = tax = total = 0
+    invoice = Invoice(
+        customer_id=subject.id,
+        sales_order_id=None,
+        invoice_no=allocate_document_number(
+            db, doc_type="INV", business_unit_id=bu_id, on_date=invoice_date
+        ),
+        invoice_date=invoice_date,
+        due_date=invoice_date + timedelta(days=30),
+        status="issued",
+        subtotal_minor=0,
+        tax_minor=0,
+        total_minor=0,
+        business_unit_id=bu_id,
+        created_by=ctx.actor_id,
+    )
+    for line_no, (product_id, unit_price, qty) in enumerate(rows, start=1):
+        line_sub, line_tax, line_total = _totals(qty, unit_price)
+        subtotal += line_sub
+        tax += line_tax
+        total += line_total
+        invoice.lines.append(
+            InvoiceLine(
+                product_id=product_id,
+                qty=qty,
+                unit_price_minor=unit_price,
+                tax_rate_bps=_TAX_BPS,
+                line_subtotal_minor=line_sub,
+                line_tax_minor=line_tax,
+                line_total_minor=line_total,
+                line_no=line_no,
+                created_by=ctx.actor_id,
+            )
+        )
+    invoice.subtotal_minor = subtotal
+    invoice.tax_minor = tax
+    invoice.total_minor = total
+    db.add(invoice)
+    db.flush()
+    return f"{invoice.invoice_no} ({', '.join(notes)})"
+
+
+def _listed_but_never_bought(ctx: SeedContext, *, bu_id) -> tuple[object | None, int]:
+    """One product with a selling price and NO purchase price, for the cost-unknown edge.
+
+    Returns `(product_id, list price)`, or `(None, 0)` if there is no product to copy the
+    required masters from. Idempotent on its SKU.
+
+    Why this is worth a seeded product rather than a contrived one: `MarginService.gp` reads a
+    missing purchase price as zero and therefore reports a **100% margin** on a line like
+    this. It is the one number in C3 most likely to be silently wrong, so the demo has to
+    contain the case — otherwise the "cost unknown" column reads 0 everywhere and the caveat
+    it drives never appears on screen.
+    """
+    from app.modules.pricing.models import PurchasePrice
+    from app.modules.products.models import Product
+
+    db = ctx.db
+    sku = "SKU-NOBUY-01"
+    existing = db.scalar(select(Product).where(Product.sku_code == sku))
+    if existing is not None:
+        price = db.scalar(
+            select(SellingPrice.price_minor).where(
+                SellingPrice.product_id == existing.id,
+                SellingPrice.valid_to.is_(None),
+                SellingPrice.deleted_at.is_(None),
+            )
+        )
+        return existing.id, int(price or 0)
+
+    template = db.scalar(
+        select(Product).where(Product.deleted_at.is_(None)).order_by(Product.sku_code)
+    )
+    if template is None:
+        return None, 0
+
+    product = Product(
+        sku_code=sku,
+        name="Listed, never purchased (margin unknown)",
+        category_id=template.category_id,
+        brand_id=template.brand_id,
+        uom_id=template.uom_id,
+        specification="Seeded so the cost-unknown path on the margin screen is visible (G14)",
+        business_unit_id=bu_id,
+        created_by=ctx.actor_id,
+    )
+    db.add(product)
+    db.flush()
+
+    list_price = 50_000  # ₹500.00, a plain round number so the screen is easy to hand-check
+    db.add(
+        SellingPrice(
+            product_id=product.id,
+            price_minor=list_price,
+            created_by=ctx.actor_id,
+        )
+    )
+    db.flush()
+    # Deliberately NO PurchasePrice row — that absence is the whole point of this product.
+    assert (
+        db.scalar(
+            select(PurchasePrice).where(PurchasePrice.product_id == product.id)
+        )
+        is None
+    )
+    return product.id, list_price
 
 
 def _totals(qty: Decimal, unit_price_minor: int) -> tuple[int, int, int]:
