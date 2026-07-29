@@ -144,15 +144,16 @@ class MarginAnalysisService:
             slot[3] += 1
             totals[3] += 1
 
-            if line.product_id not in buy_prices:
+            gross = margin.gp_costed(line, buy_prices=buy_prices)
+            if gross is None:
                 # Cost genuinely unknown. Counted, reported, and kept OUT of the arithmetic
-                # — `gp` would call it a 100% margin.
+                # — `gp` would call it a 100% margin. The decision itself now lives in
+                # `gp_costed` (R13.2), so the two other callers cannot diverge from it again.
                 slot[4] += 1
                 totals[4] += 1
                 continue
 
             revenue = int(line.line_subtotal_minor)
-            gross = margin.gp(line)
             cost = revenue - gross
             slot[0] += revenue
             slot[1] += cost
@@ -325,9 +326,13 @@ class MarginAnalysisService:
         for line, invoice, product_name, _sku, _category_id, customer_name in (
             self.repo.margin_lines_between(date_from, date_to)
         ):
+            # `gp_costed` is the ONE costable-line decision (R13.2). This block used to make
+            # it inline — `buy is not None` — and then call `gp` twice; both are now one call
+            # whose None answer means "we cannot know whether this line lost money".
             buy = buy_prices.get(line.product_id)
-            if buy is not None and margin.gp(line) < 0:
-                loss = -margin.gp(line)
+            gross = margin.gp_costed(line, buy_prices=buy_prices)
+            if gross is not None and gross < 0:
+                loss = -gross
                 below.append(
                     LeakageRecord(
                         doc_no=invoice.invoice_no,

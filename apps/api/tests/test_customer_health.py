@@ -176,9 +176,12 @@ def test_r9_10_a_high_margin_customer_scores_full_marks_on_profitability(db, fre
     # Priced well above the buy price, so the margin clears TARGET_MARGIN_PCT.
     _order(db, fresh_customer, qty="5", unit_price_minor=5000_00, days_ago=5)
 
-    pct, revenue, gp = svc.profitability(fresh_customer.id, as_of=NOW)
+    # Part 10 added the uncosted-line count (R13.2): a line whose product has no recorded
+    # purchase price is excluded and counted rather than scored at a 100% margin.
+    pct, revenue, gp, uncosted = svc.profitability(fresh_customer.id, as_of=NOW)
     assert revenue > 0
     assert pct > TARGET_MARGIN_PCT
+    assert uncosted == 0, "this fixture's product is priced on both sides"
     profitability = next(
         i for i in svc.score(fresh_customer.id, as_of=NOW).inputs if i.label == "Profitability"
     )

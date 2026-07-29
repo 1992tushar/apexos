@@ -14,8 +14,11 @@ The four inputs, and why each is measured the way it is:
 
 * **Frequency** — orders per month over the window. Capped at a target rather than unbounded:
   the difference between four orders a month and forty is not what this score is for.
-* **Profitability** — gross margin on their order lines, through `MarginService.gp`. The
-  EXISTING margin logic (R11.6): selling minus the buy price, never a valuation layer.
+* **Profitability** — gross margin on their order lines, through `MarginService.gp_costed`.
+  The EXISTING margin logic (R11.6): selling minus the buy price, never a valuation layer.
+  A line whose product has no recorded purchase price is **excluded and counted**, not scored
+  at a 100% margin — Part 10's R13.2 unification, and the same treatment
+  `MarginAnalysisService` has always given those lines.
 * **Payment** — how much of what they owe is past its due date. Being *late* is what costs,
   not merely being invoiced, so an invoiced-and-settled customer scores full marks. A customer
   who has **never been invoiced** is a MISSING input, not a perfect one: there is no behaviour
@@ -100,7 +103,24 @@ class CustomerHealthService:
         return (Decimal(len(orders)) / months).quantize(Decimal("0.01")), len(orders)
 
     def profitability(self, customer_id: uuid.UUID, *, as_of: datetime):
-        """(margin %, revenue minor, gp minor) over the window, or None with no revenue."""
+        """(margin %, revenue minor, gp minor, uncosted line count) over the window.
+
+        Margin % is None when there is no revenue this profitability can be measured on —
+        either no order lines at all, or none whose product has a recorded purchase price.
+
+        **Part 10 changed this (R13.2).** It used to call `MarginService.gp`, which reads a
+        missing purchase price as zero and therefore reports the line's whole selling value
+        as profit. A customer who happened to buy a product nothing had ever been purchased
+        for was scored toward a **100% margin** — 30 points of a 100-point score, awarded for
+        a number nobody measured, which is precisely the flattering default G11 forbids. It
+        was known and recorded at Part 8 C3's close rather than changed, because margin was
+        that part's scope and this score was not.
+
+        `gp_costed` is now the one place that decides whether a line is costable at all, and
+        uncosted lines are **excluded and counted** — the same treatment
+        `MarginAnalysisService` has always given them. The count comes back so `score` can
+        name it on screen instead of quietly averaging over fewer lines than it implies.
+        """
         from app.modules.pricing.service import MarginService
         from app.modules.sales.models import SalesOrder, SalesOrderLine
 
@@ -118,13 +138,26 @@ class CustomerHealthService:
             )
         )
         lines = [ln for ln in lines if _aware(ln.order.order_date) >= since]
-        revenue = sum(int(ln.line_subtotal_minor) for ln in lines)
-        if revenue <= 0:
-            return None, 0, 0
+        if not lines:
+            return None, 0, 0, 0
+
         margin = MarginService(self.db)
-        gp = sum(margin.gp(ln) for ln in lines)
+        buy_prices = margin.purchase_price_map()
+        revenue = 0
+        gp = 0
+        uncosted = 0
+        for line in lines:
+            line_gp = margin.gp_costed(line, buy_prices=buy_prices)
+            if line_gp is None:
+                uncosted += 1
+                continue
+            revenue += int(line.line_subtotal_minor)
+            gp += line_gp
+
+        if revenue <= 0:
+            return None, 0, 0, uncosted
         pct = (Decimal(gp) / Decimal(revenue) * 100).quantize(Decimal("0.1"))
-        return pct, revenue, gp
+        return pct, revenue, gp, uncosted
 
     def payment(self, customer_id: uuid.UUID, *, as_of: datetime):
         """(overdue minor, outstanding minor, invoice count).
@@ -203,7 +236,7 @@ class CustomerHealthService:
             raise NotFoundError(f"Customer {customer_id} not found")
 
         rate, order_count = self.frequency(customer_id, as_of=as_of)
-        margin_pct, revenue, gp = self.profitability(customer_id, as_of=as_of)
+        margin_pct, revenue, gp, uncosted_lines = self.profitability(customer_id, as_of=as_of)
         overdue, outstanding, invoice_count = self.payment(customer_id, as_of=as_of)
         days_since = self.recency(customer_id, as_of=as_of)
 
@@ -236,19 +269,31 @@ class CustomerHealthService:
             )
 
         if margin_pct is None:
+            # Two different reasons, named separately (G11, R13.11). "Nothing invoiced" and
+            # "everything they bought has no purchase price behind it" both leave the margin
+            # unmeasurable, and a founder can act on the second — record what those products
+            # cost — but not on a message describing the first.
+            reason = (
+                f"none of their {uncosted_lines} order line"
+                f"{'' if uncosted_lines == 1 else 's'} has a purchase price recorded"
+                if uncosted_lines
+                else "nothing invoiced yet"
+            )
             components.append(
-                ("Profitability", WEIGHT_PROFITABILITY, None, "no revenue", "nothing invoiced yet")
+                ("Profitability", WEIGHT_PROFITABILITY, None, "no measurable margin", reason)
             )
         else:
             points = _clamp_pct(margin_pct / TARGET_MARGIN_PCT * 100)
-            components.append(
-                (
-                    "Profitability",
-                    WEIGHT_PROFITABILITY,
-                    points,
-                    f"{margin_pct}% margin ({minor_to_text(gp)} on {minor_to_text(revenue)})",
-                    None,
+            value = f"{margin_pct}% margin ({minor_to_text(gp)} on {minor_to_text(revenue)})"
+            if uncosted_lines:
+                # Averaging over fewer lines than the customer actually bought is defensible;
+                # not saying so is not.
+                value += (
+                    f", excluding {uncosted_lines} line"
+                    f"{'' if uncosted_lines == 1 else 's'} with no purchase price"
                 )
+            components.append(
+                ("Profitability", WEIGHT_PROFITABILITY, points, value, None)
             )
 
         if invoice_count == 0:

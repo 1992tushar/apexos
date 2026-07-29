@@ -466,27 +466,18 @@ class FinanceRepository:
         return out
 
     def purchase_prices_by_product(self) -> dict[uuid.UUID, int]:
-        """`{product_id: current buy price}` for every product that has one.
+        """`{product_id: current buy price}`. **A bare delegation — not a second query.**
 
-        Grouped so margin over a window is a handful of queries. **Absence means the cost is
-        UNKNOWN**, which is the distinction `MarginService.gp` cannot make — it reads a
-        missing purchase price as zero and therefore reports a 100% margin. Margin work must
-        use this map to decide whether a line is priceable at all before trusting `gp`.
+        Part 8 built this query here because finance was its only consumer. Part 10's R13.1
+        audit found three consumers in three modules, so the implementation moved to
+        `PricingRepository`, which owns `PurchasePrice`. This name survives because Part 8's
+        callers and tests use it, and a delegation costs nothing (R13.2, R13.6's precedent).
+
+        Prefer `MarginService.gp_costed`, which applies the map rather than handing it to you.
         """
-        from app.modules.pricing.models import PurchasePrice
+        from app.modules.pricing.repository import PricingRepository
 
-        rows = self.db.execute(
-            select(PurchasePrice.product_id, PurchasePrice.price_minor)
-            .where(
-                PurchasePrice.valid_to.is_(None),
-                PurchasePrice.deleted_at.is_(None),
-            )
-            .order_by(PurchasePrice.product_id, PurchasePrice.valid_from.desc())
-        ).all()
-        out: dict[uuid.UUID, int] = {}
-        for product_id, price in rows:
-            out.setdefault(product_id, int(price))
-        return out
+        return PricingRepository(self.db).purchase_prices_by_product()
 
     def invoice_tax_rows_between(
         self, date_from: date, date_to: date

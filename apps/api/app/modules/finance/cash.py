@@ -14,7 +14,10 @@ gap here.
   receivable), payables → `SupplierRepository.outstanding_by_supplier()`,
 * what is *due* in a window → C1's `open_invoices` / `open_bills`,
 * inventory value → Part 5's `ValuationService.stock_value()`,
-* cost of goods → Part 5/2's `MarginService.gp`, never a second cost derivation (R11.6).
+* cost of goods → `MarginService.gp_costed`, never a second cost derivation (R11.6). Part 10
+  moved this off `gp` so the costable-line decision lives in one place (R13.2). It changes no
+  figure on today's data — see `_cogs` for why, measured rather than assumed — but it removes
+  a dependence on `gp` and the stored subtotal happening to agree.
 
 **Money stays integer minor units and division appears only in a ratio (R11.12).** The two
 ratios here are day counts, and they round through exactly one place — `_days()` — which
@@ -253,7 +256,7 @@ class CashFlowService:
         snapshot = self.working_capital(as_of=date_to)
         revenue_subtotal, revenue_total = self.repo.invoiced_between(date_from, date_to)
         purchases_subtotal, purchases_total = self.repo.billed_between(date_from, date_to)
-        cogs = self._cogs(date_from, date_to)
+        cogs, uncosted_lines = self._cogs(date_from, date_to)
 
         dso_days = _days(snapshot.receivables_minor, revenue_total, window_days)
         dio_days = _days(snapshot.inventory_minor, cogs, window_days)
@@ -284,13 +287,27 @@ class CashFlowService:
             formula=(
                 "inventory value ÷ (cost of goods sold in the window ÷ days in the window). "
                 "Cost of goods is invoiced subtotal minus gross profit, where gross profit is "
-                "MarginService.gp — not an inventory valuation layer (R11.6)."
+                "MarginService.gp_costed — not an inventory valuation layer (R11.6)."
             ),
             window=window,
             inputs=(
                 Input(label="Inventory at cost", value=minor_to_text(snapshot.inventory_minor)),
                 Input(label="Cost of goods sold", value=minor_to_text(cogs)),
                 Input(label="Days in window", value=str(window_days)),
+                # Named rather than folded away: these lines are in the window's sales but
+                # not in its cost, so a founder comparing DIO to the margin screen can see
+                # why the two count different numbers of lines (G11, R13.10).
+                *(
+                    (
+                        Input(
+                            label="Invoice lines excluded (no purchase price)",
+                            value=str(uncosted_lines),
+                            missing_reason=None,
+                        ),
+                    )
+                    if uncosted_lines
+                    else ()
+                ),
             ),
             records=(SourceRecord(label="Stock value at cost", href="/inventory"),),
             missing=(
@@ -388,12 +405,36 @@ class CashFlowService:
             ccc=ccc,
         )
 
-    def _cogs(self, date_from: date, date_to: date) -> int:
-        """Cost of goods sold in the window — **through `MarginService.gp`** (R11.6, R11.11).
+    def _cogs(self, date_from: date, date_to: date) -> tuple[int, int]:
+        """Cost of goods sold in the window — **through `MarginService.gp_costed`**.
+
+        Returns `(cogs, uncosted_line_count)`.
 
         `cost = subtotal − gross profit`, so no second cost derivation exists anywhere: if
         margin ever changes its mind about what a thing cost, DIO changes with it. Subtotal,
         not total, because GST is collected on the customer's behalf rather than earned.
+
+        **Uncosted lines are excluded from BOTH terms, which Part 10 changed (R13.2).** This
+        used to call `gp`, which reads a missing purchase price as zero and so returns the
+        line's whole selling value as profit.
+
+        **Measured honestly: that change moves no number on today's data.** An uncosted
+        line's `gp` comes out equal to its own subtotal, so `subtotal − gross` contributed
+        exactly zero to cost — which is also what excluding it contributes. COGS over the
+        seeded 90-day window is 14,691.95 either way. The change is worth making anyway, for
+        two reasons that are not about today's figure:
+
+        * it stops the right answer depending on a **coincidence**. `gp` is
+          `(unit_price − buy) × qty` and the subtotal is a stored column; they agree only
+          while nothing discounts a line after its unit price is set. The moment they
+          diverge, an uncosted line starts contributing a fictitious cost.
+        * the count comes back, so the DIO panel can **say** how much of the window it could
+          not cost (R13.10). That is new information for the founder, and it is the part a
+          reader of this figure actually needed.
+
+        Do not describe this as having fixed DIO. It did not; DIO is 8,283 days on the seed
+        before and after, and what makes that figure hard to read is the thin window
+        `_thin_window_caveat` already marks.
 
         The buy price `gp` reads is the product's CURRENT one, not the price at the time of
         sale — that is the existing behaviour R11.6 tells this part to reuse, and the DIO
@@ -402,12 +443,18 @@ class CashFlowService:
         from app.modules.pricing.service import MarginService
 
         margin = MarginService(self.db)
+        buy_prices = margin.purchase_price_map()
         subtotal = 0
         gross = 0
+        uncosted = 0
         for line in self.repo.invoice_lines_between(date_from, date_to):
+            line_gross = margin.gp_costed(line, buy_prices=buy_prices)
+            if line_gross is None:
+                uncosted += 1
+                continue
             subtotal += int(line.line_subtotal_minor)
-            gross += margin.gp(line)
-        return max(0, subtotal - gross)
+            gross += line_gross
+        return max(0, subtotal - gross), uncosted
 
     @staticmethod
     def _thin_window_caveat(days: int, window_days: int) -> str | None:
