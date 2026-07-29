@@ -142,7 +142,7 @@ owned `/`, and two handlers cannot both own it.
 
 ## C2 — the empty state · the rest of the deletion · the measurement · **PART 9 COMPLETE**
 
-**From `8c87f52` → `<C2 SHA>`.** Tests 786 → 794. Ruff 35 → 35.
+**From `8c87f52` → `42b4392`.** Tests 786 → 794. Ruff 35 → 35.
 
 ### R12.15 — the fresh-DB pass, and the three defects it found
 

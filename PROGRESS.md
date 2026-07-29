@@ -31,7 +31,7 @@ work is on `main`**; nothing in this run is tagged (waived), so the SHA table is
 | **P8-C2** cash flow · working capital · CCC | `ec8a573` | `30b3cc1` | 688 → 721 | 37 → 37 |
 | **P8-C3** margin ×4 · leakage · GST | `30b3cc1` | `0ce6931` | 721 → 757 | 37 → **35** |
 | **P9-C1** tiles · alerts · activity · quick actions | `c316861` | `45b8218` | 757 → 786 | 35 → 35 |
-| **P9-C2** empty state · placeholder deleted · measured — **PART 9 COMPLETE** | `8c87f52` | `<C2>` | 786 → **794** | 35 → 35 |
+| **P9-C2** empty state · placeholder deleted · measured — **PART 9 COMPLETE** | `8c87f52` | `42b4392` | 786 → **794** | 35 → 35 |
 
 **Part 9 measured (R12.12, R12.14) — the figure this file is required to state.** One `/` page
 load: **81 queries, 51 ms median warm render** (184 ms cold), measured on uvicorn over real HTTP
@@ -73,7 +73,7 @@ Continue the ApexOS build. Do this in order:
    Part 9's and CLOSED. Then docs/prompts/part-10.md and docs/STANDING-RULES.md (binding),
    and docs/CODEBASE-MAP.md — this is the ONE part where the map earns its keep, because
    the R13.1 audit is a question about what exists everywhere. Do NOT open docs/ROADMAP.md
-   (~17k tokens). `git show --stat 45b8218` and `<C2>` for Part 9's shape.
+   (~17k tokens). `git show --stat 45b8218 42b4392` for Part 9's shape.
 
 4. Verify the baseline before writing code (from apps/api, venv activated):
      python -m pytest -q                  # expect 794 passed
