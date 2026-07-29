@@ -17,6 +17,15 @@
 {% block content %}
 {% call ui.page_header("Command Center", "Everything below is derived at read time and links to the rows behind it.") %}{% endcall %}
 
+{# R12.15 — a fresh install has no measurements, and the tiles below must not read as
+   though it did. Said once, at the top, rather than repeated into twelve hints. #}
+{% if page.is_empty %}
+<div class="card">
+  <div class="card-title">Nothing has been recorded yet</div>
+  <p class="hint">These figures are all derived from your own documents, so they stay at zero until there are some. Start with one of the actions at the bottom of this page — the numbers and alerts fill in from there.</p>
+</div>
+{% endif %}
+
 {# ---- 1 (R12.1) ---------------------------------------------------------- #}
 <h2 class="section-title">What happened</h2>
 <div class="grid grid-3">

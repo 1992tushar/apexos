@@ -137,3 +137,105 @@ R12.11's remaining half (`app/modules/dashboard/` — `repository.py` 58, `route
 R12.14's write-up in `PROGRESS.md` (the numbers above are what it writes), and R12.15's
 fresh-DB empty state. The web half of R12.11 could not wait for C2: `app/web/pages/dashboard.py`
 owned `/`, and two handlers cannot both own it.
+
+---
+
+## C2 — the empty state · the rest of the deletion · the measurement · **PART 9 COMPLETE**
+
+**From `8c87f52` → `<C2 SHA>`.** Tests 786 → 794. Ruff 35 → 35.
+
+### R12.15 — the fresh-DB pass, and the three defects it found
+
+The requirement's value is entirely in *running* it. A schema-only database (`create_all`, no
+seed) reached through the real route, the real template and the real filters — via a
+`get_db` dependency override rather than a second application, so what is tested is the page
+that ships.
+
+The page rendered 200 and fired no alerts on the first attempt, which is what the `Alert`
+validator was for. But three of its **hints were lying**, and none of them could be caught on
+seeded data:
+
+1. **"no line today has a purchase price behind it"** on a system with no lines at all. Both
+   an uncostable day and an empty day render the word "unknown", and they are not the same
+   fact. Now three states, not two: `_margin_hint` returns *"nothing invoiced today"* when
+   `line_count` and `unknown_cost_lines` are both zero.
+2. **"0 invoice lines, tax excluded" / "0 receipts banked"** — technically true, but they read
+   as a count taken from records that do not exist. Now *"nothing invoiced today"* and
+   *"nothing banked today"*.
+3. **"0 rupees of it overdue"** under a receivable of zero. That sentence describes a business
+   with money out and none of it late, which is a different claim from having nothing on the
+   books. `_overdue_hint` now says *"nothing overdue"*.
+
+### The distinction R12.15 actually turns on
+
+"Without fake zeros-as-alerts" is the letter of it; the substance is **a measured zero versus
+no measurement at all**. A business with a hundred invoices and nothing due today should see
+its zeros — they are facts. A system that has never been used has no facts, and twelve
+confident ₹0.00 tiles presented as though it did would be the first thing this page got
+wrong. It is the same objection G11 makes to reporting 0 for a score that cannot be computed.
+
+`CommandCenter.is_empty` is that signal — three conditions, because each alone is reachable
+on a live system: an empty `activity_log` (G5 writes exactly one row per state change, so it
+is the most reliable "nothing has happened" evidence in the schema), no alert fired, and no
+figure carrying a value. When true the template says so once, at the top, and points at the
+quick actions, which on an empty system are the only useful thing on the page. The tiles stay
+— they are honest, and seeing the homepage's shape on day one is worth something — but they
+are no longer presented as measurements.
+
+**Both directions are asserted.** `test_r12_15_the_seeded_page_is_not_treated_as_empty` exists
+because without it `is_empty` returning `True` unconditionally would have passed every other
+empty-state test.
+
+### R12.11 — the placeholder is gone entirely
+
+Deleted: `app/modules/dashboard/` (`__init__.py`, `repository.py`, `router.py`, `schemas.py`,
+`service.py` — 202 lines) and the `"app.modules.dashboard.router"` entry in `app/api.py`.
+Confirmed first that no test referenced `MODULE_ROUTERS` or `/dashboard/summary`.
+
+`git rm -r` left `__pycache__/` behind, so the directory still existed and the test caught it
+— which is why that test asserts the directory's absence **and** that
+`importlib.import_module("app.modules.dashboard.service")` raises: a lingering `.pyc` tree can
+still import on some Python versions, and "the files are gone" is not the same claim as "the
+module is gone". A second test asserts `/api/v1/dashboard/summary` now 404s.
+
+### R12.12 / R12.14 — the measurement, stated
+
+Unchanged by C2's edits (`is_empty`, `_margin_hint` and `_overdue_hint` add no queries),
+re-measured to confirm rather than assumed:
+
+| | Queries | Warm render (median of 5) | Cold |
+|---|---|---|---|
+| **C1 before the `low_stock` fix** | 344 | 1,096 ms | — |
+| **Shipped** | **81** | **51 ms** | 184 ms |
+
+81 is thirteen grouped projections of 1–14 queries each, **none of which grows with the row
+count**. That property is what R12.12 protects; the absolute number is the evidence for it.
+The seed holds 311 products, 273 stock states, 86 low-stock rows and 4 overdue customers, so
+any per-row read lands in the hundreds — which is why `QUERY_CEILING = 120` is deliberately
+loose rather than "81 plus a little". A ceiling tight enough to fail on one added figure gets
+re-litigated every checkpoint and eventually raised without measuring, which is the worse
+outcome.
+
+**What the measurement does not cover, stated plainly:** one count and one timing, on one
+seeded dataset, on SQLite, on this machine. It proves the page does not read per row. It does
+**not** prove any individual query is fast, it says nothing about a dataset an order of
+magnitude larger, and it is not a browser measurement — no paint, no network, no CSS. R9.12's
+"clicked in a browser" walkthrough remains a human task.
+
+### Verification
+
+* `pytest -q` → **794 passed** (786 + 8). `-k r12_` is Part 9's evidence.
+* `ruff check app/ tests/` → **35**, unchanged. Nine parts, zero new findings.
+* **Real app driven** on uvicorn against a freshly seeded scratch DB: 12 tiles, 5 alert cards,
+  42 links all 200, no empty table bodies, no chart marker, 51 ms median warm render.
+* **Mutation check — six mutations, all red:** never recognising a fresh install as empty;
+  treating *every* page as empty; telling an empty day its lines lack a purchase price;
+  reporting "0 rupees of it overdue"; re-registering the deleted router; and letting the
+  low-stock alert fire with an empty record list.
+
+### Part 9's requirement status — all P0 and P1 pass
+
+R12.1 ✓ · R12.2 ✓ · R12.3 ✓ · R12.4 ✓ · R12.5 ✓ · R12.6 ✓ · R12.7 ✓ · R12.8 ✓ · R12.9 ✓ ·
+R12.10 ✓ · R12.11 ✓ · R12.12 ✓ · R12.13 ✓ · R12.14 ✓ (P1) · R12.15 ✓ — nothing deferred,
+nothing partial. **Not tagged**, per this run's convention; the `PROGRESS.md` SHA table is the
+record.

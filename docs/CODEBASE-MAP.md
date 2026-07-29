@@ -346,7 +346,16 @@ which also runs the recommendation engine this page does not show; the `overdue`
 vendor alert, and `unpromised` is excluded because R5.7 says an order nobody promised is not due) ·
 `pending_count()` on the sales and procurement repositories · `ActivityService.recent`.
 
-**Measured at 81 queries and a 59 ms median warm render** (R12.12/R12.14) — thirteen grouped
+**The empty state distinguishes a measured zero from no measurement** (R12.15). `is_empty` is an
+empty `activity_log` (G5 makes it the most reliable "nothing has happened" evidence in the schema)
+plus no alerts plus no figure carrying a value; the template then says so once, at the top, and
+leaves the tiles visible rather than presenting them as measurements. A business with a hundred
+invoices and nothing due today still sees its zeros, because those are facts. Loading the page
+against a schema-only DB is what found three hints that read as measurements of records that did
+not exist — "no line today has a purchase price behind it" on a system with no lines is simply
+false, and the seeded data cannot reach that branch.
+
+**Measured at 81 queries and a ~51 ms median warm render** (R12.12/R12.14) — thirteen grouped
 projections of 1–14 queries each, none growing with the row count.
 `test_r12_13_one_page_load_stays_inside_its_query_budget` holds a ceiling of 120, loose on purpose:
 what it catches is a per-row read, and with 311 products and 273 stock states those land in the
@@ -672,7 +681,7 @@ invoice path — the tax rounding has to be identical everywhere (G1).
 | `test_vendor_intel.py` | R5.1–R5.6, R5.10–R5.14: the mapping and its exclusive preferred, MOQ, lead time measured from `confirmed_at`→`received_at`, the on-time boundary (`received <= promised` is on time) and the excluded unpromised receipt, the 60/40 score and its renormalisation, price history, the unknown paths, and that no writable lead-time field exists anywhere |
 | `test_vendor_screens.py` | R5.12 + R5.5 on screen: each figure reaching its page **with** its formula, window and source records, the vendor comparison preferred-first, the price timeline, "unknown" rendering as the word, the three mapping POST verbs end to end, and the agreed MOQ reaching R4.5's grid |
 | `test_procurement_planning.py` | R5.7–R5.9: the shortfall arithmetic with every term non-zero, an open PO not double-ordered, a draft not counted as on order, the MOQ raise, the calendar's five buckets and its never-bucket-unpromised-as-today rule, R5.8's sentence, and a source walk asserting no second recommendation engine exists |
-| `test_command_center.py` | R12.1–R12.13 + G11/G15: the three questions in order; each of the twelve figures asserted **equal to the service that owns it AND non-zero on the seed**, because an equality between two code paths only tests what the data distinguishes; the ageing tiles' `side=` (the one pair a swap would hide); committed cash forward, and proven to differ from the trailing figure; the unknown-margin branch driven directly with a stub, since the seed cannot reach it; every href rendered *and* resolving; every alert's trigger and threshold on screen with linked records; the two schema validators refusing an unclickable figure and an empty alert; no chart marker; a namespace walk proving the projection holds no query and no model; no `activity_log` row written by a page load; and the query-count ceiling. `_rendered` / `_linked` are the escaping helpers — Jinja escapes what it interpolates, not the quotes you typed |
+| `test_command_center.py` | R12.1–R12.13 + G11/G15: the three questions in order; each of the twelve figures asserted **equal to the service that owns it AND non-zero on the seed**, because an equality between two code paths only tests what the data distinguishes; the ageing tiles' `side=` (the one pair a swap would hide); committed cash forward, and proven to differ from the trailing figure; the unknown-margin branch driven directly with a stub, since the seed cannot reach it; every href rendered *and* resolving; every alert's trigger and threshold on screen with linked records; the two schema validators refusing an unclickable figure and an empty alert; no chart marker; a namespace walk proving the projection holds no query and no model; no `activity_log` row written by a page load; and the query-count ceiling. `_rendered` / `_linked` are the escaping helpers — Jinja escapes what it interpolates, not the quotes you typed. `fresh_db` + `fresh_client` are R12.15's pattern: a second engine with `create_all` and nothing seeded, reached through a `get_db` dependency override so the real route, template and filters are what gets tested |
 | `_web_routes.py` | Not a test — the shared route walk both `test_web_authz.py` and `test_web_smoke.py` use. FastAPI ≥ 0.140 wraps `include_router` in `_IncludedRouter`, so a shallow walk of `.routes` sees nothing; recurse via `.original_router`. Both callers assert a floor on what they found, because the R1.5 walk silently became `[] == []` when that changed |
 
 Run `pytest -q`, never verbose.
@@ -689,11 +698,6 @@ and the one `E402` is gone. Part 8 C3 rewrote `_gst_summary` and dropped two ove
 it to **35**. **New work has added zero findings through nine parts, and that's the bar.** Part 11
 (`R14.x`) clears them; until then `ruff check app/ tests/` reporting exactly 35 is a *pass*, and 36 is
 a regression to fix before committing.
-
-**The placeholder dashboard is half deleted.** Part 9 C1 removed `app/web/pages/dashboard.py` and
-`app/web/templates/dashboard/` because they owned `/`. `app/modules/dashboard/` and the
-`"app.modules.dashboard.router"` line in `app/api.py` are **still there** and belong to P9-C2, which
-is where R12.11 sits in the ledger. Its JSON route `/dashboard/summary` has no test referencing it.
 
 **`/analytics` still renders bar "charts" from `div` heights** (`.chart-bars` in `app.css`). R12.9
 banned decorative charts from the *Command Center* and C1 obeyed it; `/analytics` was out of that

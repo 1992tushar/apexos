@@ -164,6 +164,8 @@ class CommandCenterService:
         day = stamp.isoformat()
         margin_href = f"/finance/margin?date_from={day}&date_to={day}"
         cash_href = f"/finance/cash-flow?date_from={day}&date_to={day}"
+        nothing_invoiced = margin.line_count == 0 and margin.unknown_cost_lines == 0
+        receipts = sum(row.receipts for row in cash.rows)
 
         figures = [
             Figure(
@@ -173,7 +175,9 @@ class CommandCenterService:
                 value=margin.revenue_minor,
                 href=margin_href,
                 hint=(
-                    f"{margin.line_count} invoice line"
+                    "nothing invoiced today"
+                    if nothing_invoiced
+                    else f"{margin.line_count} invoice line"
                     f"{'' if margin.line_count == 1 else 's'}, tax excluded"
                 ),
             ),
@@ -187,11 +191,7 @@ class CommandCenterService:
                     else margin.explained.display
                 ),
                 href=margin_href,
-                hint=(
-                    f"{bps_text(margin.margin_bps)} of revenue"
-                    if margin.margin_bps is not None
-                    else "no line today has a purchase price behind it"
-                ),
+                hint=self._margin_hint(margin, nothing_invoiced=nothing_invoiced),
                 explained=margin.explained,
             ),
             Figure(
@@ -201,12 +201,41 @@ class CommandCenterService:
                 value=cash.actual_in_minor,
                 href=cash_href,
                 hint=(
-                    f"{sum(row.receipts for row in cash.rows)} receipt"
-                    f"{'' if sum(row.receipts for row in cash.rows) == 1 else 's'} banked"
+                    f"{receipts} receipt{'' if receipts == 1 else 's'} banked"
+                    if receipts
+                    else "nothing banked today"
                 ),
             ),
         ]
         return figures, self._thin_sample_caveat(margin)
+
+    @staticmethod
+    def _margin_hint(margin, *, nothing_invoiced: bool) -> str:
+        """Why the margin reads as it does — and, when it is unknown, WHICH unknown.
+
+        Three states, not two. A day with no invoice at all and a day whose every line
+        lacks a purchase price both render "unknown", and they are not the same fact:
+        telling a founder on a fresh install that "no line today has a purchase price
+        behind it" is simply false, because there are no lines. Found by loading the page
+        against a schema-only database (R12.15) — the seeded data cannot reach it.
+        """
+        if margin.margin_bps is not None:
+            return f"{bps_text(margin.margin_bps)} of revenue"
+        if nothing_invoiced:
+            return "nothing invoiced today"
+        return "no line today has a purchase price behind it"
+
+    @staticmethod
+    def _overdue_hint(overdue_minor: int) -> str:
+        """What is overdue inside a total — the number that makes the tile a decision.
+
+        "nothing overdue" rather than "0 rupees of it overdue": on a total of zero the
+        second reads as a measurement of a business that has money out and none of it
+        late, which is a different claim from having nothing on the books at all.
+        """
+        if not overdue_minor:
+            return "nothing overdue"
+        return f"{overdue_minor // 100:,} rupees of it overdue"
 
     @staticmethod
     def _thin_sample_caveat(margin) -> str | None:
@@ -298,7 +327,7 @@ class CommandCenterService:
                 kind="money",
                 value=ar.total_minor,
                 href="/finance/ageing?side=receivable",
-                hint=f"{ar.overdue_minor // 100:,} rupees of it overdue",
+                hint=self._overdue_hint(ar.overdue_minor),
             ),
             Figure(
                 key="payables",
@@ -306,7 +335,7 @@ class CommandCenterService:
                 kind="money",
                 value=ap.total_minor,
                 href="/finance/ageing?side=payable",
-                hint=f"{ap.overdue_minor // 100:,} rupees of it overdue",
+                hint=self._overdue_hint(ap.overdue_minor),
             ),
             Figure(
                 key="inventory_value",

@@ -171,3 +171,27 @@ class CommandCenter(BaseModel):
     @property
     def alert_count(self) -> int:
         return sum(a.count for a in self.alerts)
+
+    @property
+    def is_empty(self) -> bool:
+        """Nothing has ever been recorded — a fresh install, not a quiet day (R12.15).
+
+        **The distinction is the whole point.** A business with a hundred invoices and
+        nothing falling due today should see its zeros, because those zeros are
+        measurements. A system that has never been used has no measurements at all, and
+        twelve confident ₹0.00 tiles presented as though it did would be the first thing
+        this page got wrong — the same objection G11 makes to reporting 0 for a score that
+        cannot be computed.
+
+        Three conditions, because any one alone is reachable on a live system: an empty
+        `activity_log` (G5 writes exactly one row per state change, so it is the most
+        reliable "nothing has happened" signal), no alert fired, and no figure carrying a
+        value. It says nothing about *why* — the template's banner says only that the
+        figures will fill in, which is all anyone can honestly claim.
+        """
+        figures = self.happened + self.position + self.attention
+        return (
+            not self.activity
+            and not self.alerts
+            and all(f.value in (0, "unknown", "") for f in figures)
+        )

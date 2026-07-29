@@ -27,7 +27,6 @@ MODULE_ROUTERS: list[str] = [
     "app.modules.procurement.router",
     "app.modules.inventory.router",
     "app.modules.finance.router",
-    "app.modules.dashboard.router",
     "app.modules.activity.router",
     "app.modules.tasks.router",
     "app.modules.documents.router",

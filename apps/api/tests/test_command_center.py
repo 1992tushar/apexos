@@ -54,6 +54,49 @@ def page(db):
     return CommandCenterService(db).load()
 
 
+@pytest.fixture()
+def fresh_db(tmp_path):
+    """A schema-only database: `create_all`, nothing seeded (R12.15).
+
+    Its own engine and its own file, because the suite's `db` fixture is bound to a
+    session-scoped DB that is seeded once — there is no way to un-seed it. `create_all`
+    builds every table with its current columns, so `_ensure_new_columns` has nothing to
+    add here; the shim exists for databases created before a column did.
+    """
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+
+    from app.db.metadata import Base, import_all_models
+
+    import_all_models()
+    engine = create_engine(f"sqlite:///{(tmp_path / 'fresh.db').as_posix()}")
+    Base.metadata.create_all(bind=engine)
+    session = sessionmaker(bind=engine)()
+    try:
+        yield session
+    finally:
+        session.close()
+        engine.dispose()
+
+
+@pytest.fixture()
+def fresh_client(client, fresh_db):
+    """The real app, over real HTTP, reading the empty database.
+
+    A dependency override rather than a second application: this way the route, the
+    template, the filters and the macros are all the ones that ship, which is what makes
+    R12.15 a test of the page and not of the projection alone.
+    """
+    from app.core.database import get_db
+    from app.main import app
+
+    app.dependency_overrides[get_db] = lambda: fresh_db
+    try:
+        yield client
+    finally:
+        app.dependency_overrides.pop(get_db, None)
+
+
 def _figure(page, key: str) -> Figure:
     match = [f for f in page.happened + page.position + page.attention if f.key == key]
     assert match, f"no figure named {key!r} on the page"
@@ -476,18 +519,122 @@ def test_g15_loading_the_page_writes_no_activity_row(client):
 # --- R12.11 (the half C1 owns): the placeholder page is gone -----------------
 
 
-def test_r12_11_the_placeholder_dashboard_page_and_template_are_deleted():
-    """Two dashboards must not remain. The web half goes with C1 because it owned `/`.
+def test_r12_11_the_placeholder_dashboard_is_gone_entirely():
+    """Two dashboards must not remain — and now neither half does.
 
-    `app/modules/dashboard/` and its unused JSON route are C2's to remove; this asserts
-    only what C1 replaced, so it cannot pass by describing work nobody did.
+    C1 deleted the web page and its template because they owned `/`. C2 deletes the
+    module, its JSON router and the `app/api.py` registration. Asserted as files and as an
+    import failure, because a directory can linger as stale `.pyc` and still import.
     """
+    import importlib
     from pathlib import Path
+
+    from app.api import MODULE_ROUTERS
 
     root = Path(__file__).resolve().parents[1] / "app"
     assert not (root / "web" / "pages" / "dashboard.py").exists()
     assert not (root / "web" / "templates" / "dashboard").exists()
+    assert not (root / "modules" / "dashboard").exists()
     assert (root / "web" / "pages" / "command_center.py").exists()
+
+    assert not [r for r in MODULE_ROUTERS if "dashboard" in r], (
+        "the dashboard router is still registered in app/api.py"
+    )
+    with pytest.raises(ModuleNotFoundError):
+        importlib.import_module("app.modules.dashboard.service")
+
+
+def test_r12_11_the_replaced_json_route_no_longer_answers(client):
+    """`/dashboard/summary` had no test referencing it; it must not still be served."""
+    assert client.get("/api/v1/dashboard/summary").status_code == 404
+
+
+# --- R12.15: a fresh DB, and no zeros dressed up as measurements -------------
+
+
+def test_r12_15_a_fresh_db_renders_the_page_without_errors(fresh_client):
+    """Schema only, no rows, real HTTP. This is where three defects were found."""
+    response = fresh_client.get("/")
+    assert response.status_code == 200, response.text[:2000]
+    text = response.text
+    for heading in ("What happened", "What needs attention", "What should I do now"):
+        assert heading in text, f"{heading!r} is missing on a fresh DB"
+
+
+def test_r12_15_a_fresh_db_shows_no_alerts_at_all(fresh_db):
+    """No fake zeros-as-alerts. There is nothing to alert about, so there are no alerts.
+
+    `Alert` already refuses to be constructed without records, so the families are absent
+    rather than present-and-zero — this asserts the service actually omits them instead of
+    relying on that validator to raise at render time.
+    """
+    page = CommandCenterService(fresh_db).load()
+    assert page.alerts == [], f"a fresh install fired {[a.key for a in page.alerts]}"
+    assert page.alert_count == 0
+    assert page.activity == []
+
+
+def test_r12_15_a_fresh_install_says_so_instead_of_reporting_twelve_zeros(fresh_client, fresh_db):
+    """The distinction R12.15 turns on: no measurements yet vs. a measured zero.
+
+    A business with a hundred invoices and nothing due today should see its zeros — they
+    are facts. A system that has never been used has no facts, and presenting twelve
+    confident ₹0.00 tiles as though it did is the failure mode the requirement names.
+    """
+    page = CommandCenterService(fresh_db).load()
+    assert page.is_empty, "a schema-only database is not being recognised as empty"
+    assert "Nothing has been recorded yet" in fresh_client.get("/").text
+
+
+def test_r12_15_the_seeded_page_is_not_treated_as_empty(page, client):
+    """The other half of the same claim, which is what makes the first one mean anything.
+
+    Without this, `is_empty` returning True unconditionally would pass every test above.
+    """
+    assert not page.is_empty
+    assert "Nothing has been recorded yet" not in client.get("/").text
+
+
+def test_r12_15_an_empty_day_names_the_right_unknown(fresh_db):
+    """"No line has a purchase price" is FALSE when there are no lines.
+
+    Both states render the word "unknown" and they are not the same fact. The seeded data
+    cannot reach this one — today's margin is known there — which is exactly why R12.15
+    asks for the fresh-DB pass.
+    """
+    page = CommandCenterService(fresh_db).load()
+    margin = next(f for f in page.happened if f.key == "gross_margin_today")
+
+    assert margin.value == "unknown"
+    assert margin.hint == "nothing invoiced today"
+    assert "purchase price" not in (margin.hint or ""), (
+        "a fresh install is being told its lines lack a purchase price; it has no lines"
+    )
+
+    revenue = next(f for f in page.happened if f.key == "revenue_today")
+    assert revenue.hint == "nothing invoiced today"
+
+
+def test_r12_15_an_empty_total_says_nothing_overdue_rather_than_zero_rupees(fresh_db):
+    """A hint that reads as a measurement of a business with money out and none of it late."""
+    page = CommandCenterService(fresh_db).load()
+    for key in ("receivables", "payables"):
+        figure = next(f for f in page.attention if f.key == key)
+        assert figure.hint == "nothing overdue", f"{key} hint reads {figure.hint!r}"
+
+
+def test_r12_15_a_fresh_db_still_offers_every_quick_action(fresh_client):
+    """The way out of an empty state. Each one must resolve on an empty DB too.
+
+    Not decoration: on a system with no data these four links are the only useful thing on
+    the page, and a 500 from one of them is worse here than anywhere else.
+    """
+    text = fresh_client.get("/").text
+    for action in QUICK_ACTIONS:
+        assert _linked(text, action.href), f"{action.label} is missing on a fresh DB"
+        assert fresh_client.get(action.href).status_code == 200, (
+            f"{action.href} does not load on a fresh DB"
+        )
 
 
 # --- R12.13: the fan-out cannot come back -----------------------------------
