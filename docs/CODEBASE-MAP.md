@@ -26,6 +26,8 @@
 | Ask "which documents make up that total" | `app/modules/finance/ledger.py` — `open_invoices(db, …)` / `open_bills(db, …)`, four queries whatever the row count | A `select()` per invoice; and do not write a second per-document balance |
 | Age something, or say what is overdue | `app/modules/finance/ageing.py` — `AgeingService`; buckets are `AR_AGE_BUCKETS` in `finance/schemas.py` | Inventing a bucket boundary. Due **today** is not overdue, the bound is inclusive, and `bucket_for()` is the one rule |
 | Apply money to documents | `app/modules/finance/allocation.py` — `AllocationService`, oldest due first, surplus refused | Editing an invoice. Money applied is a new `PaymentAllocation` row (G4) |
+| Ask "will we be short of cash" | `app/modules/finance/cash.py` — `CashFlowService`. Flows take `date_from`/`date_to`, balances take `as_of` (R11.13) | Accruing anything into "actual" — cash is payments only, there is no bank ledger |
+| Compute a cost of goods | `cash.py:_cogs` — `Σ line_subtotal − Σ MarginService.gp` | A second cost basis. It would put margin *and* DIO out of step |
 | Block deleting/deactivating something in use | `app/db/references.py` — `REFERENCES` is the policy | Writing a count query in a service; that is what this replaced |
 | Delete something | `app/db/soft_delete.py` (its docstring is the contract) | Per-module delete code — there isn't any, by design |
 | Prevent duplicates | `app/db/duplicates.py` — `NATURAL_KEYS` is the config | — |
@@ -268,11 +270,27 @@ subtracted credit notes, and aged nothing at all despite the name (both ageing r
 and `InvoiceService`'s `balance_minor` was `total − paid`, so an invoice reduced by a return showed a
 balance the customer did not owe — and `add_payment` would have collected it.
 
+- **`cash.py`** (Part 8 C2) — `CashFlowService`: cash flow, working capital, and the cash conversion
+  cycle. The split that matters is **flows take `date_from`/`date_to`, balances take `as_of`**
+  (R11.13), because a window on a balance looks rigorous and means nothing. "Actual" cash is
+  payments — there is no bank ledger, so nothing is accrued and the screen says so. "Committed" is
+  documents that exist with a due date inside the window; confirmed-but-uninvoiced orders and
+  confirmed-but-unbilled POs are reported beside it as *pipeline* and excluded, because no due date
+  exists for either. `COMMITTED_TERMS` is that definition in prose, kept next to the arithmetic
+  because the test asserting the figure matches its definition reads the same words the screen prints.
+
 `AR_AGE_BUCKETS` lives in `finance/schemas.py` beside `bucket_for()`, matching `AGE_BUCKETS` in
 `inventory/schemas.py`: `(key, label, inclusive_upper_bound)`, printed on screen, every edge tested.
 The first bound is `0`, which is R10.6's whole point — **an invoice due today is not overdue.** A NULL
 `due_date` is aged from the invoice date and the screen says so, because zero-day terms already
 produce exactly that due date.
+
+**Two habits this module established, worth copying.** `_days()` in `cash.py` is the only division in
+it: one explicit rounding step, with its reasoning written down, returning `None` rather than a
+flattering `0` when the denominator is empty. And `_thin_window_caveat()` marks any day count longer
+than the window it was measured over — DIO lands near 10,000 days on the seeded data, which is
+arithmetically right and useless as a precise figure, so the screen says it is a direction rather than
+a measurement instead of quietly looking authoritative.
 
 ### `app/modules/sales/fast_entry.py` — what makes order entry quick (Part 7 C2c)
 

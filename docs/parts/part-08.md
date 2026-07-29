@@ -9,6 +9,100 @@ Not tagged — the user waived tagging for this run, so the SHA table in `PROGRE
 
 ---
 
+## C2 — cash flow, working capital, the cash conversion cycle
+
+**Commit `30b3cc1`** · from `ec8a573` · **721 passed** (was 688) · **ruff exactly 37**.
+`pytest -q -k r11_` is **29 tests**.
+
+### Requirements passed
+
+| R | What proves it |
+|---|---|
+| R11.1 | `test_r11_1_actual_cash_is_payments_and_nothing_accrued`, `…_the_monthly_rows_sum_to_the_window_total`, `…_a_window_with_no_payments_is_zero_not_an_error`, `…_projected_net_is_actual_plus_committed_and_excludes_pipeline`, `…_the_cash_screens_state_what_they_are` |
+| R11.2 | `test_r11_2_committed_in_is_exactly_the_open_invoices_due_in_the_window`, `…_committed_out_is_exactly_the_open_bills_…`, `…_committed_excludes_a_document_due_outside_the_window`, `…_the_pipeline_is_reported_but_not_inside_committed`, `…_the_stated_definition_names_every_term_of_the_figure` |
+| R11.3 | `test_r11_3_working_capital_reads_the_one_receivable_and_payable`, `…_inventory_comes_from_part_5s_valuation`, `…_the_snapshot_says_that_cash_at_bank_is_not_in_it` |
+| R11.4 | `test_r11_4_each_cycle_component_is_hand_verified`, `…_the_cycle_is_dso_plus_dio_minus_dpo`, `…_every_component_is_reported_individually`, `…_each_component_explains_itself_with_inputs_and_records`, `…_a_component_with_no_denominator_says_unknown_not_zero`, `…_a_day_count_longer_than_its_own_window_says_it_is_a_direction`, `…_the_caveat_reaches_the_screen_not_only_the_object` |
+| R11.11 | `test_r11_11_cogs_is_marginservice_and_not_a_second_cost_derivation`, plus R11.3's two delegation tests |
+| R11.12 | `test_r11_12_the_one_division_rounds_once_and_returns_none_on_a_zero_rate`, `…_every_cash_figure_is_an_integer` |
+| R11.13 | `test_r11_13_the_window_bounds_are_respected_at_both_ends`, `…_the_default_window_is_the_stated_length`, `…_a_bad_or_reversed_window_renders_the_screen` |
+| R11.14 (part) | `test_r11_14_the_cash_flow_export_carries_the_months_on_screen`, `…_the_cash_cycle_export_carries_all_four_components`. **No charts** — both screens are tables. C3 owes the rest of R11.14 for its own views |
+| G15 | `test_r11_3_the_cash_projections_write_no_activity_row` |
+
+### Decisions a later checkpoint must not reverse
+
+1. **"Actual" is payments, not accruals.** There is no bank ledger, so cash in/out is what
+   was received and paid. A test asserts cash in is *smaller* than everything invoiced, which
+   fails if anything starts accruing.
+2. **Committed = documents that exist with a due date INSIDE the window.** Pipeline (confirmed
+   uninvoiced orders, confirmed unbilled POs) is reported beside it and excluded, because no
+   due date exists for either. `COMMITTED_TERMS` is the definition and lives in `cash.py`
+   next to the arithmetic — **do not move it into the template**, the test reads it.
+3. **`working_capital` takes `as_of`, not a window.** A balance has no window and a parameter
+   that looks rigorous while meaning nothing is worse than none.
+4. **Cash at bank is excluded and the screen says so.** Do not silently start including a
+   cash figure; there is nothing to include it from.
+5. **`_days()` is the only division in the module** and returns None on a zero rate. Day
+   counts deliberately do NOT go through `round_minor` — that is the one *money* rounding step
+   and a day count is not money.
+6. **CCC is None when any component is unknown.** Two of three terms would be a smaller
+   number that reads as good news.
+7. **A component longer than its own window carries a caveat**, and the cycle inherits it. The
+   figure is still shown.
+8. **COGS is `subtotal − MarginService.gp`**, so one cost definition exists. `gp` uses the
+   product's *current* buy price rather than the price at the time of sale — that is the
+   existing behaviour R11.6 says to reuse, and DIO's panel states it rather than hiding it.
+
+### The defect the baseline surfaced — `CreditPolicyService.history`
+
+The full suite went red **once**, on `test_r8_3_a_version_carries_forward_what_the_caller_did_not_name`,
+and passed on re-run. Not a flake: `history()` ordered by `(valid_from DESC, id DESC)` with a
+docstring asserting "keys are UUID v7 and time-ordered, so `id` breaks it by real write order".
+**`uuid7()` is not monotonic within a millisecond** — the low bits are `os.urandom` — so two
+versions written in one tick came back in a random order and `history()[0]` was sometimes the
+superseded row. Every caller of `history()[0]` wanted the current policy.
+
+Fixed by sorting the open row (`valid_to IS NULL`, unique by construction) to the head, so the
+tie cannot decide anything.
+
+**The test for it is the interesting part.** A first version forced only the timestamp tie and
+**passed under the old ordering** — with three rows, `id DESC` picks the right head about two
+times in three. It now also re-keys the open row to `UUID(int=1)` (nothing references a policy
+version; `references.py` declares it empty), which the old ordering fails deterministically —
+verified by reverting the fix and watching it go red. *A test that forces one half of a race
+and trusts luck for the other half is a test that passes without testing anything.*
+
+### Mutation check — three mutations
+
+| Mutation | Caught by |
+|---|---|
+| `_days` returns 0 instead of None on a zero rate | `test_r11_4_a_component_with_no_denominator_says_unknown_not_zero`, `test_r11_12_the_one_division_…` |
+| `committed` drops its due-date window filter | **first pass: only 1 test.** `…_committed_in_is_exactly_the_open_invoices_due_in_the_window` used a 425-day window in which *every* open invoice sat, so the filter was a no-op and the equality held either way. Narrowed to 30 days with an assertion that at least one open invoice falls **outside** it; now 2 tests catch it |
+| DSO's numerator and denominator swapped | `…_each_cycle_component_is_hand_verified`, `…_a_component_with_no_denominator_…` |
+
+The middle row is the lesson worth carrying: **an equality assertion between two code paths
+only tests what the current data distinguishes** — the trap already recorded twice in this
+build, and it caught the session that had just written the warning into the handoff.
+
+### Verified live
+
+Fresh scratch DB on port 8034 (`DATABASE_URL`). Working capital reconciled on screen —
+**₹24,712.15 receivables + ₹13,52,085.53 inventory − ₹15,983.93 payables = ₹13,60,813.75** —
+with receivables equal to C1's ageing total, which is the R11.11 delegation visible rather than
+merely asserted. Cash flow over the default 90-day window: **₹4,849.80 in, ₹6,703.81 out, net
+−₹1,854.01**, committed net **₹4,655.69**. DSO 111 days, DPO 63, DIO 10,221, CCC 10,269 — the
+three over 90 days each carrying the caveat, DPO correctly without one.
+
+### What C2 did not do
+
+- **No margin, no leakage, no GST** — all C3's (R11.5–R11.10).
+- **R11.14 is only half met**: C2's two screens export and carry no charts, but C3 owes the
+  same for its own views.
+- **`MarginService.gp` calls `latest_purchase_minor` per line**, so COGS costs one query per
+  invoice line in the window. Small on the seed and left alone deliberately: Part 11 C1 is
+  measurement-only and optimising without a baseline is what R14.7/R14.8 forbid.
+
+---
+
 ## C1 — customer/vendor ledgers, AR/AP ageing, collections, allocation
 
 **Commit `ec8a573`** · from `3aede6e` · **688 passed** (was 623) · **ruff exactly 37** — zero new
