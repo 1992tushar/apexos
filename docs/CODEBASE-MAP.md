@@ -22,6 +22,10 @@
 | Show a score, rate, recommendation or forecast | `app/db/explain.py` (the shape) + the `explain_panel` macro (the rendering). Build an `Explained`; never format a number into a template | Inventing per-screen explanation markup — G11 has exactly one implementation |
 | Ask "what should I buy" | `app/modules/procurement/recommend.py` — `RecommendationService(db).recommend(*, product_id=None, limit=None)` | Writing a second reorder calculation. R5.9 makes this the only one and R7.11/R13.6 check |
 | Read a supplier's measured performance | `app/modules/suppliers/vendor.py` — `VendorIntelService` (score, lead time, on-time rate, price history). Read-only | Storing any of it; it is derived (G7, R5.10) |
+| Ask "what does this party owe" | `CustomerRepository.outstanding_minor` / `.outstanding_by_customer()`, or the supplier pair. **These are THE receivable and THE payable** | Re-deriving `Σ invoice − Σ allocations − Σ credit_notes` anywhere. Two screens disagreeing is what R10.x exists to prevent |
+| Ask "which documents make up that total" | `app/modules/finance/ledger.py` — `open_invoices(db, …)` / `open_bills(db, …)`, four queries whatever the row count | A `select()` per invoice; and do not write a second per-document balance |
+| Age something, or say what is overdue | `app/modules/finance/ageing.py` — `AgeingService`; buckets are `AR_AGE_BUCKETS` in `finance/schemas.py` | Inventing a bucket boundary. Due **today** is not overdue, the bound is inclusive, and `bucket_for()` is the one rule |
+| Apply money to documents | `app/modules/finance/allocation.py` — `AllocationService`, oldest due first, surplus refused | Editing an invoice. Money applied is a new `PaymentAllocation` row (G4) |
 | Block deleting/deactivating something in use | `app/db/references.py` — `REFERENCES` is the policy | Writing a count query in a service; that is what this replaced |
 | Delete something | `app/db/soft_delete.py` (its docstring is the contract) | Per-module delete code — there isn't any, by design |
 | Prevent duplicates | `app/db/duplicates.py` — `NATURAL_KEYS` is the config | — |
@@ -239,6 +243,36 @@ The verbs other modules call:
   Adding a flag or a second path is the specific failure R6.5 exists to prevent.
 - `InventoryService.states()` / `.bin_stock()` / `.location_rollup()` / `.available()` — derived reads
   for the screens; each is one or two grouped queries for a whole page, never a query per row.
+
+### `app/modules/finance/` — statements, ageing, collections, allocation (Part 8 C1)
+
+Four modules, and the split is by *question asked* rather than by layer:
+
+- **`repository.py`** — the grouped reads everything else is built on. `allocated_by_invoice()`,
+  `credited_by_invoice()`, `allocated_by_bill()` return dicts, so a per-document open balance costs
+  three sums for the whole table rather than three per row.
+- **`ledger.py`** — `open_invoices` / `open_bills` (the per-document open balance, **clamped at
+  zero**) and `PartyLedgerService` (the running statement). A statement's closing balance IS
+  `outstanding_minor`; its lines are that method's own terms itemised, so `Σ(debit − credit)` equals
+  it by construction and `statement_note()` exists only to shout if it ever stops.
+- **`ageing.py`** — `AgeingService.ar_ageing / ap_ageing / collections / payments_due`.
+  `unaged_minor` is the deliberate residual: it makes `Σ buckets + unaged == the one receivable`
+  hold **unconditionally**, so a bucket total can never quietly disagree with the party total.
+- **`allocation.py`** — one receipt across many documents, **oldest due date first**. More than the
+  total open is refused naming the applicable figure, because unallocated cash would be money the
+  receivable definition cannot see.
+
+Two disagreements already in the tree were fixed here, and both are worth knowing about because they
+are the shape of mistake this area invites: `ReportService._ar_aging` had its own arithmetic, never
+subtracted credit notes, and aged nothing at all despite the name (both ageing reports now delegate);
+and `InvoiceService`'s `balance_minor` was `total − paid`, so an invoice reduced by a return showed a
+balance the customer did not owe — and `add_payment` would have collected it.
+
+`AR_AGE_BUCKETS` lives in `finance/schemas.py` beside `bucket_for()`, matching `AGE_BUCKETS` in
+`inventory/schemas.py`: `(key, label, inclusive_upper_bound)`, printed on screen, every edge tested.
+The first bound is `0`, which is R10.6's whole point — **an invoice due today is not overdue.** A NULL
+`due_date` is aged from the invoice date and the screen says so, because zero-day terms already
+produce exactly that due date.
 
 ### `app/modules/sales/fast_entry.py` — what makes order entry quick (Part 7 C2c)
 
