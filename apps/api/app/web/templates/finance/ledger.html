@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+{% block title %}Statement{% endblock %}
+{% block content %}
+{% call ui.page_header("Party statement", "Running ledger per customer or vendor") %}
+  <a class="btn" href="/finance">← Finance</a>
+{% endcall %}
+
+<form class="inline-form mt" method="get" action="/finance/ledger">
+  <label>Side</label>
+  <select name="side" onchange="this.form.submit()">
+    <option value="receivable" {% if side == 'receivable' %}selected{% endif %}>Customer (receivable)</option>
+    <option value="payable" {% if side == 'payable' %}selected{% endif %}>Vendor (payable)</option>
+  </select>
+  <label>{{ "Vendor" if side == 'payable' else "Customer" }}</label>
+  <select name="{{ 'supplier_id' if side == 'payable' else 'customer_id' }}" onchange="this.form.submit()">
+    <option value="">— pick one —</option>
+    {% for pid, pname in parties %}
+    <option value="{{ pid }}" {% if party_id and pid == party_id %}selected{% endif %}>{{ pname }}</option>
+    {% endfor %}
+  </select>
+  <button class="btn btn-sm" type="submit">Show</button>
+</form>
+
+{% if statement %}
+<div class="mt">
+  <a class="row-link" href="{{ statement.party_href }}">{{ statement.party_name }}</a>
+</div>
+
+<div class="grid grid-3 mt">
+  {{ ui.stat("Lines", statement.lines | length) }}
+  {{ ui.stat("Open documents", statement.open_documents | length) }}
+  {{ ui.stat(("Payable" if side == 'payable' else "Receivable"),
+             statement.closing_balance_minor | money,
+             "derived from the ledger, never stored") }}
+</div>
+
+{% if note %}<div class="flash flash-bad mt">{{ note }}</div>{% endif %}
+
+<div class="card mt">
+  <div class="card-title">Running statement</div>
+  <p class="muted">
+    Every line is a document you can open. The balance is recomputed on each read from the
+    invoices, credit notes and payments below — nothing here is a stored number.
+  </p>
+  {% if statement.lines %}
+  <div class="table-wrap mt">
+    <table>
+      <thead>
+        <tr>
+          <th>Date</th><th>Type</th><th>Document</th><th>Detail</th>
+          <th class="num">Debit</th><th class="num">Credit</th><th class="num">Balance</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for line in statement.lines %}
+        <tr>
+          <td>{{ line.occurred_on | fmt_date }}</td>
+          <td>{{ line.doc_type | humanize }}</td>
+          <td class="mono"><a class="row-link" href="{{ line.href }}">{{ line.doc_no }}</a></td>
+          <td>{{ line.detail or "—" }}</td>
+          <td class="num">{{ line.debit_minor | money if line.debit_minor else "—" }}</td>
+          <td class="num">{{ line.credit_minor | money if line.credit_minor else "—" }}</td>
+          <td class="num">{{ line.balance_minor | money }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+      <tfoot>
+        <tr>
+          <td colspan="6" class="num"><strong>Closing balance</strong></td>
+          <td class="num"><strong>{{ statement.closing_balance_minor | money }}</strong></td>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+  <a class="btn btn-sm mt"
+     href="/finance/ledger?side={{ side }}&{{ 'supplier_id' if side == 'payable' else 'customer_id' }}={{ party_id }}&export=csv">Export CSV</a>
+  {% else %}
+    {{ ui.empty("No invoices, credit notes or payments for this party yet.") }}
+  {% endif %}
+</div>
+
+<div class="card mt">
+  <div class="card-title">Still open</div>
+  {% if statement.open_documents %}
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Document</th><th>Due</th><th class="num">Days overdue</th>
+          <th class="num">Total</th><th class="num">Paid</th><th class="num">Credited</th>
+          <th class="num">Open</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for doc in statement.open_documents %}
+        <tr>
+          <td class="mono"><a class="row-link" href="{{ doc.href }}">{{ doc.doc_no }}</a></td>
+          <td>
+            {{ doc.due_date | fmt_date }}
+            {% if doc.due_date_assumed %}<span class="muted">(assumed)</span>{% endif %}
+          </td>
+          <td class="num">{{ doc.days_overdue if doc.is_overdue else "—" }}</td>
+          <td class="num">{{ doc.total_minor | money }}</td>
+          <td class="num">{{ doc.allocated_minor | money }}</td>
+          <td class="num">{{ doc.credited_minor | money }}</td>
+          <td class="num">{{ doc.open_minor | money }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {# R10.9: one amount, spread across the open documents above, oldest due first. #}
+  <form class="inline-form mt" method="post" action="/finance/allocate">
+    <input type="hidden" name="side" value="{{ side }}" />
+    <input type="hidden" name="party_id" value="{{ party_id }}" />
+    <input type="hidden" name="back"
+           value="/finance/ledger?side={{ side }}&{{ 'supplier_id' if side == 'payable' else 'customer_id' }}={{ party_id }}" />
+    <label>Apply amount</label>
+    <input class="input" type="number" name="amount_rupees" step="0.01" min="0.01"
+           value="{{ '%.2f'|format(statement.closing_balance_minor / 100) if statement.closing_balance_minor > 0 else '' }}"
+           style="width:120px" required />
+    <select name="method">
+      {% for m in methods %}<option value="{{ m }}" {% if m == 'bank' %}selected{% endif %}>{{ m }}</option>{% endfor %}
+    </select>
+    <button class="btn btn-sm btn-primary" type="submit">Apply oldest first</button>
+  </form>
+  <p class="muted mt">
+    Applied to the document with the earliest due date first, spilling to the next once one
+    is settled. More than the total open above is refused rather than held on account.
+  </p>
+  {% else %}
+    {{ ui.empty("Nothing open — this party owes nothing.") }}
+  {% endif %}
+</div>
+{% else %}
+  {{ ui.empty("Pick a customer or a vendor to see their running statement.") }}
+{% endif %}
+{% endblock %}

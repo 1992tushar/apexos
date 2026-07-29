@@ -33,9 +33,15 @@ class InvoiceService:
 
     def list(self, *, status: str | None, page: int, page_size: int):
         rows, total = self.repo.search(status=status, page=page, page_size=page_size)
+        # Two grouped reads rather than two queries per row — the same dicts the Part 8
+        # projections are built on, so this page and the ageing screen agree by sharing
+        # their arithmetic instead of each doing it.
+        allocated = self.repo.allocated_by_invoice()
+        credited = self.repo.credited_by_invoice()
         items = []
         for inv in rows:
-            paid = self.repo.allocated_minor(inv.id)
+            paid = allocated.get(inv.id, 0)
+            credit = credited.get(inv.id, 0)
             items.append(
                 InvoiceListRow(
                     id=inv.id,
@@ -43,7 +49,8 @@ class InvoiceService:
                     customer_name=self.repo.customer_name(inv.customer_id),
                     total_minor=inv.total_minor,
                     paid_minor=paid,
-                    balance_minor=inv.total_minor - paid,
+                    credited_minor=credit,
+                    balance_minor=inv.total_minor - paid - credit,
                     status=inv.status,
                     invoice_date=inv.invoice_date,
                     due_date=inv.due_date,
@@ -53,6 +60,7 @@ class InvoiceService:
 
     def _to_detail(self, inv: Invoice) -> InvoiceDetail:
         paid = self.repo.allocated_minor(inv.id)
+        credited = self.repo.credited_minor(inv.id)
         lines = []
         for ln in inv.lines:
             product = self.db.get(Product, ln.product_id)
@@ -82,7 +90,8 @@ class InvoiceService:
             tax_minor=inv.tax_minor,
             total_minor=inv.total_minor,
             paid_minor=paid,
-            balance_minor=inv.total_minor - paid,
+            credited_minor=credited,
+            balance_minor=inv.total_minor - paid - credited,
             lines=lines,
         )
 
@@ -102,7 +111,11 @@ class InvoiceService:
             raise ConflictError(f"Invoice {inv.invoice_no} is already fully paid")
 
         already = self.repo.allocated_minor(inv.id)
-        balance = inv.total_minor - already
+        # The credit-note term (R10.4): an invoice reduced by a return owes less than
+        # `total − paid`, and accepting a payment for the difference would collect money
+        # the customer does not owe. One definition of an invoice's open balance.
+        credited = self.repo.credited_minor(inv.id)
+        balance = inv.total_minor - already - credited
         if payload.amount_minor > balance:
             raise ValidationError(
                 f"Payment {payload.amount_minor} exceeds outstanding balance {balance}"
@@ -124,7 +137,7 @@ class InvoiceService:
         self.repo.add_payment(payment)
 
         new_paid = already + payload.amount_minor
-        inv.status = "paid" if new_paid >= inv.total_minor else "part_paid"
+        inv.status = "paid" if new_paid >= inv.total_minor - credited else "part_paid"
         self.db.flush()
 
         self.activity.log(
@@ -141,7 +154,7 @@ class InvoiceService:
             invoice_id=inv.id,
             amount_minor=payload.amount_minor,
             invoice_status=inv.status,
-            balance_minor=inv.total_minor - new_paid,
+            balance_minor=inv.total_minor - new_paid - credited,
         )
 
 

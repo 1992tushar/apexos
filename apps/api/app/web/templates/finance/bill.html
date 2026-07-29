@@ -56,6 +56,38 @@
       <dt>Due date</dt><dd>{{ bill.due_date | fmt_date if bill.due_date else "—" }}</dd>
       <dt>Supplier</dt><dd>{{ bill.supplier_name or "—" }}</dd>
     </dl>
+    <a class="btn btn-sm mt"
+       href="/finance/ledger?side=payable&supplier_id={{ bill.supplier_id }}">Statement</a>
   </div>
+</div>
+
+{# R10.3 on the buy side: the payments applied to this bill. #}
+<div class="card mt">
+  <div class="section-title">Applied to this bill</div>
+  {% if applied %}
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Date</th><th>Payment</th><th>Method</th><th class="num">Amount</th></tr></thead>
+      <tbody>
+        {% for a in applied %}
+        <tr>
+          <td>{{ a.paid_at | fmt_date }}</td>
+          <td class="mono">{{ a.payment_no }}</td>
+          <td>{{ a.method }}</td>
+          <td class="num">{{ a.amount_minor | money }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+      <tfoot>
+        <tr>
+          <td colspan="3" class="num"><strong>Open balance</strong></td>
+          <td class="num"><strong>{{ bill.balance_minor | money }}</strong></td>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+  {% else %}
+    {{ ui.empty("Nothing paid yet — the full amount is outstanding.") }}
+  {% endif %}
 </div>
 {% endblock %}

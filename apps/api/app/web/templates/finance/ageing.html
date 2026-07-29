@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+{% block title %}Ageing{% endblock %}
+{% block content %}
+{% call ui.page_header(("Payables ageing" if side == 'payable' else "Receivables ageing"),
+                       "Outstanding by party, aged against the due date") %}
+  <a class="btn" href="/finance">← Finance</a>
+{% endcall %}
+
+<form class="inline-form mt" method="get" action="/finance/ageing">
+  <label>Side</label>
+  <select name="side" onchange="this.form.submit()">
+    <option value="receivable" {% if side == 'receivable' %}selected{% endif %}>Receivables (customers)</option>
+    <option value="payable" {% if side == 'payable' %}selected{% endif %}>Payables (vendors)</option>
+  </select>
+  <label>As at</label>
+  <input class="input" type="date" name="as_of" value="{{ as_of }}" />
+  <button class="btn btn-sm" type="submit">Apply</button>
+  <a class="btn btn-sm" href="/finance/ageing?side={{ side }}&as_of={{ as_of }}&export=csv">Export CSV</a>
+</form>
+
+<div class="grid grid-3 mt">
+  {{ ui.stat("Total outstanding", report.total_minor | money, "as at " ~ report.as_of) }}
+  {{ ui.stat("Not yet due", report.due_minor | money) }}
+  {{ ui.stat("Overdue", report.overdue_minor | money) }}
+</div>
+
+<div class="card mt">
+  <div class="card-title">Bucket boundaries</div>
+  <p class="muted">
+    Stated rather than implied, so a figure can be checked by hand. Each upper bound is
+    inclusive.
+  </p>
+  <div class="table-wrap mt">
+    <table>
+      <thead><tr><th>Bucket</th><th>Rule</th><th class="num">Amount</th><th class="num">Documents</th></tr></thead>
+      <tbody>
+        {% for b in boundaries %}
+        <tr>
+          <td>{{ b.label }}</td>
+          <td class="muted">{{ b.rule }}</td>
+          {% for total in report.buckets %}{% if total.key == b.key %}
+          <td class="num">{{ total.total_minor | money }}</td>
+          <td class="num">{{ total.count }}</td>
+          {% endif %}{% endfor %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% if report.unaged_minor %}
+  <p class="muted mt">
+    {{ report.unaged_minor | money }} sits against no open document — a credit larger than
+    the invoice it credits, or money applied to a since-cancelled one. It is reported here
+    rather than hidden in a bucket, so the buckets and the outstanding total agree.
+  </p>
+  {% endif %}
+</div>
+
+<div class="card mt">
+  <div class="card-title">By party</div>
+  {% if report.rows %}
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Party</th>
+          <th class="num">Outstanding</th>
+          <th class="num">Not yet due</th>
+          <th class="num">Overdue</th>
+          {% for b in report.buckets %}<th class="num">{{ b.label }}</th>{% endfor %}
+          <th class="num">Open</th>
+          <th class="num">Oldest</th>
+          <th>Statement</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in report.rows %}
+        <tr>
+          <td><a class="row-link" href="{{ row.href }}">{{ row.party_name }}</a></td>
+          <td class="num">{{ row.outstanding_minor | money }}</td>
+          <td class="num">{{ row.due_minor | money }}</td>
+          <td class="num">{{ row.overdue_minor | money }}</td>
+          {% for b in report.buckets %}
+          <td class="num">{{ row.buckets.get(b.key, 0) | money }}</td>
+          {% endfor %}
+          <td class="num">{{ row.open_count }}</td>
+          <td class="num">{{ row.oldest_days_overdue if row.oldest_days_overdue is not none else "—" }}</td>
+          <td><a class="btn btn-sm" href="{{ row.ledger_href }}">Open</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+      <tfoot>
+        <tr>
+          <td class="num"><strong>Total</strong></td>
+          <td class="num"><strong>{{ report.total_minor | money }}</strong></td>
+          <td class="num">{{ report.due_minor | money }}</td>
+          <td class="num">{{ report.overdue_minor | money }}</td>
+          {% for b in report.buckets %}<td class="num">{{ b.total_minor | money }}</td>{% endfor %}
+          <td colspan="3"></td>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+  {% else %}
+    {{ ui.empty("Nothing outstanding — every document is settled.") }}
+  {% endif %}
+</div>
+{% endblock %}

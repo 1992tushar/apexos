@@ -2,7 +2,12 @@
 {% import "_macros.html" as ui %}
 {% block title %}Finance{% endblock %}
 {% block content %}
-{% call ui.page_header("Finance", "Receivables & payables") %}{% endcall %}
+{% call ui.page_header("Finance", "Receivables & payables") %}
+  <a class="btn" href="/finance/collections">Collections</a>
+  <a class="btn" href="/finance/payments-due">Payments due</a>
+  <a class="btn" href="/finance/ageing">Ageing</a>
+  <a class="btn" href="/finance/ledger">Statements</a>
+{% endcall %}
 
 <div class="grid grid-2 mt">
   {{ ui.stat("Receivable", receivable | money) }}
@@ -28,7 +33,8 @@
       <thead>
         <tr>
           <th>Invoice</th><th>Customer</th>
-          <th class="num">Total</th><th class="num">Paid</th><th class="num">Balance</th>
+          <th class="num">Total</th><th class="num">Paid</th><th class="num">Credited</th>
+          <th class="num">Balance</th>
           <th>Status</th><th>Due</th><th>Record payment</th>
         </tr>
       </thead>
@@ -39,6 +45,7 @@
           <td>{{ i.customer_name or "—" }}</td>
           <td class="num">{{ i.total_minor | money }}</td>
           <td class="num">{{ i.paid_minor | money }}</td>
+          <td class="num">{{ i.credited_minor | money }}</td>
           <td class="num">{{ i.balance_minor | money }}</td>
           <td>{{ ui.badge(i.status) }}</td>
           <td>{{ i.due_date | fmt_date if i.due_date else "—" }}</td>

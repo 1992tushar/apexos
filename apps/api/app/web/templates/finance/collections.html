@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+{% block title %}Collections{% endblock %}
+{% block content %}
+{% call ui.page_header("Collections", "Who to chase today, worst first") %}
+  <a class="btn" href="/finance">← Finance</a>
+{% endcall %}
+
+<form class="inline-form mt" method="get" action="/finance/collections">
+  <label>As at</label>
+  <input class="input" type="date" name="as_of" value="{{ as_of }}" />
+  <button class="btn btn-sm" type="submit">Apply</button>
+  <a class="btn btn-sm" href="/finance/collections?as_of={{ as_of }}&export=csv">Export CSV</a>
+</form>
+
+<div class="grid grid-2 mt">
+  {{ ui.stat("Customers to chase", entries | length, "as at " ~ as_of) }}
+  {{ ui.stat("Overdue in total", total_overdue | money) }}
+</div>
+
+<div class="card mt">
+  <div class="card-title">Priority order</div>
+  <p class="muted">
+    Ranked by how long the oldest overdue invoice has been outstanding, then by the amount
+    overdue. An invoice due today is not overdue and does not appear.
+  </p>
+  {% if entries %}
+  <div class="table-wrap mt">
+    <table>
+      <thead>
+        <tr>
+          <th class="num">#</th><th>Customer</th>
+          <th class="num">Overdue</th><th class="num">Outstanding</th>
+          <th class="num">Days</th><th>Oldest invoice</th><th>Statement</th><th>Apply a receipt</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for e in entries %}
+        <tr>
+          <td class="num">{{ loop.index }}</td>
+          <td><a class="row-link" href="{{ e.href }}">{{ e.customer_name }}</a></td>
+          <td class="num">{{ e.overdue_minor | money }}</td>
+          <td class="num">{{ e.outstanding_minor | money }}</td>
+          <td class="num">{{ e.oldest_days_overdue }}</td>
+          <td class="mono"><a class="row-link" href="{{ e.oldest_doc_href }}">{{ e.oldest_doc_no }}</a></td>
+          <td><a class="btn btn-sm" href="{{ e.ledger_href }}">Open</a></td>
+          <td>
+            <form class="inline-form" method="post" action="/finance/allocate">
+              <input type="hidden" name="side" value="receivable" />
+              <input type="hidden" name="party_id" value="{{ e.customer_id }}" />
+              <input type="hidden" name="back" value="/finance/collections?as_of={{ as_of }}" />
+              <input class="input" type="number" name="amount_rupees" step="0.01" min="0.01"
+                     value="{{ '%.2f'|format(e.outstanding_minor / 100) }}" style="width:110px" required />
+              <select name="method">
+                {% for m in methods %}<option value="{{ m }}" {% if m == 'bank' %}selected{% endif %}>{{ m }}</option>{% endfor %}
+              </select>
+              <button class="btn btn-sm btn-primary" type="submit">Apply</button>
+            </form>
+          </td>
+        </tr>
+        <tr>
+          <td></td>
+          <td colspan="7" class="muted">{{ e.reason }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="mt">
+    {% for e in entries %}
+      {% if e.explained %}{{ ui.explain_panel(e.explained, e.customer_name) }}{% endif %}
+    {% endfor %}
+  </div>
+  {% else %}
+    {{ ui.empty("Nobody to chase — nothing is overdue.") }}
+  {% endif %}
+</div>
+{% endblock %}

@@ -92,6 +92,54 @@ class CustomerRepository:
         ) or 0
         return int(invoiced) - int(allocated) - int(credited)
 
+    def outstanding_by_customer(self) -> dict[uuid.UUID, int]:
+        """`outstanding_minor` for every customer at once — the SAME three terms.
+
+        The sibling Part 8's AR ageing needs (R10.5). It exists because the ageing screen
+        wants the receivable for *every* party, and calling `outstanding_minor` in a loop
+        is three queries per customer — the `select()`-per-row fan-out this codebase keeps
+        being warned about. So the arithmetic is not re-derived anywhere else: it is
+        grouped here, beside the definition it must agree with, and
+        `test_r10_5_the_bulk_receivable_is_the_same_arithmetic_as_the_single_one` asserts
+        the two agree for every seeded customer.
+
+        Every filter below is copied from `outstanding_minor` deliberately, including the
+        ones that look like oversights — the allocation term joins `Invoice` without a
+        status or `deleted_at` filter, so a payment against a cancelled invoice is
+        subtracted by both methods. Two definitions of the receivable is the defect R10.x
+        exists to prevent; a *divergent* second definition would be worse than none.
+        """
+        from app.modules.finance.models import CreditNote, Invoice, PaymentAllocation
+
+        totals: dict[uuid.UUID, int] = {}
+
+        invoiced = self.db.execute(
+            select(Invoice.customer_id, func.coalesce(func.sum(Invoice.total_minor), 0))
+            .where(Invoice.status != "cancelled", Invoice.deleted_at.is_(None))
+            .group_by(Invoice.customer_id)
+        ).all()
+        for customer_id, amount in invoiced:
+            totals[customer_id] = totals.get(customer_id, 0) + int(amount or 0)
+
+        allocated = self.db.execute(
+            select(Invoice.customer_id, func.coalesce(func.sum(PaymentAllocation.amount_minor), 0))
+            .select_from(PaymentAllocation)
+            .join(Invoice, Invoice.id == PaymentAllocation.invoice_id)
+            .group_by(Invoice.customer_id)
+        ).all()
+        for customer_id, amount in allocated:
+            totals[customer_id] = totals.get(customer_id, 0) - int(amount or 0)
+
+        credited = self.db.execute(
+            select(CreditNote.customer_id, func.coalesce(func.sum(CreditNote.total_minor), 0))
+            .where(CreditNote.deleted_at.is_(None))
+            .group_by(CreditNote.customer_id)
+        ).all()
+        for customer_id, amount in credited:
+            totals[customer_id] = totals.get(customer_id, 0) - int(amount or 0)
+
+        return totals
+
     def count_ever(self) -> int:
         """Rows ever created, soft-deleted ones included.
 

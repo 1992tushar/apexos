@@ -20,7 +20,7 @@ from sqlalchemy.orm import Session
 from app.core.errors import NotFoundError
 from app.modules.config.models import Warehouse
 from app.modules.customers.models import Customer
-from app.modules.finance.models import Bill, Invoice, PaymentAllocation
+from app.modules.finance.models import Bill, Invoice
 from app.modules.inventory.models import StockMovement
 from app.modules.products.models import Product
 from app.modules.suppliers.models import Supplier
@@ -183,88 +183,77 @@ class ReportService:
             rows=rows,
         )
 
-    def _ar_aging(self, date_from, date_to) -> ReportResult:
-        alloc = (
-            select(
-                PaymentAllocation.invoice_id.label("inv_id"),
-                func.coalesce(func.sum(PaymentAllocation.amount_minor), 0).label("paid"),
-            )
-            .group_by(PaymentAllocation.invoice_id)
-            .subquery()
-        )
-        stmt = (
-            select(
-                Customer.name,
-                func.coalesce(func.sum(Invoice.total_minor), 0),
-                func.coalesce(func.sum(func.coalesce(alloc.c.paid, 0)), 0),
-            )
-            .join(Customer, Customer.id == Invoice.customer_id)
-            .outerjoin(alloc, alloc.c.inv_id == Invoice.id)
-            .where(Invoice.status != "cancelled", Invoice.deleted_at.is_(None))
-            .group_by(Customer.name)
-            .order_by(Customer.name)
-        )
+    # --- the two ageing reports DELEGATE (R10.5, G16) -----------------------
+    #
+    # These two builders each had their own arithmetic until Part 8 C1, and it was wrong.
+    # Neither AGED anything despite the name — no due date, no buckets, just outstanding
+    # per party — and `_ar_aging` never subtracted credit notes, so it had disagreed with
+    # `CustomerRepository.outstanding_minor` from the moment Part 7 introduced them. Two
+    # definitions of the receivable is precisely the defect R10.x exists to prevent, and it
+    # was already in the tree. They now call `AgeingService`, the one projection the
+    # /finance/ageing screen renders.
+    #
+    # The report's date window maps to the ageing report's AS-OF date: `to` is "age it as
+    # at this date" and `from` has no meaning for a point-in-time balance, so it is ignored
+    # rather than silently changing what the buckets mean.
+
+    def _ageing_result(self, report, *, key: str, title: str, party_label: str) -> ReportResult:
+        from app.modules.finance.schemas import AR_AGE_BUCKETS
+
+        bucket_cols = [f"bucket_{bkey}" for bkey, _l, _u in AR_AGE_BUCKETS]
+        columns = [
+            party_label,
+            "outstanding_minor",
+            "not_yet_due_minor",
+            "overdue_minor",
+            *bucket_cols,
+            "oldest_days_overdue",
+        ]
         rows = []
-        for name, total, paid in self.db.execute(stmt).all():
-            outstanding = int(total) - int(paid)
-            if outstanding == 0:
-                continue
+        for row in report.rows:
             rows.append(
                 {
-                    "customer": name,
-                    "invoiced_minor": int(total),
-                    "paid_minor": int(paid),
-                    "outstanding_minor": outstanding,
+                    party_label: row.party_name,
+                    "outstanding_minor": row.outstanding_minor,
+                    "not_yet_due_minor": row.due_minor,
+                    "overdue_minor": row.overdue_minor,
+                    **{f"bucket_{k}": row.buckets.get(k, 0) for k, _l, _u in AR_AGE_BUCKETS},
+                    "oldest_days_overdue": row.oldest_days_overdue,
                 }
             )
         return ReportResult(
-            key="ar-aging",
-            title="Accounts Receivable Aging",
-            columns=["customer", "invoiced_minor", "paid_minor", "outstanding_minor"],
+            key=key,
+            title=title,
+            columns=columns,
             rows=rows,
-            money_columns={"invoiced_minor", "paid_minor", "outstanding_minor"},
+            money_columns={
+                "outstanding_minor",
+                "not_yet_due_minor",
+                "overdue_minor",
+                *bucket_cols,
+            },
+        )
+
+    def _ar_aging(self, date_from, date_to) -> ReportResult:
+        from app.modules.finance.ageing import AgeingService
+
+        report = AgeingService(self.db).ar_ageing(as_of=date_to)
+        return self._ageing_result(
+            report,
+            key="ar-aging",
+            title=f"Accounts Receivable Ageing (as at {report.as_of.isoformat()})",
+            party_label="customer",
         )
 
     def _ap_aging(self, date_from, date_to) -> ReportResult:
-        alloc = (
-            select(
-                PaymentAllocation.bill_id.label("bill_id"),
-                func.coalesce(func.sum(PaymentAllocation.amount_minor), 0).label("paid"),
-            )
-            .group_by(PaymentAllocation.bill_id)
-            .subquery()
-        )
-        stmt = (
-            select(
-                Supplier.name,
-                func.coalesce(func.sum(Bill.total_minor), 0),
-                func.coalesce(func.sum(func.coalesce(alloc.c.paid, 0)), 0),
-            )
-            .join(Supplier, Supplier.id == Bill.supplier_id)
-            .outerjoin(alloc, alloc.c.bill_id == Bill.id)
-            .where(Bill.status != "cancelled", Bill.deleted_at.is_(None))
-            .group_by(Supplier.name)
-            .order_by(Supplier.name)
-        )
-        rows = []
-        for name, total, paid in self.db.execute(stmt).all():
-            outstanding = int(total) - int(paid)
-            if outstanding == 0:
-                continue
-            rows.append(
-                {
-                    "supplier": name,
-                    "billed_minor": int(total),
-                    "paid_minor": int(paid),
-                    "outstanding_minor": outstanding,
-                }
-            )
-        return ReportResult(
+        from app.modules.finance.ageing import AgeingService
+
+        report = AgeingService(self.db).ap_ageing(as_of=date_to)
+        return self._ageing_result(
+            report,
             key="ap-aging",
-            title="Accounts Payable Aging",
-            columns=["supplier", "billed_minor", "paid_minor", "outstanding_minor"],
-            rows=rows,
-            money_columns={"billed_minor", "paid_minor", "outstanding_minor"},
+            title=f"Accounts Payable Ageing (as at {report.as_of.isoformat()})",
+            party_label="supplier",
         )
 
     def _gst_summary(self, date_from, date_to) -> ReportResult:

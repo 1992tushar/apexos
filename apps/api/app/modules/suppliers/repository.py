@@ -96,6 +96,38 @@ class SupplierRepository:
         ) or 0
         return int(billed) - int(allocated)
 
+    def outstanding_by_supplier(self) -> dict[uuid.UUID, int]:
+        """`outstanding_minor` for every supplier at once — the SAME two terms.
+
+        The payable-side mirror of `CustomerRepository.outstanding_by_customer`, and it
+        exists for the same reason: Part 8's AP ageing (R10.5) needs the payable for every
+        vendor, and calling the single-party method in a loop is a query fan-out. Filters
+        copied from `outstanding_minor` above so the two cannot disagree; there is no
+        credit-note term because credits exist only on the sell side.
+        """
+        from app.modules.finance.models import Bill, PaymentAllocation
+
+        totals: dict[uuid.UUID, int] = {}
+
+        billed = self.db.execute(
+            select(Bill.supplier_id, func.coalesce(func.sum(Bill.total_minor), 0))
+            .where(Bill.status != "cancelled", Bill.deleted_at.is_(None))
+            .group_by(Bill.supplier_id)
+        ).all()
+        for supplier_id, amount in billed:
+            totals[supplier_id] = totals.get(supplier_id, 0) + int(amount or 0)
+
+        allocated = self.db.execute(
+            select(Bill.supplier_id, func.coalesce(func.sum(PaymentAllocation.amount_minor), 0))
+            .select_from(PaymentAllocation)
+            .join(Bill, Bill.id == PaymentAllocation.bill_id)
+            .group_by(Bill.supplier_id)
+        ).all()
+        for supplier_id, amount in allocated:
+            totals[supplier_id] = totals.get(supplier_id, 0) - int(amount or 0)
+
+        return totals
+
     def next_code(self) -> str:
         n = self.count_all() + 1
         return f"SUPP-{n:04d}"

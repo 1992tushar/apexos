@@ -315,6 +315,26 @@ def csv_text(spec: ListSpec, rows: Sequence[Any]) -> str:
     return buffer.getvalue()
 
 
+def csv_rows_response(spec: ListSpec, rows: Sequence[Any]) -> Response:
+    """A CSV download of rows already in hand, using the spec's exportable columns.
+
+    Split out of `csv_response` for the Part 8 projections (R10.12): an ageing or
+    collections view has no `ListSpec.model` to run `query_rows` against — its rows are a
+    service projection, filtered by an as-of date rather than by a query string. `csv_text`
+    only ever needed the spec for its columns, so the export path is the same one Part 2
+    built and there is no second CSV writer.
+    """
+    stamp = datetime.now(UTC).strftime("%Y%m%d-%H%M")
+    filename = f"{spec.entity}-{stamp}.csv"
+    # utf-8-sig: Excel reads a BOM-less UTF-8 CSV as the local codepage and mangles
+    # the first non-ASCII name it meets.
+    return Response(
+        content=csv_text(spec, rows).encode("utf-8-sig"),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
 def csv_response(
     db: Session,
     spec: ListSpec,
@@ -327,15 +347,7 @@ def csv_response(
     rows = query_rows(db, spec, params, business_unit_id=business_unit_id)
     if project:
         rows = list(project(rows))
-    stamp = datetime.now(UTC).strftime("%Y%m%d-%H%M")
-    filename = f"{spec.entity}-{stamp}.csv"
-    # utf-8-sig: Excel reads a BOM-less UTF-8 CSV as the local codepage and mangles
-    # the first non-ASCII name it meets.
-    return Response(
-        content=csv_text(spec, rows).encode("utf-8-sig"),
-        media_type="text/csv; charset=utf-8",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
-    )
+    return csv_rows_response(spec, rows)
 
 
 def csv_response_from_request(

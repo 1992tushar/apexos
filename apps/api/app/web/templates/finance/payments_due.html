@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+{% block title %}Payments due{% endblock %}
+{% block content %}
+{% call ui.page_header("Payments due", "Bills to pay, earliest due first") %}
+  <a class="btn" href="/finance">← Finance</a>
+{% endcall %}
+
+<form class="inline-form mt" method="get" action="/finance/payments-due">
+  <label>As at</label>
+  <input class="input" type="date" name="as_of" value="{{ as_of }}" />
+  <button class="btn btn-sm" type="submit">Apply</button>
+  <a class="btn btn-sm" href="/finance/payments-due?as_of={{ as_of }}&export=csv">Export CSV</a>
+</form>
+
+<div class="grid grid-3 mt">
+  {{ ui.stat("Bills open", entries | length, "as at " ~ as_of) }}
+  {{ ui.stat("Total to pay", total_due | money) }}
+  {{ ui.stat("Already overdue", overdue_total | money) }}
+</div>
+
+<div class="card mt">
+  <div class="card-title">Due list</div>
+  <p class="muted">
+    Per bill rather than per vendor: a payment goes against a document, and the question is
+    which bill is about to go late. A bill due today is not yet overdue.
+  </p>
+  {% if entries %}
+  <div class="table-wrap mt">
+    <table>
+      <thead>
+        <tr>
+          <th>Bill</th><th>Supplier</th><th>Due</th>
+          <th class="num">Days overdue</th><th>Bucket</th><th class="num">Open</th><th>Pay</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for e in entries %}
+        <tr>
+          <td class="mono"><a class="row-link" href="{{ e.href }}">{{ e.bill_no }}</a></td>
+          <td><a class="row-link" href="{{ e.ledger_href }}">{{ e.supplier_name }}</a></td>
+          <td>
+            {{ e.due_date | fmt_date }}
+            {% if e.due_date_assumed %}<span class="muted">(assumed)</span>{% endif %}
+          </td>
+          <td class="num">{{ e.days_overdue if e.days_overdue > 0 else "—" }}</td>
+          <td>{{ e.bucket_label }}</td>
+          <td class="num">{{ e.open_minor | money }}</td>
+          <td>
+            <form class="inline-form" method="post" action="/bills/{{ e.bill_id }}/payments">
+              <input class="input" type="number" name="amount_rupees" step="0.01" min="0.01"
+                     value="{{ '%.2f'|format(e.open_minor / 100) }}" style="width:110px" required />
+              <select name="method">
+                {% for m in methods %}<option value="{{ m }}" {% if m == 'bank' %}selected{% endif %}>{{ m }}</option>{% endfor %}
+              </select>
+              <button class="btn btn-sm btn-primary" type="submit">Pay</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+      <tfoot>
+        <tr>
+          <td colspan="5" class="num"><strong>Total</strong></td>
+          <td class="num"><strong>{{ total_due | money }}</strong></td>
+          <td></td>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+  {% else %}
+    {{ ui.empty("No bills outstanding.") }}
+  {% endif %}
+</div>
+{% endblock %}

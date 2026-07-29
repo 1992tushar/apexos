@@ -83,6 +83,7 @@ from app.seed.catalogue import (
     bulk_products,
 )
 from app.seed.customers import seed_customer_depth
+from app.seed.finance import seed_finance
 from app.seed.helpers import SeedContext, get_or_create, record_creation
 from app.seed.inventory import seed_locations
 from app.seed.preorder import seed_preorder
@@ -643,6 +644,13 @@ def run() -> dict:
             SeedContext(db=db, actor_id=actor_id, activity=activity)
         )
 
+        # --- Part 8 C1's ageing documents, its own module (G14) -------------
+        # Last of the document sections, and after the returns in `seed_quotations` so the
+        # one credit note already exists when the ageing screens first read the ledger.
+        finance_result = seed_finance(
+            SeedContext(db=db, actor_id=actor_id, activity=activity)
+        )
+
         # --- master change history (last, so it catches every row) ---------
         # Every config master gets its `created` line (R2.10, G14, R3.1's audit column).
         # Most of these rows are written with `get_or_create` rather than through
@@ -726,6 +734,8 @@ def run() -> dict:
             summary["customer_depth"] = customer_depth_result
         if quotations_result is not None:
             summary["quotations"] = quotations_result
+        if finance_result is not None:
+            summary["finance"] = finance_result
         summary["counts"] = {
             "products": db.scalar(select(func.count()).select_from(Product)) or 0,
             "customers": db.scalar(select(func.count()).select_from(Customer)) or 0,

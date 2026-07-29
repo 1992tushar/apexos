@@ -11,10 +11,11 @@
   {{ ui.badge(inv.status) }}
 </div>
 
-<div class="grid grid-3 mt">
+<div class="grid grid-4 mt">
   {{ ui.stat("Total", inv.total_minor | money) }}
   {{ ui.stat("Paid", inv.paid_minor | money) }}
-  {{ ui.stat("Balance", inv.balance_minor | money) }}
+  {{ ui.stat("Credited", inv.credited_minor | money) }}
+  {{ ui.stat("Open balance", inv.balance_minor | money, "total − paid − credited") }}
 </div>
 
 <div class="detail-grid mt">
@@ -56,6 +57,58 @@
       <dt>Due date</dt><dd>{{ inv.due_date | fmt_date if inv.due_date else "—" }}</dd>
       <dt>Customer</dt><dd>{{ inv.customer_name or "—" }}</dd>
     </dl>
+    {% if inv.customer_name %}
+    <a class="btn btn-sm mt" href="/finance/ledger?customer_id={{ inv.customer_id }}">Statement</a>
+    {% endif %}
   </div>
+</div>
+
+{# R10.3: every ledger line drills through to its source document, and this is where a
+   payment line and a credit-note line land. Payments have no page of their own and a
+   credit note used to render only on the customer page, so a reduced balance had nowhere
+   to go — the arithmetic is now readable from the invoice itself. #}
+<div class="card mt">
+  <div class="section-title">Applied to this invoice</div>
+  {% if applied or credits %}
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>Date</th><th>Document</th><th>Kind</th><th>Detail</th><th class="num">Amount</th></tr>
+      </thead>
+      <tbody>
+        {% for a in applied %}
+        <tr>
+          <td>{{ a.paid_at | fmt_date }}</td>
+          <td class="mono">{{ a.payment_no }}</td>
+          <td>Payment</td>
+          <td>{{ a.method }}</td>
+          <td class="num">{{ a.amount_minor | money }}</td>
+        </tr>
+        {% endfor %}
+        {% for c in credits %}
+        <tr>
+          <td>{{ c.note_date | fmt_date }}</td>
+          <td class="mono">{{ c.credit_note_no }}</td>
+          <td>Credit note</td>
+          <td>{{ c.reason or "—" }}</td>
+          <td class="num">{{ c.total_minor | money }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+      <tfoot>
+        <tr>
+          <td colspan="4" class="num"><strong>Open balance</strong></td>
+          <td class="num"><strong>{{ inv.balance_minor | money }}</strong></td>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+  <p class="muted mt">
+    The invoice itself is never edited — a payment is an allocation row and a credit note
+    is its own document, so what was originally billed stays on the record.
+  </p>
+  {% else %}
+    {{ ui.empty("Nothing applied yet — the full amount is outstanding.") }}
+  {% endif %}
 </div>
 {% endblock %}
