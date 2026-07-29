@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+{% block title %}Intelligence{% endblock %}
+
+{% macro figure(f) %}
+<a href="{{ f.href }}" class="tile-link">
+  {%- if f.kind == "money" -%}{{ ui.stat(f.label, f.value | money, f.hint) }}
+  {%- elif f.kind == "count" -%}{{ ui.stat(f.label, f.value | number, f.hint) }}
+  {%- else -%}{{ ui.stat(f.label, f.value, f.hint) }}
+  {%- endif -%}
+</a>
+{% endmacro %}
+
+{% macro radar(a) %}
+<div class="card mt">
+  <div class="card-title">
+    <a href="{{ a.href }}">{{ a.label }}</a>
+    <span class="badge badge-warn">{{ a.count | number }}</span>
+    {% if a.impact_minor is not none %}<span class="muted">{{ a.impact_minor | money }}</span>{% endif %}
+  </div>
+  <dl class="explain-terms">
+    <dt>Trigger</dt><dd>{{ a.trigger }}</dd>
+    <dt>Threshold</dt><dd>{{ a.threshold }}</dd>
+    {% if a.source %}<dt>Computed by</dt><dd>{{ a.source }}</dd>{% endif %}
+  </dl>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Record</th><th>Why it fired</th></tr></thead>
+      <tbody>
+        {% for r in a.records %}
+        <tr>
+          <td><a class="row-link" href="{{ r.href }}">{{ r.label }}</a></td>
+          <td class="muted">{{ r.detail or "—" }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% if a.hidden_count %}
+    <p class="hint">{{ a.hidden_count | number }} more not shown — <a href="{{ a.href }}">see all {{ a.count | number }}</a>.</p>
+  {% endif %}
+  {% if a.explained %}<div class="mt">{{ ui.explain_panel(a.explained) }}</div>{% endif %}
+</div>
+{% endmacro %}
+
+{% block content %}
+{% call ui.page_header("Intelligence", "Radars, cockpits and forecasts — every number below is a view over a figure some other part of ApexOS already measures.") %}{% endcall %}
+
+{% if page.is_empty %}
+<div class="card">
+  <div class="card-title">Nothing measurable yet</div>
+  <p class="hint">Radars and forecasts are derived from your own documents, so they stay quiet until there is history to read. Record some sales and purchases and this page fills in.</p>
+</div>
+{% endif %}
+
+{# ---- the Morning Brief (R13.9) ------------------------------------------ #}
+<h2 class="section-title">Morning Brief</h2>
+{% if page.brief %}
+<div class="card">
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>#</th><th>What</th><th>Why</th><th>Computed by</th></tr></thead>
+      <tbody>
+        {% for b in page.brief %}
+        <tr>
+          <td class="num muted">{{ b.rank }}</td>
+          <td><a class="row-link" href="{{ b.href }}">{{ b.headline }}</a></td>
+          <td class="muted">{{ b.why }}</td>
+          <td class="muted">{{ b.source }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% else %}
+  {{ ui.empty("Nothing ranked today — no radar has fired and no cash shortfall is projected.") }}
+{% endif %}
+
+{# ---- forecasts (R13.7, R13.8) -------------------------------------------- #}
+<h2 class="section-title mt">Forecasts</h2>
+<div class="grid grid-3">
+  {% for f in page.forecasts %}{{ figure({
+      "label": f.label, "kind": "money", "value": f.value_minor,
+      "href": f.href, "hint": f.confidence,
+  }) }}{% endfor %}
+</div>
+{% for f in page.forecasts %}
+  <div class="mt">{{ ui.explain_panel(f.explained, f.label) }}</div>
+{% endfor %}
+
+{# ---- radars (R13.4) ------------------------------------------------------ #}
+<h2 class="section-title mt">Radars</h2>
+{% if page.radars %}
+  {% for a in page.radars %}{{ radar(a) }}{% endfor %}
+{% else %}
+  <div class="mt">{{ ui.empty("Nothing flagged — no dead stock, no margin leak, no customer going quiet against their own history.") }}</div>
+{% endif %}
+
+{# ---- cockpits (R13.5) ------------------------------------------------------ #}
+<h2 class="section-title mt">Cockpits</h2>
+{% for c in page.cockpits %}
+<div class="card mt">
+  <div class="card-title">{{ c.title }}</div>
+  {% if c.figures %}
+  <div class="grid grid-4">
+    {% for f in c.figures %}{{ figure(f) }}{% endfor %}
+  </div>
+  {% else %}
+    {{ ui.empty("Nothing in this window.") }}
+  {% endif %}
+  {% if c.note %}<p class="hint mt">{{ c.note }}</p>{% endif %}
+  {% if c.explained %}<div class="mt">{{ ui.explain_panel(c.explained) }}</div>{% endif %}
+</div>
+{% endfor %}
+
+{# ---- scores (R13.3) ------------------------------------------------------ #}
+<h2 class="section-title mt">Scores</h2>
+<div class="card">
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Score</th><th>Definition</th><th>Formula</th><th>Window</th><th>Computed by</th></tr></thead>
+      <tbody>
+        {% for s in page.scores %}
+        <tr>
+          <td><a class="row-link" href="{{ s.href }}">{{ s.label }}</a></td>
+          <td class="muted">{{ s.what }}</td>
+          <td class="muted">{{ s.formula }}</td>
+          <td class="muted">{{ s.window }}</td>
+          <td class="muted">{{ s.owner }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

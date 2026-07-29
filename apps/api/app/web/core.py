@@ -31,6 +31,7 @@ templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 # (label, href, section). Sections render as grouped blocks in the sidebar.
 NAV_ITEMS: list[dict[str, str]] = [
     {"label": "Dashboard", "href": "/", "section": "main"},
+    {"label": "Intelligence", "href": "/intelligence", "section": "main"},
     {"label": "Sales", "href": "/sales", "section": "work"},
     {"label": "Customers", "href": "/customers", "section": "work"},
     {"label": "Leads", "href": "/leads", "section": "work"},
