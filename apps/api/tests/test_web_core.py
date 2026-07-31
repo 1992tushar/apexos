@@ -91,3 +91,38 @@ def test_qty_zero_on_a_sales_order_line_names_the_row_not_a_generic_failure(clie
         "the generic fallback gives the founder no way to know qty=0 was the problem"
     )
     assert "qty" in location.lower()
+
+
+def test_a_sku_typed_with_no_quantity_gets_a_plain_english_reason_not_pydantics_own_wording(
+    client,
+):
+    """A SKU with its quantity left blank is the ONLY row — `resolve_sku_lines` skips it
+    (right for a trailing blank row), leaving zero lines, which used to surface as
+    pydantic's own `lines: List should have at least 1 item...` rather than something a
+    founder can act on."""
+    from sqlalchemy import select
+
+    from app.core.database import SessionLocal
+    from app.modules.customers.models import Customer
+
+    db = SessionLocal()
+    try:
+        customer = db.scalar(select(Customer).where(Customer.deleted_at.is_(None)).limit(1))
+        customer_id = str(customer.id)
+    finally:
+        db.close()
+
+    resp = client.post(
+        "/sales",
+        data={
+            "customer_id": customer_id,
+            "order_date": "",
+            "product_code": ["AUR-TIS-001"],
+            "qty": [""],
+            "unit_price_rupees": [""],
+        },
+        follow_redirects=False,
+    )
+    location = resp.headers["location"]
+    assert "List+should+have+at+least" not in location
+    assert "Add+at+least+one+product+with+a+quantity" in location

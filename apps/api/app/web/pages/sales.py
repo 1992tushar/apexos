@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, Form, Request
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.core.errors import ValidationError
 from app.core.security import Actor
 from app.modules.customers.service import CustomerService
 from app.modules.products.service import ProductService
@@ -113,6 +114,17 @@ def create_sale(
 
     def work():
         resolved = resolve_sku_lines(db, product_code, qty)
+        if not resolved:
+            # A row needs BOTH a SKU and a quantity — `resolve_sku_lines` silently skips
+            # one with either blank, which is right for the trailing empty rows the grid
+            # always offers, but wrong when it is the ONLY row: a founder who typed a SKU
+            # and forgot the quantity gets no rows at all rather than a specific complaint,
+            # and `SalesOrderCreate.lines`'s `min_length=1` would otherwise surface as
+            # pydantic's own wording ("List should have at least 1 item...") instead of
+            # something a founder can act on.
+            raise ValidationError(
+                "Add at least one product with a quantity before creating the order."
+            )
         # Prices are indexed against the rows the resolver KEPT, not the raw form fields, or
         # a blank row in the middle would shift every price down a line.
         kept = [
