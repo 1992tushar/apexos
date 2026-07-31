@@ -62,6 +62,9 @@ _ADDITIVE_COLUMNS: dict[str, dict[str, str]] = {
         "delivery_preference": "VARCHAR(200)",
         "reason": "VARCHAR(300)",
     },
+    # Part 13 (R16.2). Required per line on a GST tax invoice; missing on any DB
+    # seeded before it.
+    "product": {"hsn_code": "VARCHAR(8)"},
 }
 
 

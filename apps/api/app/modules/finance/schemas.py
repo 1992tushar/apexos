@@ -76,6 +76,73 @@ class PaymentResult(BaseModel):
     balance_minor: int
 
 
+# --- Part 13: the GST tax-invoice print view (R16.x) ----------------------
+#
+# A different SHAPE from `InvoiceDetail` (which drives the dashboard view), not a
+# second source of the figures: every amount below is read from the same `Invoice`/
+# `InvoiceLine` rows, and the CGST/SGST/IGST split is arithmetic over `tax_rate_bps`/
+# `line_tax_minor`, never a new stored column (G7).
+
+
+class InvoicePrintLine(BaseModel):
+    line_no: int
+    product_name: str
+    hsn_code: str | None = None
+    qty: Decimal
+    unit_price_minor: int
+    taxable_minor: int
+    cgst_bps: int
+    sgst_bps: int
+    igst_bps: int
+    cgst_minor: int
+    sgst_minor: int
+    igst_minor: int
+    line_total_minor: int
+
+
+class InvoicePrintView(BaseModel):
+    """Everything a printable GST tax invoice needs, assembled in one place so the
+    template holds no query and no arithmetic (R16.4)."""
+
+    id: uuid.UUID
+    invoice_no: str
+    invoice_date: date
+    due_date: date | None = None
+
+    company_legal_name: str
+    company_address_line1: str
+    company_address_line2: str | None = None
+    company_city: str
+    company_state: str
+    company_pincode: str | None = None
+    company_gstin: str | None = None
+    company_pan: str | None = None
+    company_phone: str | None = None
+    company_email: str | None = None
+    company_bank_name: str | None = None
+    company_bank_account_no: str | None = None
+    company_bank_ifsc: str | None = None
+    company_signatory_name: str | None = None
+    company_is_placeholder: bool
+
+    customer_name: str
+    customer_gstin: str | None = None
+    customer_billing_address: str | None = None
+    customer_city: str | None = None
+    customer_state: str | None = None
+
+    same_state: bool
+    state_assumed: bool
+
+    lines: list[InvoicePrintLine]
+    subtotal_minor: int
+    tax_minor: int
+    cgst_total_minor: int
+    sgst_total_minor: int
+    igst_total_minor: int
+    total_minor: int
+
+
 # --- Bills (buy side; mirror of Invoice) ---------------------------------
 
 

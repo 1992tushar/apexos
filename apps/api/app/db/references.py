@@ -373,6 +373,11 @@ def _build_map() -> dict[str, tuple[Reference, ...]]:
         # for a guard to block. Declared and deliberately empty.
         "quotation_revision": (),
         "quotation_revision_line": (),
+        # --- Part 13: the GST tax-invoice print view (R16.1) -----------------
+        # A single row nothing else reads through a foreign key — every invoice print
+        # reads it live at print time, not by reference. Declared rather than omitted,
+        # because R3.7 reads a missing entry as "not yet considered".
+        "company_profile": (),
     }
 
 

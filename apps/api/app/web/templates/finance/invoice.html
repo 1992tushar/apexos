@@ -4,6 +4,7 @@
 {% block content %}
 {% call ui.page_header(inv.invoice_no) %}
   <a class="btn" href="/finance">← Finance</a>
+  <a class="btn btn-primary" href="/invoices/{{ inv.id }}/print" target="_blank" rel="noopener">Print / Download</a>
 {% endcall %}
 
 <div class="mt">

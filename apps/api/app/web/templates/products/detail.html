@@ -43,6 +43,15 @@
       </dd>
       <dt>Procurement model</dt><dd>{{ p.procurement_model_name or "—" }}</dd>
       <dt>Launch phase</dt><dd>{{ p.launch_phase or "—" }}</dd>
+      <dt>HSN/SAC code</dt>
+      <dd>
+        {# Required per line on a GST tax invoice (R16.2); blank prints blank rather
+           than blocking the invoice. #}
+        <form method="post" action="/products/{{ p.id }}/hsn" class="inline-form">
+          <input name="hsn_code" value="{{ p.hsn_code or '' }}" placeholder="not set" maxlength="8" />
+          <button class="btn btn-sm" type="submit">Save</button>
+        </form>
+      </dd>
     </dl>
   </div>
 </div>

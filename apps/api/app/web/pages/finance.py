@@ -28,6 +28,7 @@ from app.modules.finance.ageing import AgeingService, bucket_boundaries
 from app.modules.finance.allocation import AllocationService
 from app.modules.finance.cash import CashFlowService, default_window
 from app.modules.finance.gst import GstService
+from app.modules.finance.invoice_print import InvoicePrintService
 from app.modules.finance.ledger import PartyLedgerService, today
 from app.modules.finance.margin import DIMENSION_LABELS, MarginAnalysisService
 from app.modules.finance.models import Bill, Invoice, Payment
@@ -303,6 +304,15 @@ def invoice_detail(request: Request, invoice_id: uuid.UUID, db: Session = Depend
         ],
         credits=repo.credit_notes_for_invoice(invoice_id),
     )
+
+
+@router.get("/invoices/{invoice_id}/print")
+def invoice_print(request: Request, invoice_id: uuid.UUID, db: Session = Depends(get_db)):
+    """The printable/downloadable GST tax invoice (R16.4). A standalone document —
+    no sidebar, no dashboard chrome — styled for A4 and for `@media print`; "download"
+    is the browser's own Save-as-PDF over this page (R16.5)."""
+    view = InvoicePrintService(db).get(invoice_id)
+    return render(request, "finance/invoice_print.html", inv=view)
 
 
 @router.get("/bills/{bill_id}")

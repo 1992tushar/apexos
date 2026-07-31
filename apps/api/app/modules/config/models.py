@@ -152,6 +152,36 @@ class NumberSequence(Base, EntityMixin):
     counter: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
 
+class CompanyProfile(Base, EntityMixin):
+    """The seller's own legal identity, printed on every outgoing GST tax invoice (R16.1).
+
+    A single row, not a list — the founder edits it like a document rather than a master,
+    so it has no `is_active`/duplicate-check machinery. `is_placeholder` stays true until
+    the founder saves real registration details; the print view uses it to mark GSTIN/PAN
+    as provisional rather than presenting seeded dummy values as real (G11 — never a
+    misleading default).
+    """
+
+    __tablename__ = "company_profile"
+
+    legal_name: Mapped[str] = mapped_column(String(200), nullable=False)
+    address_line1: Mapped[str] = mapped_column(String(200), nullable=False)
+    address_line2: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    city: Mapped[str] = mapped_column(String(80), nullable=False)
+    state: Mapped[str] = mapped_column(String(80), nullable=False)
+    state_code: Mapped[str | None] = mapped_column(String(2), nullable=True)
+    pincode: Mapped[str | None] = mapped_column(String(6), nullable=True)
+    gstin: Mapped[str | None] = mapped_column(String(15), nullable=True)
+    pan: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    phone: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    email: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    bank_name: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    bank_account_no: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    bank_ifsc: Mapped[str | None] = mapped_column(String(11), nullable=True)
+    signatory_name: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    is_placeholder: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+
+
 class Setting(Base, EntityMixin):
     __tablename__ = "setting"
 

@@ -23,6 +23,36 @@
   </div>
 </div>
 
+<div class="card mt">
+  <div class="card-title">Company profile</div>
+  <p class="hint">
+    Printed on every GST tax invoice (seller block, GSTIN, bank details).
+    {% if company_profile.is_placeholder %}
+      {{ ui.badge("Provisional — registration not yet completed") }}
+    {% endif %}
+  </p>
+  <form method="post" action="/settings/company-profile" class="mt">
+    <div class="form-grid">
+      <div class="field"><label>Legal name</label><input name="legal_name" value="{{ company_profile.legal_name }}" required /></div>
+      <div class="field"><label>GSTIN</label><input name="gstin" value="{{ company_profile.gstin or '' }}" /></div>
+      <div class="field full"><label>Address line 1</label><input name="address_line1" value="{{ company_profile.address_line1 }}" required /></div>
+      <div class="field full"><label>Address line 2</label><input name="address_line2" value="{{ company_profile.address_line2 or '' }}" /></div>
+      <div class="field"><label>City</label><input name="city" value="{{ company_profile.city }}" required /></div>
+      <div class="field"><label>State</label><input name="state" value="{{ company_profile.state }}" required /></div>
+      <div class="field"><label>State code</label><input name="state_code" value="{{ company_profile.state_code or '' }}" maxlength="2" /></div>
+      <div class="field"><label>Pincode</label><input name="pincode" value="{{ company_profile.pincode or '' }}" /></div>
+      <div class="field"><label>PAN</label><input name="pan" value="{{ company_profile.pan or '' }}" /></div>
+      <div class="field"><label>Phone</label><input name="phone" value="{{ company_profile.phone or '' }}" /></div>
+      <div class="field"><label>Email</label><input name="email" value="{{ company_profile.email or '' }}" /></div>
+      <div class="field"><label>Bank name</label><input name="bank_name" value="{{ company_profile.bank_name or '' }}" /></div>
+      <div class="field"><label>Bank account no.</label><input name="bank_account_no" value="{{ company_profile.bank_account_no or '' }}" /></div>
+      <div class="field"><label>Bank IFSC</label><input name="bank_ifsc" value="{{ company_profile.bank_ifsc or '' }}" /></div>
+      <div class="field"><label>Signatory name</label><input name="signatory_name" value="{{ company_profile.signatory_name or '' }}" /></div>
+    </div>
+    <div class="form-actions"><button class="btn btn-sm btn-primary" type="submit">Save</button></div>
+  </form>
+</div>
+
 <div class="grid grid-2 mt">
 
   <div class="card">

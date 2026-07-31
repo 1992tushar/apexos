@@ -6,8 +6,13 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.security import Actor
-from app.modules.config.schemas import SettingUpsert, TaxRateSlabCreate
-from app.modules.config.service import ConfigService, SettingService, TaxRateService
+from app.modules.config.schemas import CompanyProfileUpdate, SettingUpsert, TaxRateSlabCreate
+from app.modules.config.service import (
+    CompanyProfileService,
+    ConfigService,
+    SettingService,
+    TaxRateService,
+)
 from app.web.core import form_action, redirect, render
 from app.web.pages.masters import MASTERS
 from app.web.security import require_web_permission
@@ -29,6 +34,7 @@ def settings_index(request: Request, db: Session = Depends(get_db)):
         "settings/index.html",
         master_pages=MASTERS,
         settings=ConfigService(db).settings(),
+        company_profile=CompanyProfileService(db).get(),
     )
 
 
@@ -91,6 +97,53 @@ def create_tax_rate(
     return form_action(
         db, work, back="/settings", success=("/settings", "Tax rate added"),
         err="Could not add tax rate",
+    )
+
+
+@router.post("/settings/company-profile")
+def update_company_profile(
+    request: Request,
+    legal_name: str = Form(...),
+    address_line1: str = Form(...),
+    address_line2: str = Form(""),
+    city: str = Form(...),
+    state: str = Form(...),
+    state_code: str = Form(""),
+    pincode: str = Form(""),
+    gstin: str = Form(""),
+    pan: str = Form(""),
+    phone: str = Form(""),
+    email: str = Form(""),
+    bank_name: str = Form(""),
+    bank_account_no: str = Form(""),
+    bank_ifsc: str = Form(""),
+    signatory_name: str = Form(""),
+    db: Session = Depends(get_db),
+    actor: Actor = Depends(require_web_permission("config.write")),
+):
+    def work():
+        payload = CompanyProfileUpdate(
+            legal_name=legal_name,
+            address_line1=address_line1,
+            address_line2=address_line2 or None,
+            city=city,
+            state=state,
+            state_code=state_code or None,
+            pincode=pincode or None,
+            gstin=gstin or None,
+            pan=pan or None,
+            phone=phone or None,
+            email=email or None,
+            bank_name=bank_name or None,
+            bank_account_no=bank_account_no or None,
+            bank_ifsc=bank_ifsc or None,
+            signatory_name=signatory_name or None,
+        )
+        return CompanyProfileService(db).update(payload, actor_id=actor.id)
+
+    return form_action(
+        db, work, back="/settings", success=("/settings", "Company profile saved"),
+        err="Could not save company profile",
     )
 
 

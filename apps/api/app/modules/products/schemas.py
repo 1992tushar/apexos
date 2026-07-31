@@ -17,6 +17,7 @@ class ProductCreate(BaseModel):
     default_tax_rate_id: uuid.UUID | None = None
     specification: str | None = None
     launch_phase: str | None = None
+    hsn_code: str | None = None
     reorder_level: Decimal = Decimal("0")
     selling_price_minor: int | None = None
     purchase_price_minor: int | None = None
@@ -39,6 +40,7 @@ class ProductRead(BaseModel):
     procurement_model_id: uuid.UUID | None = None
     procurement_model_name: str | None = None
     launch_phase: str | None = None
+    hsn_code: str | None = None
     status: str
     selling_price_minor: int | None = None
     purchase_price_minor: int | None = None

@@ -32,6 +32,7 @@ class Product(Base, EntityMixin, BusinessUnitMixin):
     )
     specification: Mapped[str | None] = mapped_column(String(200), nullable=True)
     launch_phase: Mapped[str | None] = mapped_column(String(24), nullable=True)
+    hsn_code: Mapped[str | None] = mapped_column(String(8), nullable=True)
     reorder_level: Mapped[Decimal] = mapped_column(
         Numeric(18, 4), nullable=False, default=Decimal("0")
     )

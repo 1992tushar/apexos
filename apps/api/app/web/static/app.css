@@ -1,33 +1,40 @@
-/* ApexOS server-rendered UI — minimal, keyboard-first, Linear/Stripe-inspired. */
+/* ApexOS server-rendered UI — keyboard-first, with real color doing real work
+   (status/section meaning), not just one accent for the active nav item. */
 :root {
-  --bg: #f7f8fa;
+  --bg: #f8f6f1;
   --panel: #ffffff;
-  --panel-2: #fbfbfd;
-  --border: #e6e8ec;
-  --border-strong: #d4d7dd;
-  --text: #14161a;
-  --muted: #6b7280;
-  --faint: #9aa1ac;
-  --accent: #4f46e5;
-  --accent-weak: #eef0fe;
-  --ok-bg: #e7f6ec; --ok-fg: #1b7f43;
-  --warn-bg: #fdf2dc; --warn-fg: #96660a;
-  --bad-bg: #fde8e8; --bad-fg: #b42323;
-  --muted-bg: #eef0f2; --muted-fg: #5b6472;
+  --panel-2: #fbf9f4;
+  --border: #e7e1d4;
+  --border-strong: #d8d0bd;
+  --text: #201d17;
+  --muted: #6b6455;
+  --faint: #9d9683;
+  --accent: #5b4fe0;
+  --accent-weak: #ece9fc;
+  --accent-2: #0f9d8b;
+  --accent-2-weak: #e2f6f2;
+  --accent-3: #e0662f;
+  --accent-3-weak: #fdece2;
+  --ok-bg: #dff5e3; --ok-fg: #178a44;
+  --warn-bg: #fdf0d2; --warn-fg: #a16207;
+  --bad-bg: #fbe2e0; --bad-fg: #c0311a;
+  --muted-bg: #efece2; --muted-fg: #6b6455;
   --radius: 10px;
   --sidebar-w: 240px;
   --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #0d0f12; --panel: #15181d; --panel-2: #1a1e24;
-    --border: #262b33; --border-strong: #333a44;
-    --text: #e8eaed; --muted: #9aa1ac; --faint: #6b7280;
-    --accent: #7c74ff; --accent-weak: #1e1d3a;
-    --ok-bg: #10291b; --ok-fg: #4ade80;
-    --warn-bg: #2b2410; --warn-fg: #fcd34d;
-    --bad-bg: #2c1414; --bad-fg: #f87171;
-    --muted-bg: #20252c; --muted-fg: #9aa1ac;
+    --bg: #16151a; --panel: #1e1c24; --panel-2: #24222b;
+    --border: #322f39; --border-strong: #423e4b;
+    --text: #ece9e2; --muted: #a29c8f; --faint: #726c60;
+    --accent: #8b81ff; --accent-weak: #2a2650;
+    --accent-2: #35c2ac; --accent-2-weak: #16332e;
+    --accent-3: #f3894f; --accent-3-weak: #3a2417;
+    --ok-bg: #133a24; --ok-fg: #55d98a;
+    --warn-bg: #362a10; --warn-fg: #f7ce5b;
+    --bad-bg: #3a1a16; --bad-fg: #f2795f;
+    --muted-bg: #2a2831; --muted-fg: #a29c8f;
   }
 }
 
@@ -49,21 +56,42 @@ a { color: inherit; text-decoration: none; }
   background: var(--panel); border-right: 1px solid var(--border);
   padding: 16px 12px; overflow-y: auto;
 }
+.sidebar::before {
+  content: ""; display: block; height: 3px; margin: -16px -12px 0;
+  background: linear-gradient(90deg, var(--accent), var(--accent-2), var(--accent-3));
+}
 .brand {
   font-weight: 650; font-size: 15px; padding: 6px 10px 16px;
   display: flex; align-items: center; gap: 8px;
+  border-bottom: 2px solid var(--border);
+  margin-bottom: 10px;
 }
-.brand-mark { color: var(--accent); }
+.brand-mark {
+  color: var(--accent); font-size: 17px;
+  text-shadow: 0 0 0 var(--accent);
+}
 .nav-section {
   font-size: 11px; text-transform: uppercase; letter-spacing: .06em;
-  color: var(--faint); padding: 14px 10px 6px;
+  font-weight: 700; color: var(--faint); padding: 14px 10px 6px;
 }
 .nav-item {
-  display: block; padding: 7px 10px; border-radius: 8px;
+  display: block; padding: 7px 10px 7px 13px; border-radius: 8px;
   color: var(--muted); font-weight: 500; margin-bottom: 1px;
+  border-left: 3px solid transparent;
+  transition: background .12s, border-color .12s, color .12s;
 }
 .nav-item:hover { background: var(--panel-2); color: var(--text); }
-.nav-item.active { background: var(--accent-weak); color: var(--accent); font-weight: 600; }
+.nav-item.active { background: var(--accent-weak); color: var(--accent); font-weight: 600; border-left-color: var(--accent); }
+
+/* Section identity: the three nav groups (main / Work / System) each keep a
+   consistent hue for their active/hover state, the way OrdeRR color-codes its
+   tab bar — so "which part of the app am I in" reads before you read a label.
+   Later rule wins on equal specificity, so ordering here matters: System's
+   rule must come after Work's to win for items past the second .nav-section. */
+.nav-section:nth-of-type(1) ~ .nav-item.active { background: var(--accent-2-weak); color: var(--accent-2); border-left-color: var(--accent-2); }
+.nav-section:nth-of-type(1) ~ .nav-item:hover:not(.active) { color: var(--accent-2); }
+.nav-section:nth-of-type(2) ~ .nav-item.active { background: var(--accent-3-weak); color: var(--accent-3); border-left-color: var(--accent-3); }
+.nav-section:nth-of-type(2) ~ .nav-item:hover:not(.active) { color: var(--accent-3); }
 
 /* --- Shell --- */
 .shell { margin-left: var(--sidebar-w); }
@@ -108,11 +136,23 @@ a { color: inherit; text-decoration: none; }
 /* --- Stat tiles --- */
 .stat-tile {
   background: var(--panel); border: 1px solid var(--border);
-  border-radius: var(--radius); padding: 16px;
+  border-radius: var(--radius); padding: 16px 16px 14px;
+  border-top: 3px solid var(--border-strong);
 }
-.stat-label { color: var(--muted); font-size: 12px; font-weight: 500; }
+.stat-label { color: var(--muted); font-size: 12px; font-weight: 600; }
 .stat-value { font-size: 24px; font-weight: 680; margin-top: 6px; letter-spacing: -.01em; }
 .stat-hint { color: var(--faint); font-size: 12px; margin-top: 4px; }
+
+/* Each tile in a row takes the next hue in rotation, purely by position — the
+   same "every number gets its own color" read as OrdeRR's stat row, without
+   any per-page markup changes (a tile's meaning doesn't map to a fixed color,
+   so position is the honest signal here, not a claim about what the number
+   means). Some tiles are a bare .stat-tile grid child (inventory, etc.), others
+   are wrapped in an <a class="tile-link"> (Command Center, R12.7) — nth-child
+   on the grid's direct child covers both, whichever one it turns out to be. */
+.grid > *:nth-child(3n+1) .stat-tile, .grid > .stat-tile:nth-child(3n+1) { border-top-color: var(--accent); }
+.grid > *:nth-child(3n+2) .stat-tile, .grid > .stat-tile:nth-child(3n+2) { border-top-color: var(--accent-2); }
+.grid > *:nth-child(3n+3) .stat-tile, .grid > .stat-tile:nth-child(3n+3) { border-top-color: var(--accent-3); }
 
 /* --- Tables --- */
 .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius); }
@@ -152,6 +192,42 @@ td.indent-2 { padding-left: 50px; color: var(--muted); }
   input[name="counted_qty"] { border: 1px solid #666; min-width: 70px; background: #fff; }
   .hint { color: #333; }
   a[href]::after { content: ""; }  /* no URL footnotes on a shelf sheet */
+}
+
+/* --- Invoice print (Part 13, R16.4) ---
+   A standalone document (own <body>, no sidebar/topbar) rather than the dashboard
+   view's chrome dropped via @media print — a legal tax invoice is a different shape,
+   not the same page with parts hidden. Screen and print share these rules; only the
+   toolbar button disappears on paper. */
+.invoice-print-body { background: #fff; color: #111; font-size: 13px; }
+.invoice-print { max-width: 800px; margin: 0 auto; padding: 24px; }
+.invoice-print-toolbar { text-align: right; margin-bottom: 16px; }
+.invoice-print-notice {
+  background: var(--warn-bg); color: var(--warn-fg); border-radius: 8px;
+  padding: 8px 12px; margin-bottom: 16px; font-weight: 600;
+}
+.invoice-print-header {
+  display: flex; justify-content: space-between; gap: 24px;
+  border-bottom: 2px solid #111; padding-bottom: 12px; margin-bottom: 16px;
+}
+.invoice-print-company { font-size: 18px; font-weight: 700; }
+.invoice-print-doc-title { font-size: 16px; font-weight: 700; text-align: right; letter-spacing: 1px; }
+.invoice-print-meta-table { margin-top: 8px; }
+.invoice-print-meta-table td { padding: 1px 0 1px 12px; text-align: right; }
+.invoice-print-meta-table td:first-child { color: #555; text-align: left; padding-left: 0; }
+.invoice-print-parties { margin-bottom: 16px; }
+.invoice-print-section-label { font-weight: 700; text-transform: uppercase; font-size: 11px; color: #555; }
+.invoice-print-party-name { font-weight: 600; }
+.invoice-print-lines th, .invoice-print-lines td { font-size: 12px; }
+.invoice-print-footer {
+  display: flex; justify-content: space-between; gap: 24px;
+  margin-top: 32px; padding-top: 12px;
+}
+.invoice-print-signatory { text-align: center; }
+.invoice-print-signature-line { margin-top: 40px; border-top: 1px solid #111; width: 180px; }
+@media print {
+  .invoice-print-toolbar { display: none !important; }
+  .invoice-print { max-width: none; padding: 0; }
 }
 
 /* --- Badges --- */

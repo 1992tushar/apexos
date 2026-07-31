@@ -15,6 +15,8 @@ from app.modules.config.schemas import (
     CategoryRead,
     CategoryReparent,
     CategoryUpdate,
+    CompanyProfileRead,
+    CompanyProfileUpdate,
     CustomerTypeRead,
     ProcurementModelRead,
     SettingRead,
@@ -33,6 +35,7 @@ from app.modules.config.schemas import (
 )
 from app.modules.config.service import (
     CategoryService,
+    CompanyProfileService,
     ConfigService,
     SettingService,
     TaxRateService,
@@ -98,6 +101,20 @@ def list_uom_conversions(db: Session = Depends(get_db)):
 @router.get("/settings", response_model=list[SettingRead])
 def list_settings(db: Session = Depends(get_db)):
     return ConfigService(db).settings()
+
+
+@router.get("/company-profile", response_model=CompanyProfileRead)
+def get_company_profile(db: Session = Depends(get_db)):
+    return CompanyProfileService(db).get()
+
+
+@router.patch("/company-profile", response_model=CompanyProfileRead)
+def update_company_profile(
+    payload: CompanyProfileUpdate,
+    db: Session = Depends(get_db),
+    actor: Actor = Depends(require_permission("config.write")),
+):
+    return CompanyProfileService(db).update(payload, actor_id=actor.id)
 
 
 # --- simple master writes (code/name/is_active) --------------------------

@@ -27,6 +27,7 @@ from app.modules.config.models import (
     Brand,
     BusinessUnit,
     Category,
+    CompanyProfile,
     CustomerType,
     Manufacturer,
     NumberSequence,
@@ -288,6 +289,55 @@ class ConfigService:
             summary=f"Warehouse {wh.name} updated",
         )
         return wh
+
+
+class CompanyProfileService:
+    """The seller's own profile — a single row, not a list (R16.1).
+
+    `get` creates it with placeholder values on first read rather than raising, because
+    every fresh dev/demo database needs an invoice to print correctly even before the
+    founder has visited `/settings` — the seed also calls this so the row always exists
+    ahead of the first invoice print.
+    """
+
+    def __init__(self, db: Session) -> None:
+        self.db = db
+        self.activity = ActivityService(db)
+
+    def get(self) -> CompanyProfile:
+        row = self.db.scalar(select(CompanyProfile).where(CompanyProfile.deleted_at.is_(None)))
+        if row is None:
+            row = CompanyProfile(
+                legal_name="Apex Supply Solutions Pvt. Ltd.",
+                address_line1="Not yet set",
+                city="Pune",
+                state="Maharashtra",
+                state_code="27",
+                is_placeholder=True,
+            )
+            self.db.add(row)
+            self.db.flush()
+        return row
+
+    def update(self, payload, *, actor_id) -> CompanyProfile:
+        row = self.get()
+        for field in (
+            "legal_name", "address_line1", "address_line2", "city", "state", "state_code",
+            "pincode", "gstin", "pan", "phone", "email", "bank_name", "bank_account_no",
+            "bank_ifsc", "signatory_name",
+        ):
+            setattr(row, field, getattr(payload, field))
+        row.is_placeholder = False
+        row.updated_by = actor_id
+        self.db.flush()
+        self.activity.log(
+            actor_id=actor_id,
+            verb="updated",
+            entity_type="company_profile",
+            entity_id=row.id,
+            summary="Company profile updated",
+        )
+        return row
 
 
 @dataclass(frozen=True)

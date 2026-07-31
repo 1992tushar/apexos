@@ -54,6 +54,7 @@ class ProductService:
             procurement_model_id=product.procurement_model_id,
             launch_phase=product.launch_phase,
             specification=product.specification,
+            hsn_code=product.hsn_code,
             status=product.status,
             selling_price_minor=self.pricing.resolve_selling_minor(product.id),
             purchase_price_minor=self.pricing.latest_purchase_minor(product.id),
@@ -140,6 +141,28 @@ class ProductService:
         )
         return self._to_read(product)
 
+    def set_hsn(
+        self, product_id: uuid.UUID, hsn_code: str | None, *, actor_id: uuid.UUID | None
+    ) -> ProductRead:
+        """Set or clear a product's HSN/SAC code (R16.2) — required per line on a GST
+        tax invoice, printed blank rather than blocked when unset."""
+        product = self.repo.get(product_id)
+        if product is None:
+            raise NotFoundError(f"Product {product_id} not found")
+        changes = field_changes(product, {"hsn_code": hsn_code})
+        product.hsn_code = hsn_code
+        product.updated_by = actor_id
+        self.db.flush()
+        self.activity.log(
+            actor_id=actor_id,
+            verb="updated",
+            entity_type="product",
+            entity_id=product.id,
+            summary=f"Product {product.name} HSN code set to {hsn_code or '(none)'}",
+            data={CHANGES_KEY: changes} if changes else None,
+        )
+        return self._to_read(product)
+
     def create(self, payload: ProductCreate, *, actor_id: uuid.UUID | None) -> ProductRead:
         sku = payload.sku_code or f"SKU-{self.repo.count_ever() + 1:05d}"
         # The one duplicate check (R2.9) — natural keys are configured in
@@ -164,6 +187,7 @@ class ProductService:
             default_tax_rate_id=payload.default_tax_rate_id,
             specification=payload.specification,
             launch_phase=payload.launch_phase,
+            hsn_code=payload.hsn_code,
             reorder_level=payload.reorder_level,
             status="active",
             business_unit_id=payload.business_unit_id or self._default_bu(),

@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>{{ inv.invoice_no }}</title>
+  <link rel="stylesheet" href="/static/app.css" />
+</head>
+<body class="invoice-print-body">
+<div class="invoice-print">
+
+  <div class="invoice-print-toolbar">
+    <button type="button" class="btn btn-primary" onclick="window.print()">Print / Save as PDF</button>
+  </div>
+
+  {% if inv.company_is_placeholder %}
+  <div class="invoice-print-notice">
+    Provisional — company registration (GSTIN/PAN) is not yet completed. Details below are placeholders.
+  </div>
+  {% endif %}
+
+  <div class="invoice-print-header">
+    <div>
+      <div class="invoice-print-company">{{ inv.company_legal_name }}</div>
+      <div>{{ inv.company_address_line1 }}</div>
+      {% if inv.company_address_line2 %}<div>{{ inv.company_address_line2 }}</div>{% endif %}
+      <div>{{ inv.company_city }}, {{ inv.company_state }} {{ inv.company_pincode or "" }}</div>
+      <div>GSTIN: {{ inv.company_gstin or "—" }} &nbsp; PAN: {{ inv.company_pan or "—" }}</div>
+      {% if inv.company_phone or inv.company_email %}
+      <div>{{ inv.company_phone or "" }}{% if inv.company_phone and inv.company_email %} · {% endif %}{{ inv.company_email or "" }}</div>
+      {% endif %}
+    </div>
+    <div class="invoice-print-doc-meta">
+      <div class="invoice-print-doc-title">TAX INVOICE</div>
+      <table class="invoice-print-meta-table">
+        <tr><td>Invoice no.</td><td class="mono">{{ inv.invoice_no }}</td></tr>
+        <tr><td>Invoice date</td><td>{{ inv.invoice_date | fmt_date }}</td></tr>
+        <tr><td>Due date</td><td>{{ inv.due_date | fmt_date if inv.due_date else "—" }}</td></tr>
+        <tr><td>Place of supply</td><td>{{ inv.customer_state or "—" }}</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <div class="invoice-print-parties">
+    <div>
+      <div class="invoice-print-section-label">Bill to</div>
+      <div class="invoice-print-party-name">{{ inv.customer_name }}</div>
+      {% if inv.customer_billing_address %}<div>{{ inv.customer_billing_address }}</div>{% endif %}
+      <div>{{ inv.customer_city or "" }}{% if inv.customer_city and inv.customer_state %}, {% endif %}{{ inv.customer_state or "" }}</div>
+      <div>GSTIN: {{ inv.customer_gstin or "—" }}</div>
+    </div>
+  </div>
+
+  <div class="table-wrap mt">
+    <table class="invoice-print-lines">
+      <thead>
+        <tr>
+          <th>#</th><th>Description</th><th>HSN/SAC</th><th class="num">Qty</th>
+          <th class="num">Rate</th><th class="num">Taxable value</th>
+          {% if inv.same_state %}
+          <th class="num">CGST</th><th class="num">SGST</th>
+          {% else %}
+          <th class="num">IGST</th>
+          {% endif %}
+          <th class="num">Total</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for line in inv.lines %}
+        <tr>
+          <td>{{ line.line_no }}</td>
+          <td>{{ line.product_name }}</td>
+          <td>{{ line.hsn_code or "—" }}</td>
+          <td class="num">{{ line.qty | number }}</td>
+          <td class="num">{{ line.unit_price_minor | money }}</td>
+          <td class="num">{{ line.taxable_minor | money }}</td>
+          {% if inv.same_state %}
+          <td class="num">{{ line.cgst_minor | money }} <span class="muted">({{ line.cgst_bps | bps }})</span></td>
+          <td class="num">{{ line.sgst_minor | money }} <span class="muted">({{ line.sgst_bps | bps }})</span></td>
+          {% else %}
+          <td class="num">{{ line.igst_minor | money }} <span class="muted">({{ line.igst_bps | bps }})</span></td>
+          {% endif %}
+          <td class="num">{{ line.line_total_minor | money }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+      <tfoot>
+        <tr>
+          <td colspan="5" class="num muted">Subtotal</td>
+          <td class="num">{{ inv.subtotal_minor | money }}</td>
+          {% if inv.same_state %}
+          <td class="num">{{ inv.cgst_total_minor | money }}</td>
+          <td class="num">{{ inv.sgst_total_minor | money }}</td>
+          {% else %}
+          <td class="num">{{ inv.igst_total_minor | money }}</td>
+          {% endif %}
+          <td></td>
+        </tr>
+        <tr>
+          <td colspan="{{ 8 if inv.same_state else 7 }}" class="num"><strong>Total</strong></td>
+          <td class="num"><strong>{{ inv.total_minor | money }}</strong></td>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+
+  {% if inv.state_assumed %}
+  <p class="hint">
+    The customer carries no GSTIN on file, so the tax split above assumes a same-state
+    supply. Add the customer's GSTIN to change this.
+  </p>
+  {% endif %}
+
+  <div class="invoice-print-footer">
+    <div>
+      {% if inv.company_bank_name %}
+      <div class="invoice-print-section-label">Bank details</div>
+      <div>{{ inv.company_bank_name }}</div>
+      <div>A/c No.: {{ inv.company_bank_account_no or "—" }}</div>
+      <div>IFSC: {{ inv.company_bank_ifsc or "—" }}</div>
+      {% endif %}
+    </div>
+    <div class="invoice-print-signatory">
+      <div>For {{ inv.company_legal_name }}</div>
+      <div class="invoice-print-signature-line"></div>
+      <div>{{ inv.company_signatory_name or "Authorised signatory" }}</div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

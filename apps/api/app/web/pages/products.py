@@ -83,6 +83,7 @@ def create_product(
     procurement_model_id: str = Form(""),
     specification: str = Form(""),
     launch_phase: str = Form(""),
+    hsn_code: str = Form(""),
     reorder_level: str = Form("0"),
     selling_price_rupees: str = Form(""),
     purchase_price_rupees: str = Form(""),
@@ -100,6 +101,7 @@ def create_product(
             else None,
             specification=specification or None,
             launch_phase=launch_phase or None,
+            hsn_code=hsn_code or None,
             reorder_level=Decimal(str(reorder_level or 0)),
             selling_price_minor=int(round(float(selling_price_rupees) * 100))
             if selling_price_rupees
@@ -114,6 +116,24 @@ def create_product(
         db, work, back="/products",
         success=("/products", "Product created"),
         err="Could not create product",
+    )
+
+
+@router.post("/products/{product_id}/hsn")
+def set_product_hsn(
+    request: Request,
+    product_id: uuid.UUID,
+    hsn_code: str = Form(""),
+    db: Session = Depends(get_db),
+    actor: Actor = Depends(require_web_permission("product.update")),
+):
+    """Set the HSN/SAC code an invoice line prints for this product (R16.2)."""
+    return form_action(
+        db,
+        lambda: ProductService(db).set_hsn(product_id, hsn_code or None, actor_id=actor.id),
+        back=f"/products/{product_id}",
+        success=(f"/products/{product_id}", "HSN code saved"),
+        err="Could not save HSN code",
     )
 
 

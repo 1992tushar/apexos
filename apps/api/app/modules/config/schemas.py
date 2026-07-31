@@ -92,6 +92,44 @@ class UomConversionRead(_ORM):
     factor: Decimal
 
 
+class CompanyProfileRead(_ORM):
+    id: uuid.UUID
+    legal_name: str
+    address_line1: str
+    address_line2: str | None = None
+    city: str
+    state: str
+    state_code: str | None = None
+    pincode: str | None = None
+    gstin: str | None = None
+    pan: str | None = None
+    phone: str | None = None
+    email: str | None = None
+    bank_name: str | None = None
+    bank_account_no: str | None = None
+    bank_ifsc: str | None = None
+    signatory_name: str | None = None
+    is_placeholder: bool
+
+
+class CompanyProfileUpdate(BaseModel):
+    legal_name: str = Field(min_length=1, max_length=200)
+    address_line1: str = Field(min_length=1, max_length=200)
+    address_line2: str | None = None
+    city: str = Field(min_length=1, max_length=80)
+    state: str = Field(min_length=1, max_length=80)
+    state_code: str | None = None
+    pincode: str | None = None
+    gstin: str | None = None
+    pan: str | None = None
+    phone: str | None = None
+    email: str | None = None
+    bank_name: str | None = None
+    bank_account_no: str | None = None
+    bank_ifsc: str | None = None
+    signatory_name: str | None = None
+
+
 class SettingRead(_ORM):
     id: uuid.UUID
     key: str

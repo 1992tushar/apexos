@@ -1,8 +1,9 @@
 # ApexOS — Requirements Register
 
-> **Purpose:** the verifiable requirement list for all 12 delivery parts. `docs/ROADMAP.md` says
-> *what order to build in and gives the session prompt*; this file says *what "done" means*, in
-> checkable statements. `PROGRESS.md` remains the source of truth for *status*.
+> **Purpose:** the verifiable requirement list for all 12 delivery parts — what "done" means, in
+> checkable statements. `CLAUDE.md` has the binding rules and non-negotiables; `PROGRESS.md` is the
+> source of truth for *status*. `docs/ROADMAP.md` and `docs/STANDING-RULES.md` are retired process
+> docs kept for reference only — don't treat them as required reading.
 >
 > **Version:** 1.1 · **Date:** 2026-07-28
 
@@ -27,7 +28,7 @@ Each requirement has:
   requirement; it is a wish, and it belongs in prose.
 - **Pri** — **P0** (no product without it) · **P1** (important) · **P2** (valuable, later).
 
-A part is done when every P0 and P1 requirement in its section passes and the `docs/STANDING-RULES.md` verify loop
+A part is done when every P0 and P1 requirement in its section passes and `CLAUDE.md`'s verify loop
 is green. P2 items may be deferred, but must be listed as deferred in `PROGRESS.md` — silent omission
 is the failure mode this register exists to prevent.
 
@@ -447,6 +448,24 @@ must not change — only its quality. **D-B resizes this part substantially.**
 | R15.6 | The deliverable MUST be a prioritised report in four sections: Cut (with blast radius) · Merge (what collapses into what) · Simplify (the specific reduction) · Keep as-is (why it earns its place). | Report structure | P0 |
 | R15.7 | NO code changes MUST be made. The session MUST stop after the report and wait for a decision. | Empty diff | P0 |
 | R15.8 | The report MUST optimise for fewer, sharper screens — not for more features. | Review | P0 |
+
+---
+
+## 16a. Part 13 — GST Tax Invoice (Print/Download)
+
+**Goal:** a printable, GST-compliant customer invoice, generated from data already in the
+system — no batch/lot tracking, no e-invoicing/IRN, no QuickBooks-class purchase. Decided
+2026-07-31: buying a second billing product (Vyapar/Tally/Vasy) alongside ApexOS does not
+make sense given what is already invested in the custom system.
+
+| ID | Requirement | Acceptance | Pri |
+|---|---|---|---|
+| R16.1 | A seller (company) profile MUST exist — legal name, address, GSTIN, PAN, bank details, signatory — editable from `/settings`, and readable by every invoice print. | `CompanyProfileService`, `pytest -q -k r16_1` | P0 |
+| R16.2 | Every product MUST carry an optional HSN/SAC code, printed per invoice line. A product with none set prints blank, never blocks the invoice. | `pytest -q -k r16_2` | P0 |
+| R16.3 | The invoice print MUST show tax as CGST+SGST (same state as the seller) or IGST (different state), derived at print time from each party's GSTIN state-code prefix — never a third stored column. An unregistered/no-GSTIN customer assumes same-state and says so on the page. | `pytest -q -k r16_3` | P0 |
+| R16.4 | A dedicated route MUST render the invoice as a standalone, print-styled document — seller block, buyer block, HSN + tax split per line, bank details, signatory — assembled in one service so the template holds no query. | `pytest -q -k r16_4` | P0 |
+| R16.5 | "Download" MUST be the browser's native print-to-PDF over the print route. No PDF library dependency. | Manual check | P1 |
+| R16.6 | The invoice ledger itself MUST NOT be mutated by printing (G4) — the print view is a read projection over `Invoice`/`InvoiceLine`. | `pytest -q -k r16_6` | P0 |
 
 ---
 

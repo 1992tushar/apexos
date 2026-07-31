@@ -31,6 +31,8 @@
 | Compute a cost of goods | `cash.py:_cogs` — `Σ line_subtotal − Σ gp_costed`, uncosted lines dropped from both terms and counted | A second cost basis. It would put margin *and* DIO out of step |
 | Report margin, or where it leaks | `app/modules/finance/margin.py` — `MarginAnalysisService.by_dimension` (product/customer/category/business_unit) and `.leakage` | Re-deciding whether a line is costable. `gp_costed` is that decision, in one place |
 | Report GST | `app/modules/finance/gst.py` — `GstService.summary(*, date_from, date_to)`, by month | Anything that files, submits or reconciles against a portal (R11.10) |
+| Print/download a customer invoice | `app/modules/finance/invoice_print.py` — `InvoicePrintService.get(invoice_id)`, at `/invoices/{id}/print` | A second invoice implementation; it reads the same `Invoice`/`InvoiceLine` rows `InvoiceService` projects |
+| Read the seller's own profile (GSTIN, address, bank) | `app/modules/config/service.py` — `CompanyProfileService`, a single row edited from `/settings` | A second seller-identity field on some other model |
 | Show the founder what today needs | `app/modules/command_center/service.py` — the docstring's table says which part owns which number | Adding a figure here. A number the homepage wants goes in the OWNING service and is read here (R12.10); the projection has no `select()` and a namespace-walk test keeps it that way |
 | Show radars, cockpits, forecasts or the Morning Brief | `app/modules/intelligence/service.py` — `IntelligenceService.load()`, at `/intelligence` | Computing a radar or score here. It reads the same 23 outputs `command_center` reads; `forecast.py` is the only new arithmetic (trailing-window) |
 | Measure customer churn risk | `app/modules/customers/churn.py` — `ChurnRiskService`, the customer's own ordering cadence vs. an average | A second churn definition. It is the one radar with no prior owner — everything else on `/intelligence` reads an existing service |
@@ -328,6 +330,13 @@ produce exactly that due date.
 - **`gst.py`** (Part 8 C3) — `GstService.summary`, by calendar **month**, because that is the period
   GST is paid for. `ReportService._gst_summary` delegates to it; it used to return one lump for the
   whole window, which no monthly return can be reconciled against.
+- **`invoice_print.py`** (Part 13) — `InvoicePrintService.get(invoice_id)`, the printable/downloadable
+  GST tax invoice at `/invoices/{id}/print`. A different SHAPE from the dashboard view
+  (`finance/invoice.html`), not a second source of the figures: same `Invoice`/`InvoiceLine` rows,
+  plus a seller block from `config.CompanyProfileService` and HSN from `Product.hsn_code`. The
+  CGST/SGST/IGST split is derived at print time from each party's GSTIN state-code prefix (first two
+  digits) rather than a stored column (G7); an unregistered/no-GSTIN customer assumes same-state and
+  the page says so. `"download"` is the browser's own print-to-PDF over this route — no PDF library.
 
 **Three habits this area established, worth copying.** `_days()` in `cash.py` and `_bps()` in
 `margin.py` are each the only division in their module: one explicit rounding step with its reasoning

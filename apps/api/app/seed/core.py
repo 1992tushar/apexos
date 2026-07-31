@@ -22,6 +22,7 @@ from app.modules.config.models import (
     Brand,
     BusinessUnit,
     Category,
+    CompanyProfile,
     CustomerType,
     Manufacturer,
     ProcurementModel,
@@ -167,6 +168,31 @@ def run() -> dict:
         warehouse, _ = get_or_create(
             db, Warehouse, code="PUNE",
             defaults={"name": "Pune Main", "city": "Pune", "state_code": "27", "created_by": actor_id},
+        )
+
+        # Part 13 (R16.1) — the seller block a GST tax invoice prints. The company is
+        # not yet GST-registered, so `is_placeholder` stays true: real data replaces
+        # this the day registration completes, from /settings, and nothing downstream
+        # (the invoice print, the CGST/SGST/IGST split) needs to change when it does.
+        get_or_create(
+            db, CompanyProfile, legal_name="Apex Supply Solutions Pvt. Ltd.",
+            defaults={
+                "address_line1": "Plot 14, MIDC Industrial Area",
+                "city": "Pune",
+                "state": "Maharashtra",
+                "state_code": "27",
+                "pincode": "411026",
+                "gstin": "27AAAAA0000A1Z5",
+                "pan": "AAAAA0000A",
+                "phone": "+91 20 0000 0000",
+                "email": "accounts@apexsupply.example",
+                "bank_name": "Placeholder Bank",
+                "bank_account_no": "000000000000",
+                "bank_ifsc": "PLAC0000000",
+                "signatory_name": "Apex Founder",
+                "is_placeholder": True,
+                "created_by": actor_id,
+            },
         )
 
         tax_rates = {}
