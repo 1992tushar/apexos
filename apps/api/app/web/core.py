@@ -256,6 +256,32 @@ def redirect(path: str, *, ok: str | None = None, err: str | None = None) -> Red
 FORM_ERRORS = (AppError, PydanticValidationError, ValueError)
 
 
+def _form_error_message(exc: Exception, fallback: str) -> str:
+    """What the flash says for a caught `FORM_ERRORS` failure.
+
+    An `AppError.message` is always used verbatim. A bare `ValueError` has no field
+    to name, so it keeps the caller's fallback. A `pydantic.ValidationError` has
+    neither `.message` NOR a fallback-worthy `str()` (it renders a multi-line block),
+    but it DOES know exactly which field failed and why — `Field(gt=0)` on a sales
+    order line's `qty` raises exactly this when a founder clears a row to `0` rather
+    than leaving it blank. Before this, every Pydantic failure on every form in the
+    app fell back to the caller's generic text with nothing logged, so the founder
+    saw e.g. "Could not create order" with no way to tell which row or field was
+    wrong — reproduced and root-caused this way rather than guessed at.
+    """
+    message = getattr(exc, "message", None)
+    if message:
+        return message
+    if isinstance(exc, PydanticValidationError):
+        first = exc.errors()[0]
+        field_parts = [str(p) for p in first["loc"] if not isinstance(p, int)]
+        row = next((p + 1 for p in first["loc"] if isinstance(p, int)), None)
+        field = ".".join(field_parts) or "value"
+        row_note = f" (row {row})" if row is not None else ""
+        return f"{field}{row_note}: {first['msg']}"
+    return fallback
+
+
 def form_action(
     db,
     run,
@@ -276,7 +302,7 @@ def form_action(
         result = run()
     except FORM_ERRORS as exc:
         db.rollback()
-        return redirect(back, err=getattr(exc, "message", None) or err)
+        return redirect(back, err=_form_error_message(exc, err))
     path, ok = success(result) if callable(success) else success
     return redirect(path, ok=ok)
 
