@@ -1,7 +1,9 @@
 # ApexOS UI redesign — design spec
 
-**Status:** proposed, pending sign-off
-**Scope:** visual identity + layout system only. No data model, route, or business-logic changes.
+**Status:** approved — foundation-only scope
+**Scope:** visual identity + top-nav layout for this pass (see "Rollout scope" below). No data model,
+route, or business-logic changes. The board-grid span system described below is documented for context
+but its template-by-template rollout is explicitly deferred, not part of this pass.
 **Reference mockup:** the "★ Final" tabs in the shared Artifact (Command Center, Products list, PO detail) — this doc formalizes what's in those three screens into tokens and rules other pages will reuse.
 
 ## Why
@@ -92,23 +94,21 @@ Replaces the sidebar + `.content` + `.grid.grid-N` pattern.
 structural role — only tokens (color, type, spacing) and the four span modifiers are new. This matches the
 project's standing rule against unearned abstractions.
 
-## Rollout scope (needs your confirmation)
+## Rollout scope — DECIDED: foundation only
 
-There are ~40 templates under `app/web/templates/`. Recommended phasing, since redoing all of them in one
-pass would be a large, hard-to-review change:
+This pass covers **foundation only**: rewrite `app.css` tokens/type/board system, update `base.html` (top
+nav, drop sidebar), fix the print block's selectors. No individual template gets rewritten to use the
+`.block-wide`/`.block-tall`/`.block-full` span modifiers in this pass — every existing template keeps its
+current markup (`.card`, `.grid.grid-2/3/4`, `.detail-grid`, etc.) and simply inherits the new tokens,
+type, and top nav automatically, since those classes keep their structural role (see the mapping table
+above). That alone resolves the "small and dull, generic dashboard" complaint everywhere, with zero
+template files touched and zero risk of breaking a page's markup.
 
-1. **Foundation**: rewrite `app.css` tokens/type/board system, update `base.html` (top nav, drop sidebar),
-   fix the print block. This alone changes every page's chrome and base component styling even before any
-   template touches the new span modifiers — because `.card`/`.grid` keep working, just restyled.
-   Everything is visually consistent immediately, with zero broken pages.
-2. **High-traffic screens get the board treatment** (span modifiers applied deliberately): Command Center,
-   Products list/detail, Purchase Orders list/detail, Inventory, Finance index — the screens the founder
-   opens daily.
-3. **Remaining templates** keep using plain `.block`/`.block-full` (i.e., look correct and on-brand, just
-   without curated span variety) until/unless it's worth revisiting them individually.
+The curated board-grid layout (screens choosing which content is wide/tall/full, as shown in the ★ Final
+mockups) is **out of scope for this pass** and would be a separate, later effort per screen.
 
-This means step 1 alone eliminates the "small and dull" complaint everywhere; steps 2–3 are where the
-"flexible workspace" layout variety actually shows up, screen by screen.
+**Nav grouping — decided:** the sidebar's section labels (Overview / Operate / System) are dropped. The
+top nav is a flat row of links, matching the mockup.
 
 ## Out of scope
 
@@ -119,12 +119,7 @@ This means step 1 alone eliminates the "small and dull" complaint everywhere; st
   effort — not folded into whatever `PROGRESS.md` part is in flight — and should not block or get blocked
   by roadmap work.
 
-## Open questions for review
+## Open questions
 
-1. Is the phased rollout (foundation → high-traffic screens → rest) the right sequencing, or do you want
-   all ~40 templates redone in one pass?
-2. The top nav drops the sidebar's section grouping (Overview / Operate / etc. as separate labeled
-   groups) in favor of a flat link row — confirm that's an acceptable loss, or it needs a dropdown/grouping
-   solution in the top nav.
-3. Any pages *not* shown in the mockups (e.g. Settings, Analytics, Warehouse count sheet) that have unusual
-   layout needs worth calling out before the plan is written?
+None outstanding — rollout scope and nav grouping are decided above. The board-grid span system and its
+per-screen rollout to the remaining ~40 templates is deferred to a future spec, not this one.
